@@ -1,0 +1,69 @@
+import { GameState } from 'shared';
+
+const ALL_ROUNDS = [7, 6, 5, 4, 3, 2, 1];
+
+export function Scoreboard({ gameState }: { gameState: GameState }) {
+  const { players, scoreboard } = gameState;
+
+  const roundsPlayed = ALL_ROUNDS.filter(r =>
+    players.some(p => scoreboard[p.id]?.some(row => row.round === r))
+  );
+
+  if (roundsPlayed.length === 0) {
+    return (
+      <div style={{ padding: '12px', opacity: 0.5, fontSize: '0.8rem', textAlign: 'center' }}>
+        Scores will appear here
+      </div>
+    );
+  }
+
+  const getRow = (playerId: string, round: number) =>
+    scoreboard[playerId]?.find(r => r.round === round);
+
+  const getTotal = (playerId: string) => {
+    const rows = scoreboard[playerId] ?? [];
+    return rows.length > 0 ? rows[rows.length - 1].total : 0;
+  };
+
+  return (
+    <div className="scoreboard-scroll">
+      <table className="scoreboard">
+        <thead>
+          <tr>
+            <th>Rnd</th>
+            {players.map(p => (
+              <th key={p.id} style={{ maxWidth: 80 }}>
+                {p.name.length > 8 ? p.name.slice(0, 7) + '…' : p.name}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {roundsPlayed.map(r => (
+            <tr key={r}>
+              <td>R{r}</td>
+              {players.map(p => {
+                const row = getRow(p.id, r);
+                if (!row) return <td key={p.id}>—</td>;
+                const cls = row.delta >= 0 ? 'delta--pos' : 'delta--neg';
+                return (
+                  <td key={p.id}>
+                    <span className={cls}>
+                      {row.delta > 0 ? `+${row.delta}` : row.delta}
+                    </span>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+          <tr>
+            <td>Total</td>
+            {players.map(p => (
+              <td key={p.id}>{getTotal(p.id)}</td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
