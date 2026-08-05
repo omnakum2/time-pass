@@ -16,8 +16,10 @@ export function LobbyPage() {
       // No session: redirect to home with the room code (and host) pre-filled.
       // We store the intent in sessionStorage.
       const host = new URLSearchParams(window.location.search).get('host');
-      sessionStorage.setItem('pendingRoomId', urlRoomId);
-      sessionStorage.setItem('pendingHost', host ?? '');
+      if (host) {
+        sessionStorage.setItem('pendingRoomId', urlRoomId);
+        sessionStorage.setItem('pendingHost', host);
+      }
       navigate('/', { replace: true });
     }
   }, [roomId, urlRoomId, connected, navigate]);

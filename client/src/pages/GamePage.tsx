@@ -40,7 +40,7 @@ export function GamePage() {
   useEffect(() => {
     setUrgent(false);
     if ((phase === 'BIDDING' || phase === 'PLAYING') && currentTurn) {
-      const lead = Math.max(0, turnTimeoutMs - 5000);
+      const lead = Math.max(0, turnTimeoutMs - 6000);
       const id = setTimeout(() => setUrgent(true), lead);
       return () => clearTimeout(id);
     }

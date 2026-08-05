@@ -77,6 +77,7 @@ body {
   color: var(--cream); font-weight: 700; font-size: 0.9rem;
   padding: 6px 14px; border-radius: 8px; cursor: pointer;
   transition: background 0.15s, color 0.15s;
+  text-decoration: none;
 }
 .app-header__link:hover { background: rgba(233,184,74,0.14); color: var(--gold); }
 
@@ -221,6 +222,12 @@ body {
 .home-actions { display: flex; gap: 16px; width: 100%; }
 .home-actions .btn { flex: 1; padding: 18px 14px; font-size: 1.2rem; border-radius: 16px; }
 
+/* ─── Homepage SEO blurb ──────────────────────────────────────────────────── */
+.home-seo { max-width: 540px; margin: 20px auto 0; text-align: center; color: var(--cream-muted); font-size: 0.95rem; line-height: 1.65; }
+.home-seo__link { color: var(--gold); font-weight: 700; text-decoration: none; }
+.guide-home-cta { margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(233,184,74,0.18); line-height: 1.7; color: var(--cream); }
+.home-seo__link:hover { color: #f0c96a; }
+
 /* ─── Icon button (copy) ──────────────────────────────────────────────────── */
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -358,6 +365,7 @@ body {
 /* ─── Round chip (inside the felt-badges row) ─────────────────────────────── */
 .round-chip {
   display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap; flex-shrink: 0;
   background: rgba(0,0,0,0.4);
   color: var(--gold);
   border: 1px solid rgba(233,184,74,0.55);
@@ -370,6 +378,7 @@ body {
 /* ─── Trump chip (beside the round chip) ──────────────────────────────────── */
 .trump-chip {
   display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap; flex-shrink: 0;
   background: rgba(0,0,0,0.4);
   color: var(--cream);
   border: 1px solid rgba(233,184,74,0.4);
@@ -391,7 +400,8 @@ body {
   text-align: center; white-space: nowrap;
   text-shadow: 0 1px 3px rgba(0,0,0,0.55);
 }
-.trick-status--urgent { color: #FF5A4E; text-shadow: 0 1px 4px rgba(0,0,0,0.65); }
+@keyframes statusTick { 0%, 49.9% { color: #FF5A4E; } 50%, 100% { color: #fff; } }
+.trick-status--urgent { animation: statusTick 2s steps(1) infinite; text-shadow: 0 1px 4px rgba(0,0,0,0.65); }
 
 /* ─── Player chip (dark-wine card) ────────────────────────────────────────── */
 .player-chip {
@@ -640,20 +650,44 @@ body {
 }
 @media (max-width: 600px) {
   .scoreboard-overlay__panel { padding: 18px 14px 16px; }
-  :root { --card-w: 54px; }
-  .trick-area { min-height: 150px; }
-  .trick-felt { min-height: 120px; padding: 22px 14px; }
-  .hand-cards .card { margin-left: -20px; }
+  :root { --card-w: 72px; }
+
+  /* Header: scale down so brand + nav fit narrow screens on one row */
+  .app-header__logo { height: 46px; }
+  .app-header__nav { gap: 4px; }
+  .app-header__link { font-size: 0.8rem; padding: 5px 9px; }
+
+  /* Trick table: capped height, VERTICALLY CENTERED in the available space.
+     (The middle row keeps flex:1 and centers the fixed-height table.) */
+  .table-middle-row { align-items: center; }
+  .trick-area {
+    flex: 0 0 auto;
+    height: 42vh; max-height: 42vh; min-height: 0;
+    width: 100%;
+  }
+
+  /* Shorter felt: shrink padding + watermark so it isn't crowded */
+  .trick-felt { padding: 14px 10px; min-height: 0; }
+  .felt-watermark__title { font-size: clamp(1.6rem, 9vw, 2.8rem); }
+
+  /* Round + Trump: one line, natural size (no wrap), wide-enough container */
+  .felt-badges { flex-wrap: nowrap; gap: 8px; max-width: none; }
+  .round-chip, .trump-chip { font-size: 0.85rem; padding: 5px 12px; }
+
+  /* Reclaim vertical space around the felt */
+  .player-chip { min-width: 70px; padding: 5px 10px; }
+  .table-top-row { gap: 8px; padding: 4px; }
+  .my-strip { gap: 10px; }
+
+  /* Bigger hand cards with retuned overlap (7 cards fit ~340px) */
+  .hand-cards .card { margin-left: -32px; }
 }
 @media (max-width: 480px) {
-  :root { --card-w: 60px; }
+  :root { --card-w: 76px; }
+  .app-header__logo { height: 42px; }
   .bid-btn { width: 40px; height: 40px; font-size: 1rem; }
-  .jhatpat-title { font-size: 3.2rem; }
   .home-actions .btn { padding: 15px 10px; font-size: 1.05rem; }
   .trick-area { border-radius: 60px; padding: 10px; }
-  .trick-felt { border-radius: 50px; padding: 34px 18px; }
-  .trick-felt { min-height: 108px; padding: 16px 10px; }
-  .hand-cards .card { margin-left: -26px; }
-  .felt-badges { gap: 6px; }
-  .trump-chip, .round-chip { font-size: 0.8rem; padding: 4px 10px; }
+  .trick-felt { border-radius: 50px; }
+  .hand-cards .card { margin-left: -38px; }
 }

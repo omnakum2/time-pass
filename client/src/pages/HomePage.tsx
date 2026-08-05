@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { sendMsg } from '../net/socket';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
@@ -82,6 +82,16 @@ export function HomePage() {
             <button className="btn btn--primary" onClick={() => setMode('create')}>Start</button>
             <button className="btn btn--secondary" onClick={() => setMode('join')}>Join Room</button>
           </div>
+          <section className="home-seo">
+            <p>
+              Bid Club is a real-time multiplayer trick-taking card game. Spin up a room,
+              share the link, and gather two to seven friends. Each round you predict exactly
+              how many tricks you&rsquo;ll take, then play to hit your number. Miss it and you
+              lose the points. Seven rounds, a shifting trump, one winner.{' '}
+              New here? The <Link className="home-seo__link" to="/guide">Guide</Link> covers
+              every rule and how scoring works.
+            </p>
+          </section>
         </div>
       ) : (
         <div className="panel flex-col gap-lg" style={{ maxWidth: 400, width: '100%' }}>

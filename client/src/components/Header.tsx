@@ -1,9 +1,16 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, lazy, Suspense } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
-import { GuideContent } from '../pages/GuidePage';
 import { Scoreboard } from './Scoreboard';
-import logo from '../assets/logo.png';
+
+// Lazy so the (bilingual) guide content isn't in the initial bundle — loaded
+// only when the in-game overlay opens. The /guide route lazy-loads it too.
+const GuideContent = lazy(() =>
+  import('../pages/GuidePage').then((m) => ({ default: m.GuideContent }))
+);
+import { sendMsg } from '../net/socket';
+import { storage } from '../storage';
+import logo from '../assets/logo.webp';
 
 export function Header() {
   const navigate = useNavigate();
@@ -17,6 +24,14 @@ export function Header() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
 
+  const handleLeave = () => {
+    if (!window.confirm('Leave the game? You will return to the home screen.')) return;
+    sendMsg({ type: 'leaveRoom' });
+    storage.clearSession();
+    useGameStore.getState().reset();
+    navigate('/');
+  };
+
   return (
     <>
       <header className="app-header">
@@ -25,21 +40,29 @@ export function Header() {
         </span>
         <nav className="app-header__nav">
           {!inGame && (
-            <button className="app-header__link" onClick={() => navigate('/')}>
+            <Link className="app-header__link" to="/">
               Home
-            </button>
+            </Link>
           )}
           {inGame && (
             <button className="app-header__link" onClick={() => setScoreboardOpen(true)}>
               Scoreboard
             </button>
           )}
-          <button
-            className="app-header__link"
-            onClick={() => (inGame ? setGuideOpen(true) : navigate('/guide'))}
-          >
-            Guide
-          </button>
+          {inGame && (
+            <button className="app-header__link" onClick={handleLeave}>
+              Leave
+            </button>
+          )}
+          {inGame ? (
+            <button className="app-header__link" onClick={() => setGuideOpen(true)}>
+              Guide
+            </button>
+          ) : (
+            <Link className="app-header__link" to="/guide">
+              Guide
+            </Link>
+          )}
         </nav>
       </header>
 
@@ -73,7 +96,9 @@ export function Header() {
               ✕
             </button>
             <p className="guide-overlay__note">The game keeps running while you read.</p>
-            <GuideContent />
+            <Suspense fallback={<p className="guide-overlay__note">Loading…</p>}>
+              <GuideContent />
+            </Suspense>
           </div>
         </div>
       )}

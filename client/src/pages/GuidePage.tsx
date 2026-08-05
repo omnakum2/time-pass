@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 type Lang = 'en' | 'hi';
 
@@ -266,7 +266,7 @@ const PAGE_TITLE: Record<Lang, string> = {
   hi: 'Kaise Khele · Bid Club',
 };
 
-export function GuideContent() {
+export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean }) {
   const [lang, setLang] = useState<Lang>('en');
   const sections = SECTIONS[lang];
 
@@ -303,6 +303,12 @@ export function GuideContent() {
               {body}
             </section>
           ))}
+          {showHomeLink && (
+            <p className="guide-home-cta">
+              Ready to play? Head back to the{' '}
+              <Link className="home-seo__link" to="/">Home</Link> page to create or join a room.
+            </p>
+          )}
         </article>
       </div>
     </>
@@ -320,7 +326,7 @@ export function GuidePage() {
       >
         Go Back
       </button>
-      <GuideContent />
+      <GuideContent showHomeLink />
     </div>
   );
 }

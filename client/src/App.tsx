@@ -1,10 +1,11 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useGameStore } from './store/gameStore';
 import { HomePage } from './pages/HomePage';
 import { LobbyPage } from './pages/LobbyPage';
 import { GamePage } from './pages/GamePage';
-import { WinnerPage } from './pages/WinnerPage';
-import { GuidePage } from './pages/GuidePage';
+const GuidePage = lazy(() => import('./pages/GuidePage').then(m => ({ default: m.GuidePage })));
+const WinnerPage = lazy(() => import('./pages/WinnerPage').then(m => ({ default: m.WinnerPage })));
 import { Header } from './components/Header';
 import { ErrorToast } from './components/ErrorToast';
 import { ConnectionBanner } from './components/ConnectionBanner';
@@ -18,12 +19,14 @@ export default function App() {
       <ErrorToast />
       <Header />
       <main className="app-main">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/guide" element={<GuidePage />} />
-          <Route path="/room/:roomId" element={<RoomRouter phase={phase} hasGameOver={!!gameOver} />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Suspense fallback={<div className="page"><p>Loading…</p></div>}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/guide" element={<GuidePage />} />
+            <Route path="/room/:roomId" element={<RoomRouter phase={phase} hasGameOver={!!gameOver} />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </main>
     </div>
   );

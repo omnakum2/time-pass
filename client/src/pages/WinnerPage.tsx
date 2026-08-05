@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import confetti from 'canvas-confetti';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
 import { sendMsg } from '../net/socket';
@@ -18,15 +17,17 @@ export function WinnerPage() {
 
     // Party-popper: one blast from each top corner, then natural gravity fall.
     // Both sides use the exact same color mix — no left/right color separation.
-    const colors = ['#E9B84A', '#43A047', '#C0392B', '#FBF6E9'];
-    const common = { particleCount: 140, spread: 55, startVelocity: 60, gravity: 1, scalar: 1.1, ticks: 220, colors };
-    // Top
-    confetti({ ...common, angle: 270, spread: 60, startVelocity: 32, origin: { x: 0.2, y: 0 } });  // top-left edge, falling
-    confetti({ ...common, angle: 270, spread: 60, startVelocity: 32, origin: { x: 0.8, y: 0 } });  // top-right edge, falling
+    import('canvas-confetti').then(({ default: confetti }) => {
+      const colors = ['#E9B84A', '#43A047', '#C0392B', '#FBF6E9'];
+      const common = { particleCount: 140, spread: 55, startVelocity: 60, gravity: 1, scalar: 1.1, ticks: 220, colors };
+      // Top
+      confetti({ ...common, angle: 270, spread: 60, startVelocity: 32, origin: { x: 0.2, y: 0 } });  // top-left edge, falling
+      confetti({ ...common, angle: 270, spread: 60, startVelocity: 32, origin: { x: 0.8, y: 0 } });  // top-right edge, falling
 
-    // Bottom
-    confetti({ ...common, angle: 45, origin: { x: 0, y: 1 } }); // bottom-left
-    confetti({ ...common, angle: 135, origin: { x: 1, y: 1 } }); // bottom-right
+      // Bottom
+      confetti({ ...common, angle: 45, origin: { x: 0, y: 1 } }); // bottom-left
+      confetti({ ...common, angle: 135, origin: { x: 1, y: 1 } }); // bottom-right
+    });
   }, [hasWinners]);
 
   if (!gameOver) return <div className="page"><p>Loading…</p></div>;

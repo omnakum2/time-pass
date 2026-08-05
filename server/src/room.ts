@@ -169,6 +169,14 @@ export class Room {
     const seat = this.getSeat(playerId);
     if (!seat) return;
 
+    // In-game leave: treat as a permanent disconnect so seat/turn/bid indices stay
+    // intact (the seat auto-plays to the end; host leaving ends the game). Hard seat
+    // removal mid-round would corrupt game state.
+    if (this.phase !== 'LOBBY' && this.phase !== 'GAME_OVER') {
+      this.disconnect(playerId);
+      return;
+    }
+
     if (seat.reconnectTimer) {
       clearTimeout(seat.reconnectTimer);
       seat.reconnectTimer = null;
