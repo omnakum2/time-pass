@@ -18,7 +18,7 @@ export function TrickArea({ trick, players, round, status }: Props) {
         {/* Embossed table wordmark — suits over JHATPAT over a flourish */}
         <div className="felt-watermark">
           <div className="felt-watermark__suits">♠ ♥ ♦ ♣</div>
-          <div className="felt-watermark__title">JHATPAT</div>
+          <div className="felt-watermark__title">BID CLUB</div>
           <div className="felt-watermark__flourish">✦&nbsp;&nbsp;❦&nbsp;&nbsp;✦</div>
         </div>
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { GuideContent } from '../pages/GuidePage';
 import { Scoreboard } from './Scoreboard';
+import logo from '../assets/logo.png';
 
 export function Header() {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ export function Header() {
     <>
       <header className="app-header">
         <span className="app-header__brand" onClick={() => navigate('/')}>
-          Jhatpat
+          <img src={logo} alt="Bid Club" className="app-header__logo" />
         </span>
         <nav className="app-header__nav">
           {!inGame && (

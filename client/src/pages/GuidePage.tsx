@@ -17,7 +17,7 @@ const SECTIONS: Record<Lang, Section[]> = {
       body: (
         <>
           <p>
-            Jhatpat is a trick-taking prediction game. It runs for 7 rounds, and the
+            Bid Club is a trick-taking prediction game. It runs for 7 rounds, and the
             number of cards dealt counts down from 7 in the first round to 1 in the last.
           </p>
           <p>
@@ -139,7 +139,7 @@ const SECTIONS: Record<Lang, Section[]> = {
       body: (
         <>
           <p>
-            Jhatpat ek trick-taking prediction game hai. Ye kul 7 round chalta hai, aur
+            Bid Club ek trick-taking prediction game hai. Ye kul 7 round chalta hai, aur
             baante jaane waale patton ki sankhya pehle round ke 7 se ghatte hue aakhiri
             round me 1 tak aa jaati hai.
           </p>
@@ -262,8 +262,8 @@ const SECTIONS: Record<Lang, Section[]> = {
 };
 
 const PAGE_TITLE: Record<Lang, string> = {
-  en: 'How to Play · Jhatpat',
-  hi: 'Kaise Khele · Jhatpat',
+  en: 'How to Play · Bid Club',
+  hi: 'Kaise Khele · Bid Club',
 };
 
 export function GuideContent() {

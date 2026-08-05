@@ -76,7 +76,7 @@ export function HomePage() {
       {mode === 'landing' ? (
         <div className="landing">
           <div style={{ textAlign: 'center' }}>
-            <h1 className="jhatpat-title">Jhatpat</h1>
+            <h1 className="jhatpat-title">Bid Club</h1>
           </div>
           <div className="home-actions">
             <button className="btn btn--primary" onClick={() => setMode('create')}>Start</button>
@@ -88,7 +88,7 @@ export function HomePage() {
           {mode === 'create' && (
             <>
               <div style={{ textAlign: 'center' }}>
-                <h1 className="jhatpat-title">Jhatpat</h1>
+                <h1 className="jhatpat-title">Bid Club</h1>
               </div>
               <div className="flex-col gap-sm">
                 <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Your name</label>
@@ -144,7 +144,7 @@ export function HomePage() {
           {mode === 'join' && (
             <>
               <div style={{ textAlign: 'center' }}>
-                <h1 className="jhatpat-title">Jhatpat</h1>
+                <h1 className="jhatpat-title">Bid Club</h1>
                 {pendingHost && (
                   <p style={{ opacity: 0.8, fontSize: '1rem', marginTop: 8 }}>
                     Join {pendingHost}'s room
