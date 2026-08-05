@@ -1,10 +1,10 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
+    "build": "tsc --noEmit && esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.js --external:bufferutil --external:utf-8-validate",
     "start": "node dist/index.js"
   },
   "dependencies": {
@@ -16,6 +16,7 @@
     "@types/ws": "^8.5.10",
     "@types/uuid": "^9.0.8",
     "@types/node": "^20.12.12",
+    "esbuild": "^0.23.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"
   }

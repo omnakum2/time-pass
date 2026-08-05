@@ -41,22 +41,24 @@ export function shuffle<T>(arr: T[]): T[] {
 export function deal(
   roundNumber: number,
   playerCount: number
-): { hands: Card[][]; remainingDeck: Card[] } {
+): { hands: Card[][] } {
   const deck = shuffle(createDeck());
   const hands: Card[][] = [];
   for (let i = 0; i < playerCount; i++) {
     hands.push(deck.splice(0, roundNumber));
   }
-  return { hands, remainingDeck: deck };
+  return { hands };
 }
 
-// ─── Trump rotation ──────────────────────────────────────────────────────────
+// ─── Trump selection ─────────────────────────────────────────────────────────
 
-// 5-step trump cycle: D → C → H → S → No-Trump
-// round 7 → index 0, round 6 → index 1, ... (mod 5)
-export function trumpForRound(round: number): Suit | null {
-  const cycle: (Suit | null)[] = ['D', 'C', 'H', 'S', null];
-  return cycle[(7 - round) % 5];
+const TRUMP_OPTIONS: (Suit | null)[] = ['D', 'C', 'H', 'S', null]; // null = No-Trump
+
+// Randomly pick a trump for the round, never repeating the previous round's trump.
+// prev === undefined means "no previous round yet" (first round may be anything).
+export function pickTrump(prev: Suit | null | undefined): Suit | null {
+  const options = prev === undefined ? TRUMP_OPTIONS : TRUMP_OPTIONS.filter(t => t !== prev);
+  return options[Math.floor(Math.random() * options.length)];
 }
 
 // ─── Bidding order ───────────────────────────────────────────────────────────

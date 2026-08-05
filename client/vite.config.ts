@@ -12,12 +12,5 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,   // listen on 0.0.0.0 so other devices on the network can connect
-    proxy: {
-      '/ws': {
-        target: 'ws://localhost:3000',
-        ws: true,
-        rewrite: (p) => p.replace(/^\/ws/, ''),
-      },
-    },
   },
 });

@@ -19,7 +19,7 @@ export function WinnerPage() {
     // Party-popper: one blast from each top corner, then natural gravity fall.
     // Both sides use the exact same color mix — no left/right color separation.
     const colors = ['#E9B84A', '#43A047', '#C0392B', '#FBF6E9'];
-    const common = { particleCount: 360, spread: 55, startVelocity: 60, gravity: 1, scalar: 1.1, ticks: 220, colors };
+    const common = { particleCount: 140, spread: 55, startVelocity: 60, gravity: 1, scalar: 1.1, ticks: 220, colors };
     // Top
     confetti({ ...common, angle: 270, spread: 60, startVelocity: 32, origin: { x: 0.2, y: 0 } });  // top-left edge, falling
     confetti({ ...common, angle: 270, spread: 60, startVelocity: 32, origin: { x: 0.8, y: 0 } });  // top-right edge, falling
@@ -45,6 +45,7 @@ export function WinnerPage() {
 
   const handleRematch = () => sendMsg({ type: 'restartGame' });
   const handleLeave = () => {
+    sendMsg({ type: 'leaveRoom' }); // release our seat server-side before leaving
     storage.clearSession();
     sessionStorage.removeItem('pendingRoomId');
     sessionStorage.removeItem('pendingHost');
@@ -92,7 +93,7 @@ export function WinnerPage() {
                 <tr key={p.id} style={{ background: isTopPlayer ? 'rgba(212,175,55,0.12)' : 'transparent' }}>
                   <td style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.08)', fontWeight: p.id === playerId ? 700 : 400 }}>
                     {p.name}
-                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
+                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''}
                     {p.id === playerId && <span style={{ opacity: 0.45, marginLeft: 5, fontSize: '0.78rem' }}>(you)</span>}
                   </td>
                   <td style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.08)', textAlign: 'right', fontWeight: 700, color: p.score >= 0 ? '#4caf50' : '#ef5350' }}>

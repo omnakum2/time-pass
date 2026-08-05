@@ -103,6 +103,10 @@ export interface MsgRestartGame {
   type: 'restartGame';
 }
 
+export interface MsgLeaveRoom {
+  type: 'leaveRoom';
+}
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
@@ -110,7 +114,8 @@ export type ClientMessage =
   | MsgStartGame
   | MsgPlaceBid
   | MsgPlayCard
-  | MsgRestartGame;
+  | MsgRestartGame
+  | MsgLeaveRoom;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 

@@ -1,7 +1,6 @@
 const KEYS = {
   player: 'pcg.player',
   session: 'pcg.session',
-  snapshot: 'pcg.snapshot',
 } as const;
 
 export interface StoredPlayer { name: string }
@@ -22,12 +21,5 @@ export const storage = {
   },
   clearSession(): void {
     localStorage.removeItem(KEYS.session);
-    localStorage.removeItem(KEYS.snapshot);
-  },
-  getSnapshot(): unknown {
-    try { return JSON.parse(localStorage.getItem(KEYS.snapshot) ?? 'null'); } catch { return null; }
-  },
-  setSnapshot(s: unknown): void {
-    try { localStorage.setItem(KEYS.snapshot, JSON.stringify(s)); } catch { /* quota */ }
   },
 };

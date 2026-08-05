@@ -1,184 +1,65 @@
-# Prediction Card Game
+# Jhatpat — browser multiplayer card game
 
-A real-time, browser-based multiplayer trick-taking prediction game (the *Judgment / Oh Hell / Kachuful* family). Players predict how many tricks they'll win each round, and score points only for exact predictions.
+A cross-device, real-time **trick-taking prediction game** (the *Judgment / Oh Hell / Kachuful* family).
+Players join a room by code, predict how many tricks they'll win each round, and score only on an exact match.
 
----
+## Monorepo layout (npm workspaces)
 
-## Features
-
-- **2–7 players** — host sets the player cap when creating a room
-- **7 rounds** counting down (7 cards → 1 card each)
-- **Rotating trump suit** — Diamonds → Clubs → Hearts → Spades → repeating
-- **Exact-bid scoring** — bid 3 and win 3 → +33; miss → penalty
-- **Live multiplayer** over WebSockets — server authoritative, hands never sent to wrong players
-- **Auto-timers** — 30 s to bid, 30 s to play a card; server auto-acts on timeout
-- **Reconnect support** — refresh the page and rejoin your seat within 60 s
-- **Mobile-first UI** — works on phones and desktops
-- **Scoreboard** — live-updating table with per-round deltas and running totals
-- **Winner screen** — confetti celebration, handles ties and all-negative scores
-
----
-
-## Tech Stack
-
-| Layer | Tech |
+| Workspace | What it is |
 |---|---|
-| Client | React 18 + Vite + TypeScript |
-| Server | Node.js + `ws` WebSocket relay |
-| Shared logic | Pure TypeScript (no framework) |
-| Animations | Framer Motion |
-| Confetti | canvas-confetti |
-| State | Zustand |
-| Monorepo | npm workspaces |
+| `shared/` | Pure game engine + shared TypeScript types (no DOM/Node deps). |
+| `server/` | Authoritative WebSocket relay (Node + `ws`). Holds room/game state in memory. |
+| `client/` | React + Vite single-page app. |
 
----
+## Requirements
+- **Node 20+** and npm.
 
-## Project Structure
-
-```
-prediction-card-game/
-├── package.json          # root workspace config
-├── shared/               # pure game logic + types (shared by client & server)
-│   └── src/
-│       ├── types.ts      # Card, GameState, all WebSocket message types
-│       └── engine.ts     # createDeck, deal, trumpForRound, legalMoves,
-│                         #   trickWinner, scoreRound
-├── server/               # Node WebSocket relay (authoritative)
-│   └── src/
-│       ├── index.ts      # WS server, room registry, message routing
-│       └── room.ts       # Room class — state machine, timers, redaction
-└── client/               # React + Vite SPA
-    └── src/
-        ├── net/          # WebSocket client, auto-reconnect
-        ├── store/        # Zustand global state
-        ├── pages/        # Home, Lobby, Game, Winner
-        └── components/   # CardView, HandView, TrickArea, BidPanel,
-                          #   PlayerChip, Scoreboard, Popup, TurnTimer, …
-```
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- npm 9+
-
-### Install
-
+## Development
 ```bash
-cd "Prediction Card Game"
 npm install
-```
-
-### Run in development
-
-```bash
 npm run dev
 ```
+- Client (Vite): http://localhost:5173
+- Server (WS relay): ws://localhost:3000
 
-This starts both the server and client concurrently:
+The in-app rules are at `/guide` (English / Roman Hindi).
 
-| Service | URL |
-|---|---|
-| Client (Vite) | http://localhost:5173 |
-| Server (WS relay) | ws://localhost:3001 |
-
-Open **http://localhost:5173** in your browser.
-
-### Build for production
-
+## Production build
 ```bash
-npm run build --workspace=client
+npm run build
+```
+Produces:
+- **Server:** `server/dist/index.js` — a single self-contained bundle (esbuild; `shared` is inlined).
+- **Client:** `client/dist/` — static assets.
+
+`npm run build` also type-checks all three workspaces (`tsc --noEmit`).
+
+## Running in production (manual deploy)
+
+**Server (Node host):**
+```bash
+npm ci
+npm run build
+PORT=3000 node server/dist/index.js
+```
+Run it under a process manager (pm2 / systemd) behind a **TLS reverse proxy** (e.g. nginx) that terminates HTTPS and upgrades the WebSocket to `wss://`. Open/allow the chosen port through the host firewall.
+
+**Client (static host):**
+```bash
+# point the client at your public relay BEFORE building:
+VITE_WS_URL=wss://your-domain.example npm run build --workspace=client
+# then serve client/dist on any static host (nginx, Netlify, S3, GitHub Pages, ...)
 ```
 
----
+## Environment variables
 
-## Playing on the Same Network (LAN)
+| Variable | Scope | Default | Purpose |
+|---|---|---|---|
+| `PORT` | server (runtime) | `3000` | WebSocket relay port. |
+| `VITE_WS_URL` | client (**build time**) | `ws(s)://<page-host>:3000` | Relay URL the client connects to. **Set this in production.** If unset, the protocol follows the page (`wss://` on HTTPS). |
 
-1. Find your local IP:
-   ```bash
-   ip addr show | grep "inet " | grep -v 127.0.0.1
-   ```
-2. Run `npm run dev` on your machine.
-3. Other devices on the same Wi-Fi open:
-   ```
-   http://<your-ip>:5173
-   ```
-4. If a firewall blocks access:
-   ```bash
-   sudo ufw allow 5173 && sudo ufw allow 3001
-   ```
+See `client/.env.example`.
 
----
-
-## Game Rules
-
-### Rounds & Cards
-- 7 rounds, counting down: Round 7 (7 cards each) → Round 1 (1 card each).
-- Every player receives exactly `roundNumber` cards from a freshly shuffled 52-card deck.
-- Maximum 7 players (7 × 7 = 49 cards ≤ 52).
-
-### Trump Rotation
-| Round | 7 | 6 | 5 | 4 | 3 | 2 | 1 |
-|---|---|---|---|---|---|---|---|
-| Trump | ♦ | ♣ | ♥ | ♠ | ♦ | ♣ | ♥ |
-
-### Bidding
-- Sequential from the rotating first bidder.
-- Legal bids: `0` to `roundNumber`.
-- All bids are visible to everyone once placed.
-- **30 s** to place a bid — auto-bid **0** on timeout.
-
-### Playing a Trick
-- Leader plays any card; that suit becomes the **lead suit**.
-- Others **must follow the lead suit** if they hold it; otherwise any card.
-- **Highest trump** played wins; if no trump, **highest lead-suit card** wins.
-- Trick winner leads the next trick.
-- **30 s** to play a card — auto-plays first legal card on timeout.
-
-### Scoring
-
-| Situation | Points |
-|---|---|
-| Bid `b > 0`, won exactly `b` | `b × 11` (e.g. bid 3 → **+33**) |
-| Bid `0`, won `0` | **+10** |
-| Bid `0`, won `> 0` | **−10** |
-| Bid `b > 0`, won `≠ b` | **−(b × 10)** (e.g. bid 3 → **−30**) |
-
-### Game End
-- After Round 1, the **highest total score wins** (even if all scores are negative).
-- Ties → co-winners.
-
----
-
-## Room Lifecycle
-
-| Event | Behaviour |
-|---|---|
-| Player leaves before game starts | Seat removed from lobby |
-| Host leaves during game | Game ends immediately, current standings shown |
-| Non-host disconnects | Seat held for **60 s**; turns auto-resolve via timers |
-| Browser refresh | Reconnect via token — continues your turn |
-| Reconnect window expires | Seat stays and keeps auto-playing |
-| Room becomes empty | Destroyed after **2 minutes** |
-
----
-
-## Environment Variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `3001` | WebSocket server port |
-| `VITE_WS_URL` | `ws://<hostname>:3001` | Override WS URL for production |
-
----
-
-## Deployment
-
-**Client** — deploy the `client/dist/` folder to any static host (Netlify, Vercel, GitHub Pages).  
-Set `VITE_WS_URL` to your server's public WebSocket URL before building.
-
-**Server** — deploy `server/` to any Node host (Render, Railway, Fly.io).  
-Set the `PORT` environment variable as required by your host.
+## Notes
+- State is **in-memory** and single-instance: a server restart drops active games, and it does not scale horizontally as-is.
+- For LAN play, open the app via the host's IP (e.g. `http://192.168.x.x:5173`) so the derived relay URL points at the host; ensure the relay port is reachable.

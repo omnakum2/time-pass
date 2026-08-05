@@ -5,7 +5,7 @@ import {
   Suit, TrickCard, ServerMessage, MsgRoundResult
 } from 'shared';
 import {
-  deal, trumpForRound, firstBidderSeat,
+  deal, pickTrump, firstBidderSeat,
   legalMoves, trickWinner, scoreRound
 } from 'shared';
 
@@ -14,6 +14,7 @@ const BID_TIMEOUT_MS = 30_000;
 const PLAY_TIMEOUT_MS = 30_000;
 const RECONNECT_WINDOW_MS = 60_000;
 const EMPTY_ROOM_DESTROY_MS = 120_000;
+const GAMEOVER_TTL_MS = 300_000;
 const COUNTDOWN_MS = 5000;
 
 export interface Seat {
@@ -35,6 +36,7 @@ export class Room {
   private roundIndex = 0; // index into ROUNDS array
   private currentRound: number | null = null;
   private trump: Suit | null = null;
+  private previousTrump: Suit | null | undefined = undefined;
   private bids: Map<string, number | null> = new Map();
   private tricksWon: Map<string, number> = new Map();
   private currentTrick: TrickCard[] = [];
@@ -46,6 +48,7 @@ export class Room {
 
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
   private emptyRoomTimer: ReturnType<typeof setTimeout> | null = null;
+  private gameOverTimer: ReturnType<typeof setTimeout> | null = null;
   private countdownTimer: ReturnType<typeof setTimeout> | null = null;
   private countdownEndsAt: number | null = null;
 
@@ -151,12 +154,46 @@ export class Room {
         this.endGameImmediately();
         return;
       }
+
+      // If it's this (now-disconnected) player's turn, don't wait the full timer —
+      // restart it so their move auto-resolves promptly.
+      if ((this.phase === 'BIDDING' || this.phase === 'PLAYING') && this.currentTurnPlayerId() === playerId) {
+        this.startTurnTimer();
+      }
     }
 
     this.broadcastState();
 
     // Check if room is empty
     if (this.isEmpty) {
+      this.startEmptyRoomTimer();
+    }
+  }
+
+  leaveRoom(playerId: string): void {
+    const seat = this.getSeat(playerId);
+    if (!seat) return;
+
+    if (seat.reconnectTimer) {
+      clearTimeout(seat.reconnectTimer);
+      seat.reconnectTimer = null;
+    }
+
+    // Remove the seat entirely
+    this.seats = this.seats.filter(s => s.player.id !== playerId);
+    this.seats.forEach((s, i) => { s.player.seatIndex = i; });
+    this.scoreboard.delete(playerId);
+
+    if (playerId === this.hostId && this.seats.length > 0) {
+      // Promote next player to host
+      this.hostId = this.seats[0].player.id;
+    }
+
+    if (this.countdownTimer && this.seats.length < this.maxPlayers) { this.cancelCountdown(); }
+
+    this.broadcastState();
+
+    if (this.seats.length === 0) {
       this.startEmptyRoomTimer();
     }
   }
@@ -168,6 +205,7 @@ export class Room {
     if (this.phase !== 'LOBBY') return 'WRONG_PHASE';
     if (this.seats.length < 2) return 'NOT_ENOUGH_PLAYERS';
 
+    this.previousTrump = undefined;
     this.roundIndex = 0;
     this.startRound();
     return null;
@@ -177,7 +215,11 @@ export class Room {
     if (requesterId !== this.hostId) return 'NOT_HOST';
     if (this.phase !== 'GAME_OVER') return 'WRONG_PHASE';
 
+    // A rematch cancels the pending game-over cleanup
+    this.cancelGameOverTimer();
+
     // reset per-match state
+    this.previousTrump = undefined;
     this.roundIndex = 0;
     this.scoreboard = new Map(this.seats.map(s => [s.player.id, []]));
     this.bids = new Map();
@@ -209,6 +251,7 @@ export class Room {
   private beginGame(): void {
     if (this.phase !== 'LOBBY') return;
     if (this.seats.length < 2) { this.cancelCountdown(); return; }
+    this.previousTrump = undefined;
     this.roundIndex = 0;
     this.startRound();
   }
@@ -218,7 +261,8 @@ export class Room {
   private startRound(): void {
     this.phase = 'DEALING';
     this.currentRound = ROUNDS[this.roundIndex];
-    this.trump = trumpForRound(this.currentRound);
+    this.trump = pickTrump(this.previousTrump);
+    this.previousTrump = this.trump;
     this.bids = new Map(this.seats.map(s => [s.player.id, null]));
     this.tricksWon = new Map(this.seats.map(s => [s.player.id, 0]));
     this.currentTrick = [];
@@ -394,6 +438,9 @@ export class Room {
 
     this.broadcast({ type: 'gameOver', winners, finalScores, playerNames });
     this.broadcastState();
+
+    // TTL-destroy finished rooms unless a rematch cancels it
+    this.startGameOverTimer();
   }
 
   private endGameImmediately(): void {
@@ -419,7 +466,13 @@ export class Room {
 
   private startTurnTimer(): void {
     this.clearTurnTimer();
-    const timeoutMs = this.phase === 'BIDDING' ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS;
+    const currentSeat = this.seats[this.currentTurnSeatIndex];
+    const disconnected = !!currentSeat && !currentSeat.player.connected;
+    // A disconnected player shouldn't make everyone wait the full turn timer —
+    // auto-move after a short beat (enough for others to see it) instead of 30s.
+    const timeoutMs = disconnected
+      ? 500
+      : (this.phase === 'BIDDING' ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS);
     this.turnTimer = setTimeout(() => {
       this.autoAction();
     }, timeoutMs);
@@ -458,6 +511,20 @@ export class Room {
     if (this.emptyRoomTimer) {
       clearTimeout(this.emptyRoomTimer);
       this.emptyRoomTimer = null;
+    }
+  }
+
+  private startGameOverTimer(): void {
+    this.cancelGameOverTimer();
+    this.gameOverTimer = setTimeout(() => {
+      this.onDestroy?.();
+    }, GAMEOVER_TTL_MS);
+  }
+
+  private cancelGameOverTimer(): void {
+    if (this.gameOverTimer) {
+      clearTimeout(this.gameOverTimer);
+      this.gameOverTimer = null;
     }
   }
 
@@ -542,12 +609,4 @@ export class Room {
   }
 
   getPhase(): GamePhase { return this.phase; }
-  getHostId(): string | null { return this.hostId; }
-
-  // Timer info for clients (remaining ms)
-  getTurnTimerDeadline(): number | null {
-    // We can't easily expose the exact deadline without storing it
-    // Clients derive countdown from server messages; see index.ts for timer tracking
-    return null;
-  }
 }
