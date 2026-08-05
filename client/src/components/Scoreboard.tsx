@@ -30,11 +30,9 @@ export function Scoreboard({ gameState }: { gameState: GameState }) {
       <table className="scoreboard">
         <thead>
           <tr>
-            <th>Rnd</th>
+            <th>#</th>
             {players.map(p => (
-              <th key={p.id} style={{ maxWidth: 80 }}>
-                {p.name.length > 8 ? p.name.slice(0, 7) + '…' : p.name}
-              </th>
+              <th key={p.id}>{p.name}</th>
             ))}
           </tr>
         </thead>

@@ -10,9 +10,10 @@ interface Props {
   turnKey: string;
   timerMs?: number;
   isMe?: boolean;
+  totalScore?: number;
 }
 
-export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, timerMs, isMe }: Props) {
+export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, timerMs, isMe, totalScore }: Props) {
   return (
     <div className={`player-chip${isActive ? ' player-chip--active' : ''}`}>
       {isActive && (phase === 'BIDDING' || phase === 'PLAYING') && (
@@ -28,6 +29,12 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, t
         {bid !== null ? `Bid ${bid}` : (phase === 'BIDDING' ? 'bidding…' : '—')}
         {' · '}Won {tricksWon}
       </div>
+
+      {totalScore !== undefined && (
+        <div className="player-chip__total">
+          Score: <span className={totalScore >= 0 ? 'delta--pos' : 'delta--neg'}>{totalScore > 0 ? `+${totalScore}` : totalScore}</span>
+        </div>
+      )}
 
       {!player.connected && (
         <div className="player-chip__disconnected">disconnected</div>

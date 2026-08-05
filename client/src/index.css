@@ -379,6 +379,7 @@ body {
   color: var(--cream);
 }
 .player-chip__stats { color: var(--cream-muted); font-size: 0.72rem; text-align: center; }
+.player-chip__total { font-size: 0.68rem; color: var(--cream-muted); text-align: center; }
 .player-chip__disconnected { font-size: 0.65rem; color: #E9A94A; }
 
 /* ─── Popup / modal (dark-wine) ───────────────────────────────────────────── */
@@ -413,48 +414,88 @@ body {
 .bid-btn:hover  { background: var(--gold); color: #3A1B10; }
 .bid-btn:active { transform: scale(0.93); }
 
-/* ─── Game split layout ───────────────────────────────────────────────────── */
-.game-split {
-  display: grid;
-  grid-template-columns: 280px 1fr;
+/* ─── Game area (full-width, relative container for HUD overlay) ──────────── */
+.game-area {
+  position: relative;
   flex: 1;
   min-height: 0;
+  display: flex;
   overflow: hidden;
 }
-@media (max-width: 700px) {
-  .game-split { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-  .scoreboard-panel { max-height: 34vh; }
-}
 
-/* ─── Scoreboard panel (dark, translucent) ────────────────────────────────── */
-.scoreboard-panel {
-  display: flex; flex-direction: column; overflow: hidden;
-  background: rgba(30,15,20,0.5);
-  border-right: 1px solid var(--gold-border);
-  color: var(--cream);
+/* ─── Scoreboard modal overlay ────────────────────────────────────────────── */
+.scoreboard-overlay {
+  position: fixed; inset: 0; z-index: 1200;
+  background: rgba(0,0,0,0.35);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
 }
-.scoreboard-panel h3 { padding: 10px 12px 6px; font-size: 0.9rem; color: var(--gold); flex-shrink: 0; }
+.scoreboard-overlay__panel {
+  position: relative;
+  background: linear-gradient(160deg, var(--card-1), var(--card-2));
+  border: 1px solid var(--gold-border);
+  border-radius: 20px;
+  width: fit-content; min-width: 360px; max-width: 92vw; max-height: 80vh; overflow: auto;
+  padding: 24px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.7), inset 0 1px 0 rgba(233,184,74,0.12);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.scoreboard-overlay__close {
+  position: absolute; top: 12px; right: 14px; z-index: 2;
+  width: 30px; height: 30px; border-radius: 8px;
+  border: 1px solid rgba(233,184,74,0.3);
+  background: rgba(0,0,0,0.25);
+  color: var(--gold); font-size: 0.9rem; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.scoreboard-overlay__close:hover {
+  background: rgba(233,184,74,0.15);
+  border-color: rgba(233,184,74,0.6);
+}
+.scoreboard-overlay__title {
+  color: var(--gold); font-size: 1.2rem; font-weight: 800;
+  letter-spacing: 1px; text-transform: uppercase;
+  text-shadow: 0 0 18px rgba(233,184,74,0.35);
+  margin-bottom: 2px;
+}
+.scoreboard-overlay__note {
+  color: rgba(243,236,221,0.45); font-size: 0.75rem; margin-bottom: 14px;
+}
 .scoreboard-scroll { overflow: auto; flex: 1; }
 
 .scoreboard {
   width: 100%; border-collapse: collapse;
-  font-size: clamp(11px, 1.8vw, 13px); white-space: nowrap;
+  font-size: clamp(12px, 1.8vw, 14px); white-space: nowrap;
   color: var(--cream);
 }
-.scoreboard th, .scoreboard td { border: 1px solid rgba(255,255,255,0.1); padding: 5px 10px; text-align: center; }
-.scoreboard th { background: rgba(0,0,0,0.28); font-weight: 600; }
+.scoreboard th, .scoreboard td {
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 7px 14px; text-align: center;
+}
+.scoreboard th {
+  background: rgba(0,0,0,0.28); font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--cream);
+}
 .scoreboard th:first-child, .scoreboard td:first-child {
-  position: sticky; left: 0; background: rgba(46,23,30,0.96); z-index: 2;
+  position: sticky; left: 0;
+  background: rgba(46,23,30,0.96); z-index: 2;
   font-weight: 700; border-right: 2px solid rgba(255,255,255,0.14);
 }
 .scoreboard th:first-child { background: rgba(58,27,38,0.98); }
-.scoreboard tr:last-child td { font-weight: 700; background: rgba(233,184,74,0.16); }
-.scoreboard tr:last-child td:first-child { background: rgba(233,184,74,0.26); }
+.scoreboard tbody tr:not(:last-child):hover td { background: rgba(255,255,255,0.04); }
+.scoreboard tbody tr:not(:last-child):hover td:first-child { background: rgba(15,6,10,0.55); }
+.scoreboard tr:last-child td {
+  font-weight: 800; font-size: 1.05em;
+  background: rgba(233,184,74,0.1);
+  border-top: 1px solid rgba(233,184,74,0.3);
+  color: var(--gold);
+}
+.scoreboard tr:last-child td:first-child { background: rgba(233,184,74,0.16); }
 .delta--pos { color: #5FD07A; font-weight: 600; }
 .delta--neg { color: #F0736C; font-weight: 600; }
 
-/* ─── Game panel (over gradient) ──────────────────────────────────────────── */
-.game-panel { display: flex; flex-direction: column; overflow: hidden; padding: 8px; gap: 6px; }
+/* ─── Game panel (full width, centered) ───────────────────────────────────── */
+.game-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 8px; gap: 6px; }
 
 /* ─── Table area ──────────────────────────────────────────────────────────── */
 .table-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
@@ -468,7 +509,7 @@ body {
 .trick-area {
   position: relative;
   flex: 1;
-  max-width: 780px;
+  max-width: 875px;
   min-height: 190px;
   padding: 13px;                              /* the ~13px gold rail */
   border-radius: 82px;
@@ -567,11 +608,12 @@ body {
   .guide-layout { grid-template-columns: 1fr; }
   .guide-toc { position: static; }
 }
+@media (max-width: 600px) {
+  .scoreboard-overlay__panel { padding: 18px 14px 16px; }
+}
 @media (max-width: 480px) {
   :root { --card-w: 42px; }
   .bid-btn { width: 40px; height: 40px; font-size: 1rem; }
-  .game-split { grid-template-columns: 1fr; }
-  .scoreboard-panel { max-height: 35vh; border-right: none; border-bottom: 1px solid var(--gold-border); }
   .jhatpat-title { font-size: 3.2rem; }
   .home-actions .btn { padding: 15px 10px; font-size: 1.05rem; }
   .trick-area { border-radius: 60px; padding: 10px; }

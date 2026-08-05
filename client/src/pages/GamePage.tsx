@@ -9,7 +9,6 @@ import { CardView } from '../components/CardView';
 import { TrickArea } from '../components/TrickArea';
 import { BidPanel } from '../components/BidPanel';
 import { PlayerChip } from '../components/PlayerChip';
-import { Scoreboard } from '../components/Scoreboard';
 import { Popup } from '../components/Popup';
 import { RoundResultOverlay } from '../components/RoundResultOverlay';
 
@@ -34,7 +33,7 @@ export function GamePage() {
 
   const {
     phase, round, trump, yourHand, bids,
-    currentTurn, currentTrick, players, tricksWon,
+    currentTurn, currentTrick, players, tricksWon, scoreboard,
   } = gameState;
 
   const isMyTurn = currentTurn === playerId;
@@ -88,6 +87,11 @@ export function GamePage() {
     }
   }
 
+  const getTotal = (id: string) => {
+    const rows = scoreboard[id] ?? [];
+    return rows.length > 0 ? rows[rows.length - 1].total : 0;
+  };
+
   const chipProps = (p: Player) => ({
     player: p,
     bid: bids[p.id] ?? null,
@@ -95,6 +99,7 @@ export function GamePage() {
     isActive: currentTurn === p.id,
     phase,
     turnKey,
+    totalScore: getTotal(p.id),
   });
 
   const isRedTrump = trump && RED_SUITS.has(trump);
@@ -119,14 +124,8 @@ export function GamePage() {
         <BidPanel round={round!} turnKey={turnKey} />
       </Popup>
 
-      <div className="game-split">
-        {/* ── LEFT: Scoreboard ─────────────────────────────── */}
-        <div className="scoreboard-panel">
-          <h3>Scoreboard</h3>
-          <Scoreboard gameState={gameState} />
-        </div>
-
-        {/* ── RIGHT: Game area ──────────────────────────────── */}
+      <div className="game-area">
+        {/* ── Full-width Game panel ─────────────────────────── */}
         <div className="game-panel">
 
           {/* ── Table with players around it ─── */}
@@ -154,6 +153,7 @@ export function GamePage() {
               isActive={isMyTurn}
               phase={phase}
               turnKey={turnKey}
+              totalScore={getTotal(playerId)}
               isMe
             />
             <div className="trump-badge">

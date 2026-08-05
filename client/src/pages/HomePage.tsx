@@ -97,9 +97,11 @@ export function HomePage() {
                   value={name}
                   onChange={e => setName(e.target.value)}
                   placeholder="Enter your name"
-                  maxLength={20}
+                  minLength={2}
+                  maxLength={10}
                   autoFocus
                 />
+                <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>2–10 characters</span>
               </div>
               <div className="flex-col gap-sm">
                 <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>
@@ -125,7 +127,7 @@ export function HomePage() {
                 <button
                   className="btn btn--primary"
                   onClick={handleCreate}
-                  disabled={!connected || !name.trim()}
+                  disabled={!connected || name.trim().length < 2}
                 >
                   Create Room
                 </button>
@@ -156,10 +158,12 @@ export function HomePage() {
                   value={name}
                   onChange={e => setName(e.target.value)}
                   placeholder="Enter your name"
-                  maxLength={20}
+                  minLength={2}
+                  maxLength={10}
                   onKeyDown={e => e.key === 'Enter' ? handleJoin() : undefined}
                   autoFocus
                 />
+                <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>2–10 characters</span>
               </div>
               {!pendingHost && (
                 <div className="flex-col gap-sm">
@@ -178,7 +182,7 @@ export function HomePage() {
                 <button
                   className="btn btn--primary"
                   onClick={handleJoin}
-                  disabled={!connected || !name.trim() || !roomCode.trim()}
+                  disabled={!connected || name.trim().length < 2 || !roomCode.trim()}
                 >
                   Join
                 </button>
