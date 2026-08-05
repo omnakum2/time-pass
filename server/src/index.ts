@@ -1,10 +1,15 @@
+import dotenv from 'dotenv';
+dotenv.config(); // load .env into process.env before anything reads it
+
 import { createServer } from 'http';
 import { randomInt } from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Room } from './room';
+import { config } from './config';
 import { ClientMessage, ServerMessage } from 'shared';
 
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+// ─── Environment-specific settings (from process.env) ──────────────────────
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '').split(',').map(s => s.trim()).filter(Boolean);
 
 const rooms = new Map<string, Room>();
@@ -32,14 +37,20 @@ function releaseOldSeat(ws: WebSocket): void {
   wsContext.delete(ws);
 }
 
-const httpServer = createServer((_req, res) => {
+const httpServer = createServer((req, res) => {
+  // Lightweight keep-alive/health probe — independent of any game state.
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok' }));
+    return;
+  }
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Prediction Card Game relay');
 });
 
 const wss = new WebSocketServer({
   server: httpServer,
-  maxPayload: 8192, // messages are tiny; reject oversized payloads
+  maxPayload: config.maxPayloadBytes, // messages are tiny; reject oversized payloads
   verifyClient: (info, cb) => {
     if (ALLOWED_ORIGINS.length === 0) return cb(true);           // no allowlist configured (dev) = allow
     cb(!!info.origin && ALLOWED_ORIGINS.includes(info.origin));  // else require a listed Origin (anti-CSWSH)
@@ -47,8 +58,8 @@ const wss = new WebSocketServer({
 });
 
 // Per-IP concurrent-connection cap + per-connection message rate limit
-const MAX_CONN_PER_IP = 20;
-const RATE_LIMIT = 25; // messages / second / connection
+const MAX_CONN_PER_IP = config.maxConnPerIp;
+const RATE_LIMIT = config.rateLimitPerSec; // messages / second / connection
 const connByIp = new Map<string, number>();
 const rate = new WeakMap<WebSocket, { count: number; windowStart: number }>();
 
@@ -103,7 +114,7 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
         ? Math.min(7, Math.max(2, Math.floor(msg.maxPlayers)))
         : 7;
       const room = new Room(roomId, maxPlayers);
-      room.onDestroy = () => { rooms.delete(roomId); console.log(`Room ${roomId} destroyed`); };
+      room.onDestroy = () => { rooms.delete(roomId); };
       rooms.set(roomId, room);
 
       const seat = room.addPlayer(ws, name, true);
@@ -111,7 +122,6 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       wsContext.set(ws, { playerId: seat.player.id, roomId });
       send(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
       room.broadcastState();
-      console.log(`Room ${roomId} created by ${name}`);
       break;
     }
 
@@ -130,7 +140,6 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       wsContext.set(ws, { playerId: seat.player.id, roomId });
       send(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
       room.broadcastState();
-      console.log(`${name} joined room ${roomId}`);
       break;
     }
 
@@ -145,7 +154,6 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       send(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
       room.sendState(ws, seat.player.id);
       room.broadcastState();
-      console.log(`${seat.player.name} reconnected to room ${roomId}`);
       break;
     }
 
@@ -201,9 +209,7 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
   }
 }
 
-httpServer.listen(PORT, () => {
-  console.log(`Prediction Card Game relay running on port ${PORT}`);
-});
+httpServer.listen(PORT);
 
 // Graceful shutdown for clean redeploys
 function shutdown(): void {

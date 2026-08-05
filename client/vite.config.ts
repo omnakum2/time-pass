@@ -9,8 +9,8 @@ export default defineConfig({
       shared: path.resolve(__dirname, '../shared/src/index.ts'),
     },
   },
-  server: {
-    port: 5173,
-    host: true,   // listen on 0.0.0.0 so other devices on the network can connect
-  },
+  build: {
+        minify: 'esbuild',
+        chunkSizeWarningLimit: 2000
+  }
 });

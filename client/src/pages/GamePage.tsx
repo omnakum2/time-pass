@@ -33,7 +33,7 @@ export function GamePage() {
 
   const {
     phase, round, trump, yourHand, bids,
-    currentTurn, currentTrick, players, tricksWon, scoreboard,
+    currentTurn, currentTrick, players, tricksWon, scoreboard, turnTimeoutMs,
   } = gameState;
 
   const isMyTurn = currentTurn === playerId;
@@ -99,6 +99,7 @@ export function GamePage() {
     isActive: currentTurn === p.id,
     phase,
     turnKey,
+    timerMs: turnTimeoutMs,
     totalScore: getTotal(p.id),
   });
 
@@ -119,9 +120,9 @@ export function GamePage() {
       {/* Bid popup — shown when it's MY turn to bid */}
       <Popup
         visible={phase === 'BIDDING' && isMyTurn}
-        title={`Round ${round} — How many tricks will you win?`}
+        title={`Round ${round} · How many tricks will you win?`}
       >
-        <BidPanel round={round!} turnKey={turnKey} />
+        <BidPanel round={round!} turnKey={turnKey} durationMs={turnTimeoutMs} />
       </Popup>
 
       <div className="game-area">
@@ -153,6 +154,7 @@ export function GamePage() {
               isActive={isMyTurn}
               phase={phase}
               turnKey={turnKey}
+              timerMs={turnTimeoutMs}
               totalScore={getTotal(playerId)}
               isMe
             />

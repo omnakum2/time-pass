@@ -16,8 +16,8 @@ interface Props {
 export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, timerMs, isMe, totalScore }: Props) {
   return (
     <div className={`player-chip${isActive ? ' player-chip--active' : ''}`}>
-      {isActive && (phase === 'BIDDING' || phase === 'PLAYING') && (
-        <TurnBorder key={turnKey} durationMs={timerMs ?? 30_000} />
+      {isActive && (phase === 'BIDDING' || phase === 'PLAYING') && timerMs !== undefined && (
+        <TurnBorder key={turnKey} durationMs={timerMs} />
       )}
 
       <div className="player-chip__name">
@@ -26,7 +26,7 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, t
       </div>
 
       <div className="player-chip__stats">
-        {bid !== null ? `Bid ${bid}` : (phase === 'BIDDING' ? 'bidding…' : '—')}
+        {bid !== null ? `Bid ${bid}` : (phase === 'BIDDING' ? 'bidding…' : 'no bid')}
         {' · '}Won {tricksWon}
       </div>
 

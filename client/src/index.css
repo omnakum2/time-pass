@@ -58,7 +58,7 @@ body {
   position: relative; z-index: 50;
 }
 .app-header__brand {
-  cursor: pointer; display: flex; align-items: center;
+  display: flex; align-items: center;
 }
 .app-header__logo {
   height: 52px; width: auto; object-fit: contain;
@@ -204,6 +204,11 @@ body {
   text-align: center;
   color: var(--gold);
   text-shadow: 0 4px 0 rgba(0,0,0,0.45), 0 0 34px rgba(233,184,74,0.4);
+}
+/* Compact variant for the Create/Join cards — keeps the title on one line */
+.jhatpat-title--card {
+  font-size: clamp(1.8rem, 6vw, 2.2rem);
+  white-space: nowrap;
 }
 .tagline { color: var(--moonlight); opacity: 0.82; font-size: 1rem; text-align: center; margin-top: 8px; }
 .home-actions { display: flex; gap: 16px; width: 100%; }
@@ -534,17 +539,6 @@ body {
     inset 0 2px 0 rgba(255,255,255,0.5),        /* rail top highlight */
     inset 0 -2px 3px rgba(0,0,0,0.2),           /* gentle bottom shade */
     inset 0 0 0 1px rgba(120,74,12,0.45);       /* thin rail edge */
-}
-/* F7: pool-table rail sights — evenly-spaced ivory dots on the top rail */
-.trick-area::before {
-  content: '';
-  position: absolute;
-  top: 3px; left: 46px; right: 46px; height: 8px;
-  pointer-events: none;
-  background: radial-gradient(circle at 50% 50%,
-    rgba(255,246,220,0.92) 0 2px,
-    rgba(70,42,12,0.55) 2px 2.9px,
-    transparent 2.9px) center / 48px 100% repeat-x;
 }
 .trick-felt {
   position: relative;

@@ -318,7 +318,7 @@ export function GuidePage() {
         className="btn btn--secondary btn--sm guide-back"
         onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
       >
-        · Back
+        Go Back
       </button>
       <GuideContent />
     </div>

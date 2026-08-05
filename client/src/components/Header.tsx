@@ -20,7 +20,7 @@ export function Header() {
   return (
     <>
       <header className="app-header">
-        <span className="app-header__brand" onClick={() => navigate('/')}>
+        <span className="app-header__brand">
           <img src={logo} alt="Bid Club" className="app-header__logo" />
         </span>
         <nav className="app-header__nav">

@@ -42,7 +42,7 @@ export function Scoreboard({ gameState }: { gameState: GameState }) {
               <td>R{r}</td>
               {players.map(p => {
                 const row = getRow(p.id, r);
-                if (!row) return <td key={p.id}>—</td>;
+                if (!row) return <td key={p.id}>-</td>;
                 const cls = row.delta >= 0 ? 'delta--pos' : 'delta--neg';
                 return (
                   <td key={p.id}>

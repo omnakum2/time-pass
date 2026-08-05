@@ -88,7 +88,7 @@ export function HomePage() {
           {mode === 'create' && (
             <>
               <div style={{ textAlign: 'center' }}>
-                <h1 className="jhatpat-title">Bid Club</h1>
+                <h1 className="jhatpat-title jhatpat-title--card">Bid Club</h1>
               </div>
               <div className="flex-col gap-sm">
                 <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Your name</label>
@@ -101,11 +101,11 @@ export function HomePage() {
                   maxLength={10}
                   autoFocus
                 />
-                <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>2–10 characters</span>
+                <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>2-10 characters</span>
               </div>
               <div className="flex-col gap-sm">
                 <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>
-                  Number of players (2–7)
+                  Number of players (2-7)
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <input
@@ -144,7 +144,7 @@ export function HomePage() {
           {mode === 'join' && (
             <>
               <div style={{ textAlign: 'center' }}>
-                <h1 className="jhatpat-title">Bid Club</h1>
+                <h1 className="jhatpat-title jhatpat-title--card">Bid Club</h1>
                 {pendingHost && (
                   <p style={{ opacity: 0.8, fontSize: '1rem', marginTop: 8 }}>
                     Join {pendingHost}'s room
@@ -163,7 +163,7 @@ export function HomePage() {
                   onKeyDown={e => e.key === 'Enter' ? handleJoin() : undefined}
                   autoFocus
                 />
-                <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>2–10 characters</span>
+                <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>2-10 characters</span>
               </div>
               {!pendingHost && (
                 <div className="flex-col gap-sm">

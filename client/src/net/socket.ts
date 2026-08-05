@@ -2,13 +2,21 @@ import { ClientMessage, ServerMessage } from 'shared';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
 
+// Environment-specific WS endpoint, from Vite's import.meta.env (see
+// .env.example). VITE_WS_URL wins when set; otherwise build
+// ws(s)://<page-host>:<VITE_WS_PORT> (protocol matches the page).
 const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-const WS_URL = import.meta.env.VITE_WS_URL ?? `${wsProto}://${window.location.hostname}:3000`;
+const WS_PORT = import.meta.env.VITE_WS_PORT || '3000';
+const WS_URL = import.meta.env.VITE_WS_URL || `${wsProto}://${window.location.hostname}:${WS_PORT}`;
 
 let ws: WebSocket | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT = 5;
 let manualClose = false;
+// True while an automatic session-reconnect is in flight. Lets us swallow the
+// server's ROOM_NOT_FOUND/INVALID_TOKEN reply (stale session) instead of
+// surfacing it as an error toast on a fresh page load.
+let reconnecting = false;
 
 export function sendMsg(msg: ClientMessage): void {
   if (ws?.readyState === WebSocket.OPEN) {
@@ -33,6 +41,7 @@ export function connect(): void {
     // Try to reconnect to existing session
     const session = storage.getSession();
     if (session) {
+      reconnecting = true;
       sendMsg({ type: 'reconnect', roomId: session.roomId, token: session.token });
     }
   };
@@ -68,6 +77,7 @@ function dispatch(msg: ServerMessage): void {
   const store = useGameStore.getState();
   switch (msg.type) {
     case 'joined':
+      reconnecting = false;
       storage.setSession({ roomId: msg.roomId, token: msg.token, playerId: msg.playerId });
       store.setSession(msg.playerId, msg.roomId);
       break;
@@ -81,6 +91,14 @@ function dispatch(msg: ServerMessage): void {
       store.setGameOver(msg);
       break;
     case 'error':
+      // A failed auto-reconnect just means the stored session is stale (room
+      // gone / server restarted). Drop it silently — don't nag the user with a
+      // "Room not found" toast on a fresh load.
+      if (reconnecting && (msg.code === 'ROOM_NOT_FOUND' || msg.code === 'INVALID_TOKEN')) {
+        reconnecting = false;
+        storage.clearSession();
+        break;
+      }
       store.setError(msg.code, msg.message);
       break;
   }

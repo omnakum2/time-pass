@@ -8,14 +8,9 @@ import {
   deal, pickTrump, firstBidderSeat,
   legalMoves, trickWinner, scoreRound
 } from 'shared';
+import { config } from './config';
 
 const ROUNDS = [7, 6, 5, 4, 3, 2, 1];
-const BID_TIMEOUT_MS = 30_000;
-const PLAY_TIMEOUT_MS = 30_000;
-const RECONNECT_WINDOW_MS = 60_000;
-const EMPTY_ROOM_DESTROY_MS = 120_000;
-const GAMEOVER_TTL_MS = 300_000;
-const COUNTDOWN_MS = 5000;
 
 export interface Seat {
   player: Player;
@@ -147,7 +142,7 @@ export class Room {
       seat.reconnectTimer = setTimeout(() => {
         seat.reconnectTimer = null;
         // Seat stays but keeps auto-playing via turn timer
-      }, RECONNECT_WINDOW_MS);
+      }, config.reconnectWindowMs);
 
       // If host left during game → end immediately
       if (playerId === this.hostId) {
@@ -234,12 +229,12 @@ export class Room {
     if (this.phase !== 'LOBBY') return;
     if (this.seats.length < this.maxPlayers) return; // only when full
     if (this.countdownTimer) clearTimeout(this.countdownTimer);
-    this.countdownEndsAt = Date.now() + COUNTDOWN_MS;
+    this.countdownEndsAt = Date.now() + config.countdownMs;
     this.countdownTimer = setTimeout(() => {
       this.countdownTimer = null;
       this.countdownEndsAt = null;
       this.beginGame();
-    }, COUNTDOWN_MS);
+    }, config.countdownMs);
     this.broadcastState();
   }
 
@@ -373,12 +368,12 @@ export class Room {
 
     // Check if round is over (no cards left)
     if (this.seats[0].hand.length === 0) {
-      setTimeout(() => this.endRound(), 1500);
+      setTimeout(() => this.endRound(), config.trickDisplayMs);
     } else {
       setTimeout(() => {
         this.broadcastState();
         this.startTurnTimer();
-      }, 1500);
+      }, config.trickDisplayMs);
     }
   }
 
@@ -414,7 +409,7 @@ export class Room {
       } else {
         this.endGame();
       }
-    }, 3000);
+    }, config.roundEndDelayMs);
   }
 
   private endGame(): void {
@@ -471,8 +466,8 @@ export class Room {
     // A disconnected player shouldn't make everyone wait the full turn timer —
     // auto-move after a short beat (enough for others to see it) instead of 30s.
     const timeoutMs = disconnected
-      ? 500
-      : (this.phase === 'BIDDING' ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS);
+      ? config.disconnectedAutoMoveMs
+      : (this.phase === 'BIDDING' ? config.bidTimeoutMs : config.playTimeoutMs);
     this.turnTimer = setTimeout(() => {
       this.autoAction();
     }, timeoutMs);
@@ -504,7 +499,7 @@ export class Room {
     this.cancelEmptyRoomTimer();
     this.emptyRoomTimer = setTimeout(() => {
       this.onDestroy?.();
-    }, EMPTY_ROOM_DESTROY_MS);
+    }, config.emptyRoomDestroyMs);
   }
 
   private cancelEmptyRoomTimer(): void {
@@ -518,7 +513,7 @@ export class Room {
     this.cancelGameOverTimer();
     this.gameOverTimer = setTimeout(() => {
       this.onDestroy?.();
-    }, GAMEOVER_TTL_MS);
+    }, config.gameOverTtlMs);
   }
 
   private cancelGameOverTimer(): void {
@@ -575,6 +570,7 @@ export class Room {
       firstBidder: this.seats[this.bidderSeatIndex]?.player.id ?? null,
       tricksWon: tricksWonObj,
       countdownMs: this.countdownEndsAt ? Math.max(0, this.countdownEndsAt - Date.now()) : null,
+      turnTimeoutMs: this.phase === 'BIDDING' ? config.bidTimeoutMs : config.playTimeoutMs,
     };
   }
 

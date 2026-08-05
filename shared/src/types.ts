@@ -63,6 +63,7 @@ export interface GameState {
   firstBidder: string | null;
   tricksWon: Record<string, number>; // playerId → tricks won this round
   countdownMs: number | null; // ms left on the lobby auto-start countdown (null unless counting down)
+  turnTimeoutMs: number; // server-configured turn budget for the current phase (drives client timer rings)
 }
 
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
