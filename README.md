@@ -1,65 +1,50 @@
-# Jhatpat — browser multiplayer card game
+# React + TypeScript + Vite
 
-A cross-device, real-time **trick-taking prediction game** (the *Judgment / Oh Hell / Kachuful* family).
-Players join a room by code, predict how many tricks they'll win each round, and score only on an exact match.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## Monorepo layout (npm workspaces)
+Currently, two official plugins are available:
 
-| Workspace | What it is |
-|---|---|
-| `shared/` | Pure game engine + shared TypeScript types (no DOM/Node deps). |
-| `server/` | Authoritative WebSocket relay (Node + `ws`). Holds room/game state in memory. |
-| `client/` | React + Vite single-page app. |
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-## Requirements
-- **Node 20+** and npm.
+## Expanding the ESLint configuration
 
-## Development
-```bash
-npm install
-npm run dev
-```
-- Client (Vite): http://localhost:5173
-- Server (WS relay): ws://localhost:3000
+If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
 
-The in-app rules are at `/guide` (English / Roman Hindi).
+- Configure the top-level `parserOptions` property like this:
 
-## Production build
-```bash
-npm run build
-```
-Produces:
-- **Server:** `server/dist/index.js` — a single self-contained bundle (esbuild; `shared` is inlined).
-- **Client:** `client/dist/` — static assets.
-
-`npm run build` also type-checks all three workspaces (`tsc --noEmit`).
-
-## Running in production (manual deploy)
-
-**Server (Node host):**
-```bash
-npm ci
-npm run build
-PORT=3000 node server/dist/index.js
-```
-Run it under a process manager (pm2 / systemd) behind a **TLS reverse proxy** (e.g. nginx) that terminates HTTPS and upgrades the WebSocket to `wss://`. Open/allow the chosen port through the host firewall.
-
-**Client (static host):**
-```bash
-# point the client at your public relay BEFORE building:
-VITE_WS_URL=wss://your-domain.example npm run build --workspace=client
-# then serve client/dist on any static host (nginx, Netlify, S3, GitHub Pages, ...)
+```js
+export default tseslint.config({
+  languageOptions: {
+    // other options...
+    parserOptions: {
+      project: ['./tsconfig.node.json', './tsconfig.app.json'],
+      tsconfigRootDir: import.meta.dirname,
+    },
+  },
+})
 ```
 
-## Environment variables
+- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
+- Optionally add `...tseslint.configs.stylisticTypeChecked`
+- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
 
-| Variable | Scope | Default | Purpose |
-|---|---|---|---|
-| `PORT` | server (runtime) | `3000` | WebSocket relay port. |
-| `VITE_WS_URL` | client (**build time**) | `ws(s)://<page-host>:3000` | Relay URL the client connects to. **Set this in production.** If unset, the protocol follows the page (`wss://` on HTTPS). |
+```js
+// eslint.config.js
+import react from 'eslint-plugin-react'
 
-See `client/.env.example`.
-
-## Notes
-- State is **in-memory** and single-instance: a server restart drops active games, and it does not scale horizontally as-is.
-- For LAN play, open the app via the host's IP (e.g. `http://192.168.x.x:5173`) so the derived relay URL points at the host; ensure the relay port is reachable.
+export default tseslint.config({
+  // Set the react version
+  settings: { react: { version: '18.3' } },
+  plugins: {
+    // Add the react plugin
+    react,
+  },
+  rules: {
+    // other rules...
+    // Enable its recommended rules
+    ...react.configs.recommended.rules,
+    ...react.configs['jsx-runtime'].rules,
+  },
+})
+```
