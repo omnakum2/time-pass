@@ -1,8 +1,7 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Suit, Player } from 'shared';
 import { legalMoves } from 'shared';
-import { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { sendMsg } from '../net/socket';
 import { CardView } from '../components/CardView';
@@ -12,12 +11,6 @@ import { PlayerChip } from '../components/PlayerChip';
 import { Popup } from '../components/Popup';
 import { RoundResultOverlay } from '../components/RoundResultOverlay';
 
-// ─── Suit helpers ─────────────────────────────────────────────────────────────
-
-const SUIT_SYMBOL: Record<string, string> = { D: '♦', C: '♣', H: '♥', S: '♠' };
-const SUIT_NAME:   Record<string, string> = { D: 'Diamonds', C: 'Clubs', H: 'Hearts', S: 'Spades' };
-const RED_SUITS = new Set<Suit>(['D', 'H']);
-
 // ─── GamePage ─────────────────────────────────────────────────────────────────
 
 export function GamePage() {
@@ -26,20 +19,13 @@ export function GamePage() {
   const turnSeqRef = useRef(0);
   const prevTrickEmptyRef = useRef(true);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
+  const [urgent, setUrgent] = useState(false);
 
-  if (!gameState || !playerId) {
-    return <div className="page"><p>Loading game…</p></div>;
-  }
-
-  const {
-    phase, round, trump, yourHand, bids,
-    currentTurn, currentTrick, players, tricksWon, scoreboard, turnTimeoutMs,
-  } = gameState;
-
-  const isMyTurn = currentTurn === playerId;
-  const myBid    = bids[playerId] ?? null;
-  const myWon    = tricksWon[playerId] ?? 0;
-  const leadSuit: Suit | null = currentTrick.length > 0 ? currentTrick[0].card.suit : null;
+  // Derived turn values — computed null-safely so all hooks run before any early return
+  const phase = gameState?.phase ?? '';
+  const currentTurn = gameState?.currentTurn ?? null;
+  const turnTimeoutMs = gameState?.turnTimeoutMs ?? 0;
+  const currentTrick = gameState?.currentTrick ?? [];
 
   // Turn key resets timer on every new turn (sequence-based)
   const trickEmpty = currentTrick.length === 0;
@@ -50,6 +36,29 @@ export function GamePage() {
   }
   prevTrickEmptyRef.current = trickEmpty;
   const turnKey = String(turnSeqRef.current);
+
+  useEffect(() => {
+    setUrgent(false);
+    if ((phase === 'BIDDING' || phase === 'PLAYING') && currentTurn) {
+      const lead = Math.max(0, turnTimeoutMs - 5000);
+      const id = setTimeout(() => setUrgent(true), lead);
+      return () => clearTimeout(id);
+    }
+  }, [turnKey, turnTimeoutMs, phase, currentTurn]);
+
+  if (!gameState || !playerId) {
+    return <div className="page"><p>Loading game…</p></div>;
+  }
+
+  const {
+    round, trump, yourHand, bids,
+    players, tricksWon, scoreboard,
+  } = gameState;
+
+  const isMyTurn = currentTurn === playerId;
+  const myBid    = bids[playerId] ?? null;
+  const myWon    = tricksWon[playerId] ?? 0;
+  const leadSuit: Suit | null = currentTrick.length > 0 ? currentTrick[0].card.suit : null;
 
   // Legal cards when it's my turn to play
   const legalIds = isMyTurn && phase === 'PLAYING'
@@ -103,8 +112,6 @@ export function GamePage() {
     totalScore: getTotal(p.id),
   });
 
-  const isRedTrump = trump && RED_SUITS.has(trump);
-
   const activeName = currentTurn ? (players.find(p => p.id === currentTurn)?.name ?? '') : '';
   const statusText = phase === 'BIDDING'
     ? (isMyTurn ? 'Place your bid' : (currentTurn ? `Waiting for ${activeName} to bid…` : ''))
@@ -141,7 +148,7 @@ export function GamePage() {
 
             {/* Middle: trick area */}
             <div className="table-middle-row">
-              <TrickArea trick={currentTrick} players={players} round={round} status={statusText} />
+              <TrickArea trick={currentTrick} players={players} round={round} status={statusText} trump={trump} urgent={urgent} />
             </div>
           </div>
 
@@ -158,17 +165,6 @@ export function GamePage() {
               totalScore={getTotal(playerId)}
               isMe
             />
-            <div className="trump-badge">
-              <span style={{ opacity: 0.7, fontSize: '0.85rem' }}>Trump</span>
-              {trump ? (
-                <>
-                  <span className={`trump-suit ${isRedTrump ? 'suit-red' : 'suit-black'}`}>{SUIT_SYMBOL[trump]}</span>
-                  <span className={isRedTrump ? 'suit-red' : 'suit-black'}>{SUIT_NAME[trump]}</span>
-                </>
-              ) : (
-                <span style={{ fontWeight: 700 }}>No&nbsp;Trump</span>
-              )}
-            </div>
             {selectedCard && (
               <span style={{ fontSize: '0.8rem', opacity: 0.75, marginLeft: 8 }}>
                 Tap again to play

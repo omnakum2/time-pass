@@ -145,11 +145,6 @@ export function HomePage() {
             <>
               <div style={{ textAlign: 'center' }}>
                 <h1 className="jhatpat-title jhatpat-title--card">Bid Club</h1>
-                {pendingHost && (
-                  <p style={{ opacity: 0.8, fontSize: '1rem', marginTop: 8 }}>
-                    Join {pendingHost}'s room
-                  </p>
-                )}
               </div>
               <div className="flex-col gap-sm">
                 <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Your name</label>
@@ -184,7 +179,7 @@ export function HomePage() {
                   onClick={handleJoin}
                   disabled={!connected || name.trim().length < 2 || !roomCode.trim()}
                 >
-                  Join
+                  {pendingHost ? `Join ${pendingHost}'s room` : 'Join'}
                 </button>
                 <button
                   className="btn btn--secondary"

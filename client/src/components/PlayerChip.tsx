@@ -15,7 +15,7 @@ interface Props {
 
 export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, timerMs, isMe, totalScore }: Props) {
   return (
-    <div className={`player-chip${isActive ? ' player-chip--active' : ''}`}>
+    <div className={`player-chip${isActive ? ' player-chip--active' : ''}${isMe ? ' player-chip--me' : ''}`}>
       {isActive && (phase === 'BIDDING' || phase === 'PLAYING') && timerMs !== undefined && (
         <TurnBorder key={turnKey} durationMs={timerMs} />
       )}

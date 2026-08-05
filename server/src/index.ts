@@ -40,6 +40,7 @@ function releaseOldSeat(ws: WebSocket): void {
 const httpServer = createServer((req, res) => {
   // Lightweight keep-alive/health probe — independent of any game state.
   if (req.url === '/health') {
+    console.log('[health] ping', new Date().toISOString());
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok' }));
     return;
