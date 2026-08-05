@@ -1,57 +1,28 @@
 import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 
 interface Props {
   durationMs: number;
-  startKey: string; // changes when timer resets
 }
 
-export function TurnTimer({ durationMs, startKey }: Props) {
+export function TurnBorder({ durationMs }: Props) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    setElapsed(0);
     const start = Date.now();
-    const id = setInterval(() => {
-      setElapsed(Date.now() - start);
-    }, 100);
+    const id = setInterval(() => setElapsed(Date.now() - start), 100);
     return () => clearInterval(id);
-  }, [startKey]);
+  }, []);
 
   const fraction = Math.min(elapsed / durationMs, 1);
-  const remaining = Math.max(0, Math.ceil((durationMs - elapsed) / 1000));
-
-  const size = 44;
-  const strokeWidth = 4;
-  const r = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * r;
-  const dashoffset = circumference * fraction;
-
-  const color = fraction < 0.6 ? '#4caf50' : fraction < 0.85 ? '#ff9800' : '#f44336';
+  const remaining = Math.max(0, (1 - fraction) * 100); // percent of ring remaining
+  const color = fraction < 0.6 ? '#43A047' : fraction < 0.85 ? '#FFB300' : '#E53935';
 
   return (
-    <div className="timer-ring" title={`${remaining}s`}>
-      <svg width={size} height={size}>
-        <circle
-          className="timer-ring__track"
-          cx={size / 2} cy={size / 2} r={r}
-          strokeWidth={strokeWidth}
-        />
-        <circle
-          className="timer-ring__fill"
-          cx={size / 2} cy={size / 2} r={r}
-          strokeWidth={strokeWidth}
-          stroke={color}
-          strokeDasharray={circumference}
-          strokeDashoffset={dashoffset}
-        />
-      </svg>
-      <span style={{
-        position: 'absolute', inset: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: '0.75rem', fontWeight: 700, color,
-      }}>
-        {remaining}
-      </span>
-    </div>
+    <div
+      className="turn-border"
+      aria-hidden
+      style={{ '--turn-rp': `${remaining}%`, '--turn-color': color } as CSSProperties}
+    />
   );
 }

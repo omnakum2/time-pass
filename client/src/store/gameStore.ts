@@ -33,7 +33,7 @@ export const useGameStore = create<GameStore>((set) => ({
 
   setConnected: (connected) => set({ connected }),
   setSession: (playerId, roomId) => set({ playerId, roomId }),
-  setState: (gameState) => set({ gameState, gameOver: null }),
+  setState: (gameState) => set((s) => ({ gameState, gameOver: gameState.phase === 'GAME_OVER' ? s.gameOver : null })),
   setRoundResult: (lastRoundResult) => set({ lastRoundResult }),
   setGameOver: (gameOver) => set({ gameOver }),
   setError: (code, message) => set({ error: { code, message } }),

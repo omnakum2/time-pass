@@ -14,7 +14,7 @@ export default defineConfig({
     host: true,   // listen on 0.0.0.0 so other devices on the network can connect
     proxy: {
       '/ws': {
-        target: 'ws://localhost:3001',
+        target: 'ws://localhost:3000',
         ws: true,
         rewrite: (p) => p.replace(/^\/ws/, ''),
       },

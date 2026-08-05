@@ -47,11 +47,3 @@ export function CardView({ card, disabled, selected, played, onClick, layoutId, 
     </motion.div>
   );
 }
-
-export function CardBack({ style }: { style?: React.CSSProperties }) {
-  return (
-    <div className="card card--back" style={style}>
-      <span style={{ fontSize: '1.4rem', opacity: 0.4 }}>🂠</span>
-    </div>
-  );
-}

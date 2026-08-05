@@ -5,33 +5,36 @@ import { CardView } from './CardView';
 interface Props {
   trick: TrickCard[];
   players: Player[];
+  round: number | null;
+  status: string;
 }
 
-const SUIT_SYMBOL: Record<string, string> = { D: '♦', C: '♣', H: '♥', S: '♠' };
-
-export function TrickArea({ trick, players }: Props) {
+export function TrickArea({ trick, players, round, status }: Props) {
   const playerName = (id: string) => players.find(p => p.id === id)?.name ?? '?';
 
   return (
     <div className="trick-area">
-      {trick.length === 0 ? (
-        <p style={{ opacity: 0.4, fontSize: '0.875rem' }}>Trick will appear here</p>
-      ) : (
+      <div className="trick-felt">
+        {/* Embossed table wordmark — suits over JHATPAT over a flourish */}
+        <div className="felt-watermark">
+          <div className="felt-watermark__suits">♠ ♥ ♦ ♣</div>
+          <div className="felt-watermark__title">JHATPAT</div>
+          <div className="felt-watermark__flourish">✦&nbsp;&nbsp;❦&nbsp;&nbsp;✦</div>
+        </div>
+
+        {round != null && <div className="round-chip">Round {round}</div>}
+
         <AnimatePresence>
           {trick.map(({ playerId, card }) => (
-            <div key={`${playerId}-${card.id}`} style={{ textAlign: 'center' }}>
-              <span style={{ fontSize: '0.7rem', opacity: 0.7, display: 'block', marginBottom: 4 }}>
-                {playerName(playerId)}
-              </span>
-              <CardView
-                card={card}
-                played
-                layoutId={`card-${card.id}`}
-              />
+            <div key={`${playerId}-${card.id}`} className="trick-card-slot">
+              <span className="trick-card-slot__name">{playerName(playerId)}</span>
+              <CardView card={card} played layoutId={`card-${card.id}`} />
             </div>
           ))}
         </AnimatePresence>
-      )}
+
+        {status && <div className="trick-status">{status}</div>}
+      </div>
     </div>
   );
 }

@@ -14,6 +14,7 @@ const BID_TIMEOUT_MS = 30_000;
 const PLAY_TIMEOUT_MS = 30_000;
 const RECONNECT_WINDOW_MS = 60_000;
 const EMPTY_ROOM_DESTROY_MS = 120_000;
+const COUNTDOWN_MS = 5000;
 
 export interface Seat {
   player: Player;
@@ -45,6 +46,8 @@ export class Room {
 
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
   private emptyRoomTimer: ReturnType<typeof setTimeout> | null = null;
+  private countdownTimer: ReturnType<typeof setTimeout> | null = null;
+  private countdownEndsAt: number | null = null;
 
   // Called when the room should be destroyed
   onDestroy: (() => void) | null = null;
@@ -100,6 +103,7 @@ export class Room {
     this.scoreboard.set(playerId, []);
     if (asHost) this.hostId = playerId;
     this.cancelEmptyRoomTimer();
+    this.maybeStartCountdown();
     return seat;
   }
 
@@ -133,6 +137,8 @@ export class Room {
         // Promote next player to host
         this.hostId = this.seats[0].player.id;
       }
+
+      if (this.countdownTimer && this.seats.length < this.maxPlayers) { this.cancelCountdown(); }
     } else {
       // In-game: start reconnect window
       seat.reconnectTimer = setTimeout(() => {
@@ -165,6 +171,46 @@ export class Room {
     this.roundIndex = 0;
     this.startRound();
     return null;
+  }
+
+  restartGame(requesterId: string): string | null {
+    if (requesterId !== this.hostId) return 'NOT_HOST';
+    if (this.phase !== 'GAME_OVER') return 'WRONG_PHASE';
+
+    // reset per-match state
+    this.roundIndex = 0;
+    this.scoreboard = new Map(this.seats.map(s => [s.player.id, []]));
+    this.bids = new Map();
+    this.tricksWon = new Map();
+    this.currentTrick = [];
+    this.leadSuit = null;
+    this.startRound();
+    return null;
+  }
+
+  private maybeStartCountdown(): void {
+    if (this.phase !== 'LOBBY') return;
+    if (this.seats.length < this.maxPlayers) return; // only when full
+    if (this.countdownTimer) clearTimeout(this.countdownTimer);
+    this.countdownEndsAt = Date.now() + COUNTDOWN_MS;
+    this.countdownTimer = setTimeout(() => {
+      this.countdownTimer = null;
+      this.countdownEndsAt = null;
+      this.beginGame();
+    }, COUNTDOWN_MS);
+    this.broadcastState();
+  }
+
+  private cancelCountdown(): void {
+    if (this.countdownTimer) { clearTimeout(this.countdownTimer); this.countdownTimer = null; }
+    this.countdownEndsAt = null;
+  }
+
+  private beginGame(): void {
+    if (this.phase !== 'LOBBY') return;
+    if (this.seats.length < 2) { this.cancelCountdown(); return; }
+    this.roundIndex = 0;
+    this.startRound();
   }
 
   // ─── Round lifecycle ──────────────────────────────────────────────────────
@@ -268,7 +314,7 @@ export class Room {
   }
 
   private resolveTrick(): void {
-    const winner = trickWinner(this.currentTrick, this.leadSuit!, this.trump!);
+    const winner = trickWinner(this.currentTrick, this.leadSuit!, this.trump);
     const winnerSeat = this.seats.find(s => s.player.id === winner.playerId)!;
     this.tricksWon.set(winner.playerId, (this.tricksWon.get(winner.playerId) ?? 0) + 1);
 
@@ -461,6 +507,7 @@ export class Room {
       scoreboard: scoreboardObj,
       firstBidder: this.seats[this.bidderSeatIndex]?.player.id ?? null,
       tricksWon: tricksWonObj,
+      countdownMs: this.countdownEndsAt ? Math.max(0, this.countdownEndsAt - Date.now()) : null,
     };
   }
 

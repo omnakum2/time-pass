@@ -3,24 +3,30 @@ import { useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
-import { disconnect, connect } from '../net/socket';
+import { sendMsg } from '../net/socket';
 
 export function WinnerPage() {
-  const { gameOver, playerId, reset } = useGameStore();
+  const { gameOver, playerId, gameState, reset } = useGameStore();
   const navigate = useNavigate();
+
+  const isHost = gameState?.hostId === playerId;
 
   const hasWinners = gameOver && gameOver.winners.length > 0;
 
   useEffect(() => {
     if (!hasWinners) return;
 
-    const end = Date.now() + 4000;
-    const frame = () => {
-      confetti({ particleCount: 4, angle: 60,  spread: 60, origin: { x: 0, y: 0.6 }, colors: ['#d4af37','#fff','#2ecc71'] });
-      confetti({ particleCount: 4, angle: 120, spread: 60, origin: { x: 1, y: 0.6 }, colors: ['#d4af37','#fff','#e74c3c'] });
-      if (Date.now() < end) requestAnimationFrame(frame);
-    };
-    frame();
+    // Party-popper: one blast from each top corner, then natural gravity fall.
+    // Both sides use the exact same color mix — no left/right color separation.
+    const colors = ['#E9B84A', '#43A047', '#C0392B', '#FBF6E9'];
+    const common = { particleCount: 360, spread: 55, startVelocity: 60, gravity: 1, scalar: 1.1, ticks: 220, colors };
+    // Top
+    confetti({ ...common, angle: 270, spread: 60, startVelocity: 32, origin: { x: 0.2, y: 0 } });  // top-left edge, falling
+    confetti({ ...common, angle: 270, spread: 60, startVelocity: 32, origin: { x: 0.8, y: 0 } });  // top-right edge, falling
+
+    // Bottom
+    confetti({ ...common, angle: 45, origin: { x: 0, y: 1 } }); // bottom-left
+    confetti({ ...common, angle: 135, origin: { x: 1, y: 1 } }); // bottom-right
   }, [hasWinners]);
 
   if (!gameOver) return <div className="page"><p>Loading…</p></div>;
@@ -37,11 +43,13 @@ export function WinnerPage() {
   const winnerNames = winners.map(id => playerNames[id] ?? id);
   const topScore = sortedPlayers[0]?.score;
 
-  const handlePlayAgain = () => {
+  const handleRematch = () => sendMsg({ type: 'restartGame' });
+  const handleLeave = () => {
     storage.clearSession();
+    sessionStorage.removeItem('pendingRoomId');
+    sessionStorage.removeItem('pendingHost');
+    navigate('/', { replace: true });
     reset();
-    disconnect();
-    setTimeout(() => { connect(); navigate('/', { replace: true }); }, 300);
   };
 
   return (
@@ -63,25 +71,9 @@ export function WinnerPage() {
           <>
             <h1 style={{ color: 'var(--gold)', fontSize: '1.8rem' }}>
               {isWinner
-                ? 'You Win!'
-                : `${winnerNames.join(' & ')} Win${winners.length > 1 ? '!' : 's!'}`}
+                ? 'You win!'
+                : `${winnerNames.join(' & ')} win${winners.length > 1 ? '!' : 's!'}`}
             </h1>
-            {/* Centered winner highlight card */}
-            <div style={{
-              background: 'rgba(212,175,55,0.15)',
-              border: '2px solid var(--gold)',
-              borderRadius: 14,
-              padding: '14px 28px',
-              textAlign: 'center',
-            }}>
-              <div style={{ fontWeight: 700, fontSize: '1.2rem', color: 'var(--gold)' }}>
-                {winnerNames.join(' & ')}
-              </div>
-              <div style={{ fontSize: '2rem', fontWeight: 700, marginTop: 4 }}>
-                {topScore}
-              </div>
-              <div style={{ opacity: 0.6, fontSize: '0.8rem' }}>Final Score</div>
-            </div>
           </>
         )}
 
@@ -89,7 +81,6 @@ export function WinnerPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={{ textAlign: 'left', padding: '6px 12px', opacity: 0.6, fontWeight: 600 }}>#</th>
               <th style={{ textAlign: 'left', padding: '6px 12px', opacity: 0.6, fontWeight: 600 }}>Player</th>
               <th style={{ textAlign: 'right', padding: '6px 12px', opacity: 0.6, fontWeight: 600 }}>Score</th>
             </tr>
@@ -99,11 +90,9 @@ export function WinnerPage() {
               const isTopPlayer = winners.includes(p.id);
               return (
                 <tr key={p.id} style={{ background: isTopPlayer ? 'rgba(212,175,55,0.12)' : 'transparent' }}>
-                  <td style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
-                  </td>
-                  <td style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.08)', fontWeight: p.id === playerId ? 700 : 400 }}>
+                  <td style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.08)', fontWeight: p.id === playerId ? 700 : 400 }}>
                     {p.name}
+                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
                     {p.id === playerId && <span style={{ opacity: 0.45, marginLeft: 5, fontSize: '0.78rem' }}>(you)</span>}
                   </td>
                   <td style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.08)', textAlign: 'right', fontWeight: 700, color: p.score >= 0 ? '#4caf50' : '#ef5350' }}>
@@ -115,9 +104,27 @@ export function WinnerPage() {
           </tbody>
         </table>
 
-        <button className="btn btn--primary" style={{ width: '100%' }} onClick={handlePlayAgain}>
-          Play Again
-        </button>
+        {hostLeft ? (
+          <button className="btn btn--secondary" style={{ width: '100%' }} onClick={handleLeave}>
+            Leave
+          </button>
+        ) : isHost ? (
+          <>
+            <button className="btn btn--primary" style={{ width: '100%' }} onClick={handleRematch}>
+              Play Again
+            </button>
+            <button className="btn btn--secondary" style={{ width: '100%' }} onClick={handleLeave}>
+              Leave
+            </button>
+          </>
+        ) : (
+          <>
+            <p style={{ opacity: 0.7, fontSize: '0.9rem' }}>Waiting for the host to start a rematch…</p>
+            <button className="btn btn--secondary" style={{ width: '100%' }} onClick={handleLeave}>
+              Leave
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

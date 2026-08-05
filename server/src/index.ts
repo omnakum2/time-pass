@@ -3,7 +3,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Room } from './room';
 import { ClientMessage, ServerMessage } from 'shared';
 
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 const rooms = new Map<string, Room>();
 
@@ -165,6 +165,16 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       const room = rooms.get(ctx.roomId);
       if (!room) return;
       const err = room.playCard(ctx.playerId, msg.cardId);
+      if (err) send(ws, { type: 'error', code: err, message: err });
+      break;
+    }
+
+    case 'restartGame': {
+      const ctx = wsContext.get(ws);
+      if (!ctx) return;
+      const room = rooms.get(ctx.roomId);
+      if (!room) return;
+      const err = room.restartGame(ctx.playerId);
       if (err) send(ws, { type: 'error', code: err, message: err });
       break;
     }

@@ -62,6 +62,7 @@ export interface GameState {
   scoreboard: Scoreboard;
   firstBidder: string | null;
   tricksWon: Record<string, number>; // playerId → tricks won this round
+  countdownMs: number | null; // ms left on the lobby auto-start countdown (null unless counting down)
 }
 
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
@@ -98,13 +99,18 @@ export interface MsgPlayCard {
   cardId: string;
 }
 
+export interface MsgRestartGame {
+  type: 'restartGame';
+}
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
   | MsgReconnect
   | MsgStartGame
   | MsgPlaceBid
-  | MsgPlayCard;
+  | MsgPlayCard
+  | MsgRestartGame;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 

@@ -2,7 +2,7 @@ import { ClientMessage, ServerMessage } from 'shared';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? `ws://${window.location.hostname}:3001`;
+const WS_URL = import.meta.env.VITE_WS_URL ?? `ws://${window.location.hostname}:3000`;
 
 let ws: WebSocket | null = null;
 let reconnectAttempts = 0;

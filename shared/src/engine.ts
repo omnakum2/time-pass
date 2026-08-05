@@ -52,13 +52,11 @@ export function deal(
 
 // ─── Trump rotation ──────────────────────────────────────────────────────────
 
-// Round 7→1 maps to index 0→6
-// D C H S D C H  (rounds 7,6,5,4,3,2,1)
-const TRUMP_ROTATION: Suit[] = ['D', 'C', 'H', 'S', 'D', 'C', 'H'];
-
-export function trumpForRound(round: number): Suit {
-  // round 7 → index 0, round 6 → index 1, ...
-  return TRUMP_ROTATION[7 - round];
+// 5-step trump cycle: D → C → H → S → No-Trump
+// round 7 → index 0, round 6 → index 1, ... (mod 5)
+export function trumpForRound(round: number): Suit | null {
+  const cycle: (Suit | null)[] = ['D', 'C', 'H', 'S', null];
+  return cycle[(7 - round) % 5];
 }
 
 // ─── Bidding order ───────────────────────────────────────────────────────────
@@ -97,13 +95,15 @@ export function legalMoves(hand: Card[], leadSuit: Suit | null): Card[] {
 export function trickWinner(
   trick: TrickCard[],
   leadSuit: Suit,
-  trump: Suit
+  trump: Suit | null
 ): TrickCard {
-  const trumpCards = trick.filter(tc => tc.card.suit === trump);
-  if (trumpCards.length > 0) {
-    return trumpCards.reduce((best, tc) =>
-      rankValue(tc.card.rank) > rankValue(best.card.rank) ? tc : best
-    );
+  if (trump !== null) {
+    const trumpCards = trick.filter(tc => tc.card.suit === trump);
+    if (trumpCards.length > 0) {
+      return trumpCards.reduce((best, tc) =>
+        rankValue(tc.card.rank) > rankValue(best.card.rank) ? tc : best
+      );
+    }
   }
   const leadCards = trick.filter(tc => tc.card.suit === leadSuit);
   return leadCards.reduce((best, tc) =>
