@@ -12,6 +12,7 @@ interface GameStore {
   gameOver: MsgGameOver | null;
   error: ErrorState | null;
   roomClosed: boolean;
+  activeBubbles: Record<string, { text: string; key: number }>; // playerId → quick-chat bubble
 
   setConnected: (v: boolean) => void;
   setRoomClosed: (v: boolean) => void;
@@ -21,8 +22,12 @@ interface GameStore {
   setGameOver: (g: MsgGameOver) => void;
   setError: (code: string, message: string) => void;
   clearError: () => void;
+  setBubble: (playerId: string, text: string) => void;
   reset: () => void;
 }
+
+let bubbleKey = 0;
+const BUBBLE_MS = 3500;
 
 export const useGameStore = create<GameStore>((set) => ({
   connected: false,
@@ -33,6 +38,7 @@ export const useGameStore = create<GameStore>((set) => ({
   gameOver: null,
   error: null,
   roomClosed: false,
+  activeBubbles: {},
 
   setConnected: (connected) => set({ connected }),
   setRoomClosed: (roomClosed) => set({ roomClosed }),
@@ -42,8 +48,19 @@ export const useGameStore = create<GameStore>((set) => ({
   setGameOver: (gameOver) => set({ gameOver }),
   setError: (code, message) => set({ error: { code, message } }),
   clearError: () => set({ error: null }),
+  setBubble: (playerId, text) => {
+    const key = ++bubbleKey;
+    set((s) => ({ activeBubbles: { ...s.activeBubbles, [playerId]: { text, key } } }));
+    setTimeout(() => set((s) => {
+      if (s.activeBubbles[playerId]?.key !== key) return {}; // replaced by a newer bubble
+      const next = { ...s.activeBubbles };
+      delete next[playerId];
+      return { activeBubbles: next };
+    }), BUBBLE_MS);
+  },
   reset: () => set({
     playerId: null, roomId: null, gameState: null,
     lastRoundResult: null, gameOver: null, error: null, roomClosed: false,
+    activeBubbles: {},
   }),
 }));

@@ -10,6 +10,7 @@ import { BidPanel } from '../components/BidPanel';
 import { PlayerChip } from '../components/PlayerChip';
 import { Popup } from '../components/Popup';
 import { RoundResultOverlay } from '../components/RoundResultOverlay';
+import { QuickMessages } from '../components/QuickMessages';
 
 // ─── GamePage ─────────────────────────────────────────────────────────────────
 
@@ -170,6 +171,7 @@ export function GamePage() {
                 Tap again to play
               </span>
             )}
+            <QuickMessages />
           </div>
 
           {/* ── My hand ─── */}

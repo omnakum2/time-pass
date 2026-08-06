@@ -109,6 +109,11 @@ export interface MsgLeaveRoom {
   type: 'leaveRoom';
 }
 
+export interface MsgQuickMessage {
+  type: 'quickMessage';
+  id: string; // one of QUICK_MESSAGES[].id
+}
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
@@ -117,7 +122,8 @@ export type ClientMessage =
   | MsgPlaceBid
   | MsgPlayCard
   | MsgRestartGame
-  | MsgLeaveRoom;
+  | MsgLeaveRoom
+  | MsgQuickMessage;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 
@@ -163,10 +169,34 @@ export interface MsgRoomClosed {
   type: 'roomClosed'; // the finished room's TTL elapsed; it's being destroyed
 }
 
+export interface MsgQuickMessageBroadcast {
+  type: 'quickMessage';
+  senderId: string;
+  text: string;
+}
+
 export type ServerMessage =
   | MsgJoined
   | MsgState
   | MsgRoundResult
   | MsgGameOver
   | MsgError
-  | MsgRoomClosed;
+  | MsgRoomClosed
+  | MsgQuickMessageBroadcast;
+
+// ─── Quick chat messages (predefined, tap-to-send) ──────────────────────────
+
+export interface QuickMessage { id: string; text: string; }
+
+export const QUICK_MESSAGES: QuickMessage[] = [
+  { id: 'play-fast',   text: 'Play Fast' },
+  { id: 'nice-move',   text: 'Nice Move' },
+  { id: 'my-game',     text: 'My Game' },
+  { id: 'better-luck', text: 'Better Luck Next Time' },
+  { id: 'good-game',   text: 'Good Game' },
+  { id: 'hurry-up',    text: 'Hurry Up!' },
+  { id: 'oh-shit',     text: 'Oh Shit!' },
+  { id: 'thinking',    text: 'Thinking' },
+  { id: 'thank-you',   text: 'Thank You' },
+  { id: 'close-one',   text: 'Close One!' }
+];

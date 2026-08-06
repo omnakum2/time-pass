@@ -1,5 +1,6 @@
 import { Player } from 'shared';
 import { TurnBorder } from './TurnTimer';
+import { useGameStore } from '../store/gameStore';
 
 interface Props {
   player: Player;
@@ -14,8 +15,14 @@ interface Props {
 }
 
 export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, timerMs, isMe, totalScore }: Props) {
+  const bubble = useGameStore(s => s.activeBubbles[player.id]);
   return (
     <div className={`player-chip${isActive ? ' player-chip--active' : ''}${isMe ? ' player-chip--me' : ''}`}>
+      {bubble && (
+        <div className={`chat-bubble${isMe ? '' : ' chat-bubble--below'}`} key={bubble.key}>
+          {bubble.text}
+        </div>
+      )}
       {isActive && (phase === 'BIDDING' || phase === 'PLAYING') && timerMs !== undefined && (
         <TurnBorder key={turnKey} durationMs={timerMs} />
       )}

@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import {
   Card, GamePhase, GameState, Player, RoundScore,
-  Suit, TrickCard, ServerMessage, MsgRoundResult
+  Suit, TrickCard, ServerMessage, MsgRoundResult, QUICK_MESSAGES
 } from 'shared';
 import {
   deal, pickTrump, firstBidderSeat,
@@ -18,6 +18,7 @@ export interface Seat {
   ws: WebSocket | null;
   hand: Card[];
   reconnectTimer: ReturnType<typeof setTimeout> | null;
+  lastQuickMsgAt?: number; // rate-limit quick chat messages
 }
 
 export class Room {
@@ -603,6 +604,19 @@ export class Room {
   sendState(ws: WebSocket, playerId: string): void {
     const state = this.buildState(playerId);
     this.send(ws, { type: 'state', state });
+  }
+
+  // ─── Quick chat messages ──────────────────────────────────────────────────
+
+  quickMessage(playerId: string, id: string): void {
+    const seat = this.getSeat(playerId);
+    if (!seat) return;
+    const item = QUICK_MESSAGES.find(m => m.id === id);
+    if (!item) return;
+    const now = Date.now();
+    if (seat.lastQuickMsgAt && now - seat.lastQuickMsgAt < 1500) return; // rate-limit
+    seat.lastQuickMsgAt = now;
+    this.broadcast({ type: 'quickMessage', senderId: playerId, text: item.text });
   }
 
   private broadcast(msg: ServerMessage): void {

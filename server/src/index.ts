@@ -204,6 +204,14 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       break;
     }
 
+    case 'quickMessage': {
+      const ctx = wsContext.get(ws);
+      if (!ctx) return;
+      if (typeof msg.id !== 'string') return;
+      rooms.get(ctx.roomId)?.quickMessage(ctx.playerId, msg.id);
+      break;
+    }
+
     default: {
       send(ws, { type: 'error', code: 'UNKNOWN_MESSAGE', message: 'Unknown message type' });
     }
