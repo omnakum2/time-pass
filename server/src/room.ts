@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import {
   Card, GamePhase, GameState, Player, RoundScore,
-  Suit, TrickCard, ServerMessage, MsgRoundResult
+  Suit, TrickCard, ServerMessage, MsgRoundResult, ErrorCode
 } from 'shared';
 import {
   deal, pickTrump, firstBidderSeat,
@@ -204,7 +204,7 @@ export class Room {
 
   // ─── Lobby ────────────────────────────────────────────────────────────────
 
-  startGame(requesterId: string): string | null {
+  startGame(requesterId: string): ErrorCode | null {
     if (requesterId !== this.hostId) return 'NOT_HOST';
     if (this.phase !== 'LOBBY') return 'WRONG_PHASE';
     if (this.seats.length < 2) return 'NOT_ENOUGH_PLAYERS';
@@ -215,7 +215,7 @@ export class Room {
     return null;
   }
 
-  restartGame(requesterId: string): string | null {
+  restartGame(requesterId: string): ErrorCode | null {
     if (requesterId !== this.hostId) return 'NOT_HOST';
     if (this.phase !== 'GAME_OVER') return 'WRONG_PHASE';
 
@@ -287,7 +287,7 @@ export class Room {
 
   // ─── Bidding ──────────────────────────────────────────────────────────────
 
-  placeBid(playerId: string, bid: number): string | null {
+  placeBid(playerId: string, bid: number): ErrorCode | null {
     if (this.phase !== 'BIDDING') return 'WRONG_PHASE';
     if (this.currentTurnPlayerId() !== playerId) return 'NOT_YOUR_TURN';
     if (!Number.isInteger(bid) || bid < 0 || bid > (this.currentRound ?? 0)) {
@@ -326,7 +326,7 @@ export class Room {
 
   // ─── Playing ──────────────────────────────────────────────────────────────
 
-  playCard(playerId: string, cardId: string): string | null {
+  playCard(playerId: string, cardId: string): ErrorCode | null {
     if (this.phase !== 'PLAYING') return 'WRONG_PHASE';
     if (this.currentTurnPlayerId() !== playerId) return 'NOT_YOUR_TURN';
 

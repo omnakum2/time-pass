@@ -153,9 +153,26 @@ export interface MsgGameOver {
   playerNames: Record<string, string>;
 }
 
+export type ErrorCode =
+  | 'INVALID_NAME'
+  | 'ROOM_NOT_FOUND'
+  | 'GAME_STARTED'
+  | 'ROOM_FULL'
+  | 'JOIN_FAILED'
+  | 'INVALID_TOKEN'
+  | 'NOT_IN_ROOM'
+  | 'BAD_MESSAGE'
+  | 'NOT_HOST'
+  | 'WRONG_PHASE'
+  | 'NOT_ENOUGH_PLAYERS'
+  | 'NOT_YOUR_TURN'
+  | 'INVALID_BID'
+  | 'CARD_NOT_IN_HAND'
+  | 'ILLEGAL_CARD';
+
 export interface MsgError {
   type: 'error';
-  code: string;
+  code: ErrorCode;
   message: string;
 }
 
