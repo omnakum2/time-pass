@@ -105,12 +105,11 @@ export function HomePage() {
           </div>
           <section className="home-seo">
             <p>
-              Bid Club is a real-time multiplayer trick-taking card game. Spin up a room,
-              share the link, and gather two to seven friends. Each round you predict exactly
-              how many tricks you&rsquo;ll take, then play to hit your number. Miss it and you
-              lose the points. Seven rounds, a shifting trump, one winner.{' '}
-              New here? The <Link className="home-seo__link" to="/guide">Guide</Link> covers
-              every rule and how scoring works.
+              Bid Club is a real-time multiplayer Hand-taking card game. Create a room,
+              share the room link, and invite two to seven friends. Each round you predict exactly
+              how many hands you&rsquo;ll make, then play to hit your number. Miss it and you
+              will lose the points. Seven rounds, a shifting trump, one winner.{' '}
+              New here? Read our <Link className="home-seo__link" to="/guide">Guide</Link> to learn how to play.
             </p>
           </section>
         </div>

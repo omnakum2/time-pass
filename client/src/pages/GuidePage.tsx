@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
-type Lang = 'en' | 'hi';
+type Lang = 'en' | 'gu';
 
 interface Section {
   id: string;
@@ -132,111 +132,110 @@ const SECTIONS: Record<Lang, Section[]> = {
       ),
     },
   ],
-  hi: [
+  gu: [
     {
       id: 'overview',
-      title: 'Saaraansh',
+      title: 'Saaransh',
       body: (
         <>
           <p>
-            Bid Club ek trick-taking prediction game hai. Ye kul 7 round chalta hai, aur
-            baante jaane waale patton ki sankhya pehle round ke 7 se ghatte hue aakhiri
-            round me 1 tak aa jaati hai.
+            Bid Club ek trick-taking prediction game che. Aama kul 7 round ni game thai che.
           </p>
           <p>
-            Har round me aap andaaza lagate ho ki aap kitne haath (tricks) jeetoge, aur
-            points sirf tab milte hain jab aapka andaaza bilkul sahi ho · paas hona kaafi
-            nahi hai.
+            Dar round ma tame andaajo lagaavo cho ke tame ketla haath jitso, ane
+            point tyare j made jyare tamaro andaajo sachho hoy.
           </p>
         </>
       ),
     },
     {
       id: 'rounds',
-      title: 'Round Aur Patte Baantna',
+      title: 'Round Ane Patta',
       body: (
         <>
           <p>
-            Round 7 me har khiladi ko 7 patte milte hain, Round 6 me 6, aur isi tarah
-            ghatte hue Round 1 me sirf 1 patta. Round hamesha ulti ginti me chalte hain:
+            Round 7 ma dar khiladi ne 7 patta made che, Round 6 ma 6, ane aa rite ghatti
+            ne Round 1 ma fakt 1 pattu. Round hamesha ulti ganatri ma chale che:
             7 → 6 → 5 → 4 → 3 → 2 → 1.
           </p>
-          <p>Har round ki shuruaat mein 52 patton ko dobara shuffle kiya jaata hai.</p>
+          <p>Dar round ni shruaat ma 52 patta ne farithi shuffle karvama aave che.</p>
         </>
       ),
     },
     {
       id: 'trump',
-      title: 'Trump (Turup)',
+      title: 'Sar',
       body: (
         <>
           <p>
-            Har round me ek suit trump (turup) hoti hai jo baaki sabhi suits ko haraati
-            hai. Har round ki shuruaat me trump in paanch me se randomly (bina kisi kram ke)
-            chuni jaati hai:
+            Dar round ma ek color no Sar hoy che je baaki badha color ne haravi de che.
+            Dar round ni shruaat ma Sar aa paanch ma thi koi kram vagar pasand
+            thay che:
           </p>
           <ul>
-            <li>Diamond ♦ (eent)</li>
-            <li>Club ♣ (chidi)</li>
-            <li>Heart ♥ (paan)</li>
-            <li>Spade ♠ (hukum)</li>
-            <li>No-Trump</li>
+            <li>Charkat ♦</li>
+            <li>Falli ♣</li>
+            <li>Laal ♥</li>
+            <li>Kaali ♠</li>
+            <li>Koi Sar nathi</li>
           </ul>
           <p>
-            Trump har round me random chuni jaati hai aur kabhi bhi lagataar do round tak ek jaisi nahi rehti, isliye aap agli trump pehle se nahi predict kar sakte.
+            Sar dar round ma kram vagar pasand thay che ane kyarey sathe be round sudhi ek
+            sarkho nathi reheto, etle tame aaglo Sar pehle thi predict nathi kari shakta.
           </p>
           <p>
-            No-Trump round me koi trump suit nahi hoti, isliye chali gayi (led) suit ka
-            sabse bada patta hamesha haath jeet leta hai.
+            Jyare round ma koi Sar nathi hoto, etle chaal thayeli color no
+            sauthi motu pattu hamesha haath jiti le che.
           </p>
         </>
       ),
     },
     {
       id: 'bidding',
-      title: 'Bidding (Andaaza)',
+      title: 'Andaajo',
       body: (
         <>
           <p>
-            Har round se pehle har khiladi andaaza lagata hai ki wo kitne haath jeetega ·
-            0 se le kar round number tak (yaani Round 7 me zyada se zyada 7, Round 1 me
-            zyada se zyada 1).
+            Dar round pehla dar khiladi andaajo lagaave che ke te ketla haath jitse ·
+            0 thi lai ne round number sudhi (etle Round 7 ma vadhu ma vadhu 7, Round 1 ma
+            vadhu ma vadhu 1).
           </p>
           <p>
-            Pehli bid lagane waala khiladi har round me ek seat aage khiskta hai, aur wahi
-            khiladi pehla haath (trick) shuru karta hai.
+            Pehli bid lagaavnaar khiladi dar round ma ek seat aage khase che, ane te j
+            khiladi pehlo haath shuru kare che.
           </p>
         </>
       ),
     },
     {
       id: 'scoring',
-      title: 'Scoring (Points)',
+      title: 'Points',
       body: (
         <>
-          <p>Kisi round me aapke points puri tarah is baat par nirbhar karte hain ki aapki bid sahi thi ya nahi:</p>
+          <p>Koi round ma tamara point puri rite aa vaat par aadhaar raakhe che ke tamari bid sachi hati ke nahi:</p>
           <ol>
-            <li>Sahi bid · bid × 10 aur saath me aapki bid, yaani bid × 11.</li>
-            <li>Galat bid · aapke bid × 10 points kat jaate hain.</li>
-            <li>0 ki sahi bid · +10 points.</li>
-            <li>0 ki galat bid · −10 points.</li>
+            <li>Sachi bid · bid × 10 ane sathe tamari bid, etle bid × 11.</li>
+            <li>Khoti bid · tamara bid × 10 point kapaai jaay che.</li>
+            <li>0 ni sachi bid · +10 point.</li>
+            <li>0 ni khoti bid · −10 point.</li>
           </ol>
         </>
       ),
     },
     {
       id: 'playing',
-      title: 'Haath (Trick) Khelna',
+      title: 'Haath Ramvo',
       body: (
         <>
           <p>
-            Shuruaat karne waala khiladi ek patta chalta hai, aur baaki sab ko usi suit ka
-            patta chalna zaroori hai, agar unke paas ho. Agar wo suit na ho to aap koi bhi
-            patta chal sakte ho, trump bhi.
+            Shruaat karnaar khiladi ek pattu chale che, ane baaki badha e j color no
+            pattu chalvu jaruri che, jo temni pase hoy. Jo te color na hoy to tame koi pan
+            pattu chali shako cho, Sar pan.
           </p>
           <p>
-            Haath me sabse bada trump jeetta hai. Agar koi trump nahi chala, to chali gayi
-            suit ka sabse bada patta jeetta hai. Haath jeetne waala agla haath shuru karta hai.
+            Haath ma sauthi moto Sar jite che. Jo koi Sar na chalyo hoy, to chaal thayeli
+            color no sauthi motu pattu jite che. Haath jitnaar khiladi aaglo haath
+            shuru kare che.
           </p>
         </>
       ),
@@ -247,12 +246,12 @@ const SECTIONS: Record<Lang, Section[]> = {
       body: (
         <>
           <p>
-            Round 1 ke baad khel khatam ho jaata hai aur points ki tulna hoti hai. Sabse
-            zyada positive score waala khiladi jeetta hai.
+            Round 1 pachhi ramat puri thai jaay che ane point ni sarkhavani thay che.
+            Sauthi vadhu total score vaalo khiladi jite che.
           </p>
           <p>
-            Agar sabhi khiladiyon ka score negative ho, to jiska score zero ke sabse kareeb
-            hai wo khiladi jeetta hai.
+            Jo badha khiladi o no score minus ma hoy, to jena score zero ni sauthi najik
+            hoy te khiladi jite che.
           </p>
         </>
       ),
@@ -262,7 +261,7 @@ const SECTIONS: Record<Lang, Section[]> = {
 
 const PAGE_TITLE: Record<Lang, string> = {
   en: 'How to Play · Bid Club',
-  hi: 'Kaise Khele · Bid Club',
+  gu: 'Kem Ramvu · Bid Club',
 };
 
 export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean }) {
@@ -276,8 +275,8 @@ export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean 
         <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>
           English
         </button>
-        <button className={lang === 'hi' ? 'active' : ''} onClick={() => setLang('hi')}>
-          Hindi
+        <button className={lang === 'gu' ? 'active' : ''} onClick={() => setLang('gu')}>
+          Gujarati
         </button>
       </div>
       <div className="guide-layout">
@@ -304,8 +303,17 @@ export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean 
           ))}
           {showHomeLink && (
             <p className="guide-home-cta">
-              Ready to play? Head back to the{' '}
-              <Link className="home-seo__link" to="/">Home</Link> page to create or join a room.
+              {lang === 'gu' ? (
+                <>
+                  Ramva mate taiyar cho? Room banavva ke join karva mate{' '}
+                  <Link className="home-seo__link" to="/">Home</Link> page par pacha jao.
+                </>
+              ) : (
+                <>
+                  Ready to play? Head back to the{' '}
+                  <Link className="home-seo__link" to="/">Home</Link> page to create or join a room.
+                </>
+              )}
             </p>
           )}
         </article>

@@ -663,10 +663,11 @@ body {
   .trick-felt { padding: 14px 10px; min-height: 0; }
   .felt-watermark__title { font-size: clamp(1.6rem, 9vw, 2.8rem); }
 
-  /* Decouple played (trick) cards from the enlarged hand cards: re-scope
-     --card-w on the slot so both width AND height (lazy calc) shrink,
-     letting up to 7 played cards fit the felt without overflow/overlap. */
-  .trick-card-slot { --card-w: 44px; }
+  /* Decouple played (trick) cards from the enlarged hand cards: set an explicit
+     width AND height on the played card. The shared --card-h calc keeps the
+     :root height, so re-scoping --card-w alone stretched them. Fixed 1:1.45
+     ratio so up to 7 cards fit the felt without distortion. */
+  .trick-card-slot .card { width: 46px; height: 67px; }
   .trick-felt { gap: 6px; }
 
   /* Round + Trump: one line, natural size (no wrap), wide-enough container */
@@ -691,5 +692,5 @@ body {
   .hand-cards .card { margin-left: -38px; }
 
   /* Even smaller played cards so all 7 fit on the narrowest phones */
-  .trick-card-slot { --card-w: 42px; }
+  .trick-card-slot .card { width: 42px; height: 61px; }
 }
