@@ -11,7 +11,6 @@ const WS_URL = import.meta.env.VITE_WS_URL || `${wsProto}://${window.location.ho
 
 let ws: WebSocket | null = null;
 let reconnectAttempts = 0;
-const MAX_RECONNECT = 5;
 let manualClose = false;
 // True while an automatic session-reconnect is in flight. Lets us swallow the
 // server's ROOM_NOT_FOUND/INVALID_TOKEN reply (stale session) instead of
@@ -58,9 +57,11 @@ export function connect(): void {
     if (ws !== sock) return; // a newer socket has replaced us — ignore this stale close
     useGameStore.getState().setConnected(false);
     ws = null;
-    if (!manualClose && reconnectAttempts < MAX_RECONNECT) {
+    // Retry indefinitely (until manualClose) with a capped backoff so a
+    // cold/slept backend and transient drops self-heal silently.
+    if (!manualClose) {
       reconnectAttempts++;
-      const delay = Math.min(1000 * 2 ** reconnectAttempts, 15_000);
+      const delay = Math.min(1000 * 2 ** Math.min(reconnectAttempts, 4), 10_000);
       setTimeout(() => connect(), delay);
     }
   };
@@ -89,6 +90,10 @@ function dispatch(msg: ServerMessage): void {
       break;
     case 'gameOver':
       store.setGameOver(msg);
+      break;
+    case 'roomClosed':
+      storage.clearSession();
+      store.setRoomClosed(true);
       break;
     case 'error':
       // A failed auto-reconnect just means the stored session is stale (room

@@ -64,6 +64,7 @@ export interface GameState {
   tricksWon: Record<string, number>; // playerId → tricks won this round
   countdownMs: number | null; // ms left on the lobby auto-start countdown (null unless counting down)
   turnTimeoutMs: number; // server-configured turn budget for the current phase (drives client timer rings)
+  roomExpiresInMs: number | null; // ms until a finished room auto-closes (null unless in GAME_OVER)
 }
 
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
@@ -158,9 +159,14 @@ export interface MsgError {
   message: string;
 }
 
+export interface MsgRoomClosed {
+  type: 'roomClosed'; // the finished room's TTL elapsed; it's being destroyed
+}
+
 export type ServerMessage =
   | MsgJoined
   | MsgState
   | MsgRoundResult
   | MsgGameOver
-  | MsgError;
+  | MsgError
+  | MsgRoomClosed;

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 
 const FRIENDLY: Record<string, string> = {
-  ROOM_NOT_FOUND: 'Room not found. Check the code and try again.',
+  ROOM_NOT_FOUND: 'That room has expired or no longer exists.',
   GAME_STARTED: 'That game has already started.',
   ROOM_FULL: 'Room is full (max 7 players).',
   NOT_HOST: 'Only the host can do that.',

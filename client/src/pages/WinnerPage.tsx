@@ -1,16 +1,35 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
 import { sendMsg } from '../net/socket';
 
 export function WinnerPage() {
-  const { gameOver, playerId, gameState, reset } = useGameStore();
+  const { gameOver, playerId, gameState, reset, roomClosed } = useGameStore();
   const navigate = useNavigate();
 
   const isHost = gameState?.hostId === playerId;
 
   const hasWinners = gameOver && gameOver.winners.length > 0;
+
+  // Host-only expiry countdown. Seeded from the server-broadcast value and
+  // ticked locally each second for display.
+  const [secsLeft, setSecsLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    const expiresInMs = gameState?.roomExpiresInMs;
+    if (roomClosed || expiresInMs == null) {
+      setSecsLeft(null);
+      return;
+    }
+
+    setSecsLeft(Math.ceil(expiresInMs / 1000));
+    const interval = setInterval(() => {
+      setSecsLeft(prev => (prev == null ? prev : Math.max(0, prev - 1)));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [gameState?.roomExpiresInMs, roomClosed]);
 
   useEffect(() => {
     if (!hasWinners) return;
@@ -106,7 +125,18 @@ export function WinnerPage() {
           </tbody>
         </table>
 
-        {hostLeft ? (
+        {roomClosed ? (
+          <>
+            <p style={{ opacity: 0.7, fontSize: '0.9rem' }}>This game has ended and the room has closed.</p>
+            <button
+              className="btn btn--primary"
+              style={{ width: '100%' }}
+              onClick={() => { reset(); navigate('/', { replace: true }); }}
+            >
+              Back to Home
+            </button>
+          </>
+        ) : hostLeft ? (
           <button className="btn btn--secondary" style={{ width: '100%' }} onClick={handleLeave}>
             Leave
           </button>
@@ -115,6 +145,9 @@ export function WinnerPage() {
             <button className="btn btn--primary" style={{ width: '100%' }} onClick={handleRematch}>
               Play Again
             </button>
+            {secsLeft != null && (
+              <p style={{ opacity: 0.6, fontSize: '0.8rem', margin: 0 }}>Room closes in {secsLeft}s</p>
+            )}
             <button className="btn btn--secondary" style={{ width: '100%' }} onClick={handleLeave}>
               Leave
             </button>

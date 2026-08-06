@@ -17,7 +17,7 @@ export const config = {
   playTimeoutMs: 30_000,       // time to play before an auto-play of a legal card
   reconnectWindowMs: 60_000,   // grace period for a disconnected player to return
   emptyRoomDestroyMs: 120_000, // keep an empty room this long before destroying it
-  gameOverTtlMs: 300_000,      // keep a finished room this long (for a rematch)
+  gameOverTtlMs: 15_000,       // keep a finished room this long before it auto-closes (rematch cancels it)
   countdownMs: 5_000,          // lobby auto-start countdown once the room is full
   disconnectedAutoMoveMs: 500, // auto-move delay for a disconnected player's seat
   trickDisplayMs: 1_500,       // how long a completed trick is shown

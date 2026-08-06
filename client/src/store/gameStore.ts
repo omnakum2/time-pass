@@ -11,8 +11,10 @@ interface GameStore {
   lastRoundResult: MsgRoundResult | null;
   gameOver: MsgGameOver | null;
   error: ErrorState | null;
+  roomClosed: boolean;
 
   setConnected: (v: boolean) => void;
+  setRoomClosed: (v: boolean) => void;
   setSession: (playerId: string, roomId: string) => void;
   setState: (s: GameState) => void;
   setRoundResult: (r: MsgRoundResult) => void;
@@ -30,8 +32,10 @@ export const useGameStore = create<GameStore>((set) => ({
   lastRoundResult: null,
   gameOver: null,
   error: null,
+  roomClosed: false,
 
   setConnected: (connected) => set({ connected }),
+  setRoomClosed: (roomClosed) => set({ roomClosed }),
   setSession: (playerId, roomId) => set({ playerId, roomId }),
   setState: (gameState) => set((s) => ({ gameState, gameOver: gameState.phase === 'GAME_OVER' ? s.gameOver : null })),
   setRoundResult: (lastRoundResult) => set({ lastRoundResult }),
@@ -40,6 +44,6 @@ export const useGameStore = create<GameStore>((set) => ({
   clearError: () => set({ error: null }),
   reset: () => set({
     playerId: null, roomId: null, gameState: null,
-    lastRoundResult: null, gameOver: null, error: null,
+    lastRoundResult: null, gameOver: null, error: null, roomClosed: false,
   }),
 }));

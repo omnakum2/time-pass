@@ -91,7 +91,7 @@ const SECTIONS: Record<Lang, Section[]> = {
         <>
           <p>Your score for a round depends entirely on whether your bid was exact:</p>
           <ol>
-            <li>Exact bid · bid × 10 plus your bid, i.e. bid × 11.</li>
+            <li>Exact bid · bid × 10 plus the bid itself, i.e. bid × 11.</li>
             <li>Wrong bid · you lose bid × 10.</li>
             <li>Correct bid of 0 · you score +10.</li>
             <li>Missed bid of 0 · you score −10.</li>
@@ -121,8 +121,8 @@ const SECTIONS: Record<Lang, Section[]> = {
       body: (
         <>
           <p>
-            After Round 1 the game ends and scores are compared. The highest positive score
-            wins.
+            After Round 1 the game ends and scores are compared. The player with the highest
+            total score wins.
           </p>
           <p>
             If every player finished with a negative score, the player whose score is closest
@@ -161,7 +161,7 @@ const SECTIONS: Record<Lang, Section[]> = {
             ghatte hue Round 1 me sirf 1 patta. Round hamesha ulti ginti me chalte hain:
             7 → 6 → 5 → 4 → 3 → 2 → 1.
           </p>
-          <p>Har round ki shuruaat me 52 patton ki poori gaddi naye sire se phenti jaati hai.</p>
+          <p>Har round ki shuruaat mein 52 patton ko dobara shuffle kiya jaata hai.</p>
         </>
       ),
     },
@@ -183,8 +183,7 @@ const SECTIONS: Record<Lang, Section[]> = {
             <li>No-Trump</li>
           </ul>
           <p>
-            Trump kabhi bhi lagataar do round tak ek jaisi nahi rehti, isliye aap pehle se
-            andaaza nahi laga sakte ki agli trump kaunsi hogi.
+            Trump har round me random chuni jaati hai aur kabhi bhi lagataar do round tak ek jaisi nahi rehti, isliye aap agli trump pehle se nahi predict kar sakte.
           </p>
           <p>
             No-Trump round me koi trump suit nahi hoti, isliye chali gayi (led) suit ka

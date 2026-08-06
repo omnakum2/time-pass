@@ -242,14 +242,7 @@ body {
 .icon-btn:hover  { background: rgba(233,184,74,0.18); color: var(--gold); }
 .icon-btn:active { transform: scale(0.92); }
 
-/* ─── Connection banner / error toast (status colors) ─────────────────────── */
-.conn-banner {
-  position: fixed; top: 0; left: 0; right: 0;
-  background: #c0392b; color: #fff; text-align: center;
-  padding: 8px; font-size: 0.875rem; z-index: 1000;
-  transform: translateY(-100%); transition: transform 0.3s;
-}
-.conn-banner--visible { transform: translateY(0); }
+/* ─── Error toast (status colors) ─────────────────────────────────────────── */
 .error-toast {
   position: fixed; bottom: 24px; left: 50%;
   transform: translateX(-50%) translateY(20px);
@@ -670,6 +663,12 @@ body {
   .trick-felt { padding: 14px 10px; min-height: 0; }
   .felt-watermark__title { font-size: clamp(1.6rem, 9vw, 2.8rem); }
 
+  /* Decouple played (trick) cards from the enlarged hand cards: re-scope
+     --card-w on the slot so both width AND height (lazy calc) shrink,
+     letting up to 7 played cards fit the felt without overflow/overlap. */
+  .trick-card-slot { --card-w: 44px; }
+  .trick-felt { gap: 6px; }
+
   /* Round + Trump: one line, natural size (no wrap), wide-enough container */
   .felt-badges { flex-wrap: nowrap; gap: 8px; max-width: none; }
   .round-chip, .trump-chip { font-size: 0.85rem; padding: 5px 12px; }
@@ -690,4 +689,7 @@ body {
   .trick-area { border-radius: 60px; padding: 10px; }
   .trick-felt { border-radius: 50px; }
   .hand-cards .card { margin-left: -38px; }
+
+  /* Even smaller played cards so all 7 fit on the narrowest phones */
+  .trick-card-slot { --card-w: 42px; }
 }

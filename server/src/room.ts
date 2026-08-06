@@ -44,6 +44,7 @@ export class Room {
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
   private emptyRoomTimer: ReturnType<typeof setTimeout> | null = null;
   private gameOverTimer: ReturnType<typeof setTimeout> | null = null;
+  private gameOverExpiresAt: number | null = null;
   private countdownTimer: ReturnType<typeof setTimeout> | null = null;
   private countdownEndsAt: number | null = null;
 
@@ -463,6 +464,9 @@ export class Room {
     // No winners when host leaves (per spec)
     this.broadcast({ type: 'gameOver', winners: [], finalScores, playerNames });
     this.broadcastState();
+
+    // Host-left rooms also auto-close after the TTL
+    this.startGameOverTimer();
   }
 
   // ─── Timers ───────────────────────────────────────────────────────────────
@@ -519,7 +523,10 @@ export class Room {
 
   private startGameOverTimer(): void {
     this.cancelGameOverTimer();
+    this.gameOverExpiresAt = Date.now() + config.gameOverTtlMs;
     this.gameOverTimer = setTimeout(() => {
+      this.gameOverTimer = null;
+      this.broadcast({ type: 'roomClosed' });
       this.onDestroy?.();
     }, config.gameOverTtlMs);
   }
@@ -529,6 +536,7 @@ export class Room {
       clearTimeout(this.gameOverTimer);
       this.gameOverTimer = null;
     }
+    this.gameOverExpiresAt = null;
   }
 
   // ─── State broadcast ──────────────────────────────────────────────────────
@@ -579,6 +587,7 @@ export class Room {
       tricksWon: tricksWonObj,
       countdownMs: this.countdownEndsAt ? Math.max(0, this.countdownEndsAt - Date.now()) : null,
       turnTimeoutMs: this.phase === 'BIDDING' ? config.bidTimeoutMs : config.playTimeoutMs,
+      roomExpiresInMs: this.gameOverExpiresAt ? Math.max(0, this.gameOverExpiresAt - Date.now()) : null,
     };
   }
 

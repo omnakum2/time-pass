@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { sendMsg } from '../net/socket';
 import { useGameStore } from '../store/gameStore';
@@ -10,6 +10,7 @@ export function HomePage() {
   const [maxPlayers, setMaxPlayers] = useState(7);
   const [mode, setMode] = useState<'landing' | 'create' | 'join'>('landing');
   const [pendingHost, setPendingHost] = useState('');
+  const [pending, setPending] = useState<'create' | 'join' | null>(null);
   const { connected, roomId, gameState } = useGameStore();
   const navigate = useNavigate();
 
@@ -32,14 +33,16 @@ export function HomePage() {
     navigate(`/room/${roomId}`, { replace: true });
   }
 
-  const saveName = () => {
+  const saveName = useCallback(() => {
     const trimmed = name.trim().slice(0, 20);
     if (!trimmed) return null;
     storage.setPlayer({ name: trimmed });
     return trimmed;
-  };
+  }, [name]);
 
-  const handleCreate = () => {
+  // The actual "send + subscribe-to-navigate" work. Split out from the click
+  // handlers so it can be fired immediately (connected) or queued (connecting).
+  const fireCreate = useCallback(() => {
     const n = saveName();
     if (!n) return;
     sendMsg({ type: 'createRoom', name: n, maxPlayers });
@@ -50,9 +53,9 @@ export function HomePage() {
         unsub();
       }
     });
-  };
+  }, [saveName, maxPlayers, navigate]);
 
-  const handleJoin = () => {
+  const fireJoin = useCallback(() => {
     const n = saveName();
     const code = roomCode.trim().toUpperCase();
     if (!n || !code) return;
@@ -63,16 +66,34 @@ export function HomePage() {
         unsub();
       }
     });
+  }, [saveName, roomCode, navigate]);
+
+  // Click handlers: fire immediately when connected, otherwise queue a single
+  // pending action. Extra clicks are ignored while something is pending.
+  const handleCreate = () => {
+    if (pending) return;
+    if (name.trim().length < 2) return;
+    if (connected) fireCreate();
+    else setPending('create');
   };
+
+  const handleJoin = () => {
+    if (pending) return;
+    if (name.trim().length < 2 || !roomCode.trim()) return;
+    if (connected) fireJoin();
+    else setPending('join');
+  };
+
+  // Once the socket connects, run the queued action exactly once.
+  useEffect(() => {
+    if (!connected || !pending) return;
+    if (pending === 'create') fireCreate();
+    else fireJoin();
+    setPending(null);
+  }, [connected, pending, fireCreate, fireJoin]);
 
   return (
     <div className="page">
-      {!connected && (
-        <p style={{ textAlign: 'center', color: '#f39c12', fontSize: '0.875rem' }}>
-          Connecting to server…
-        </p>
-      )}
-
       {mode === 'landing' ? (
         <div className="landing">
           <div style={{ textAlign: 'center' }}>
@@ -137,9 +158,9 @@ export function HomePage() {
                 <button
                   className="btn btn--primary"
                   onClick={handleCreate}
-                  disabled={!connected || name.trim().length < 2}
+                  disabled={pending !== null || name.trim().length < 2}
                 >
-                  Create Room
+                  {pending === 'create' ? 'Starting…' : 'Create Room'}
                 </button>
                 <button
                   className="btn btn--secondary"
@@ -187,9 +208,11 @@ export function HomePage() {
                 <button
                   className="btn btn--primary"
                   onClick={handleJoin}
-                  disabled={!connected || name.trim().length < 2 || !roomCode.trim()}
+                  disabled={pending !== null || name.trim().length < 2 || !roomCode.trim()}
                 >
-                  {pendingHost ? `Join ${pendingHost}'s room` : 'Join'}
+                  {pending === 'join'
+                    ? 'Joining…'
+                    : pendingHost ? `Join ${pendingHost}'s room` : 'Join'}
                 </button>
                 <button
                   className="btn btn--secondary"
