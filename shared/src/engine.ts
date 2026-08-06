@@ -1,4 +1,4 @@
-import { Card, Rank, Suit, TrickCard } from './types';
+import { Card, Rank, Suit, TrickCard, GameMode } from './types';
 
 // ─── Rank ordering (higher index = higher rank) ──────────────────────────────
 
@@ -6,6 +6,13 @@ const RANK_ORDER: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', '
 
 export function rankValue(rank: Rank): number {
   return RANK_ORDER.indexOf(rank);
+}
+
+// ─── Rounds per game mode ────────────────────────────────────────────────────
+
+export function roundsForMode(mode: GameMode): number[] {
+  if (mode === 'upDown') return [1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1];
+  return [7, 6, 5, 4, 3, 2, 1]; // classic + blind
 }
 
 // ─── Deck ────────────────────────────────────────────────────────────────────

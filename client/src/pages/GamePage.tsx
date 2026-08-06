@@ -53,7 +53,7 @@ export function GamePage() {
 
   const {
     round, trump, yourHand, bids,
-    players, tricksWon, scoreboard,
+    players, tricksWon, scoreboard, mode,
   } = gameState;
 
   const isMyTurn = currentTurn === playerId;
@@ -113,6 +113,8 @@ export function GamePage() {
     totalScore: getTotal(p.id),
   });
 
+  const blindHidden = mode === 'blind' && (phase === 'BIDDING' || phase === 'DEALING');
+
   const activeName = currentTurn ? (players.find(p => p.id === currentTurn)?.name ?? '') : '';
   const statusText = phase === 'BIDDING'
     ? (isMyTurn ? 'Place your bid' : (currentTurn ? `Waiting for ${activeName} to bid…` : ''))
@@ -149,7 +151,7 @@ export function GamePage() {
 
             {/* Middle: trick area */}
             <div className="table-middle-row">
-              <TrickArea trick={currentTrick} players={players} round={round} status={statusText} trump={trump} urgent={urgent} />
+              <TrickArea trick={currentTrick} players={players} round={round} status={statusText} trump={trump} urgent={urgent} mode={mode} />
             </div>
           </div>
 
@@ -177,18 +179,24 @@ export function GamePage() {
           {/* ── My hand ─── */}
           <div className="hand-area">
             <div className="hand-cards">
-              <AnimatePresence>
-                {sortedHand.map(card => (
-                  <CardView
-                    key={card.id}
-                    card={card}
-                    layoutId={`card-${card.id}`}
-                    disabled={isMyTurn && phase === 'PLAYING' ? !legalIds.includes(card.id) : false}
-                    selected={selectedCard === card.id}
-                    onClick={() => handleCardClick(card.id)}
-                  />
-                ))}
-              </AnimatePresence>
+              {blindHidden ? (
+                Array.from({ length: round ?? 0 }).map((_, i) => (
+                  <div key={i} className="card card--back" aria-hidden="true" />
+                ))
+              ) : (
+                <AnimatePresence>
+                  {sortedHand.map(card => (
+                    <CardView
+                      key={card.id}
+                      card={card}
+                      layoutId={`card-${card.id}`}
+                      disabled={isMyTurn && phase === 'PLAYING' ? !legalIds.includes(card.id) : false}
+                      selected={selectedCard === card.id}
+                      onClick={() => handleCardClick(card.id)}
+                    />
+                  ))}
+                </AnimatePresence>
+              )}
             </div>
           </div>
         </div>

@@ -13,6 +13,18 @@ export interface Card {
 
 export type GamePhase = 'LOBBY' | 'DEALING' | 'BIDDING' | 'PLAYING' | 'ROUND_SCORING' | 'GAME_OVER';
 
+// ─── Game modes ──────────────────────────────────────────────────────────────
+
+export type GameMode = 'classic' | 'upDown' | 'blind';
+
+export interface GameModeInfo { id: GameMode; label: string; short: string; desc: string; }
+
+export const GAME_MODES: GameModeInfo[] = [
+  { id: 'classic', label: 'Classic',   short: 'Classic',   desc: 'Random trump each round — the original game.' },
+  { id: 'upDown',  label: 'Up & Down', short: 'Up & Down', desc: 'Rounds climb 1→7, then back down to 1 (13 rounds).' },
+  { id: 'blind',   label: 'Blind Bid', short: 'Blind',     desc: 'Bid before you see your cards.' },
+];
+
 // ─── Player ──────────────────────────────────────────────────────────────────
 
 export interface Player {
@@ -65,6 +77,7 @@ export interface GameState {
   countdownMs: number | null; // ms left on the lobby auto-start countdown (null unless counting down)
   turnTimeoutMs: number; // server-configured turn budget for the current phase (drives client timer rings)
   roomExpiresInMs: number | null; // ms until a finished room auto-closes (null unless in GAME_OVER)
+  mode: GameMode; // the room's game mode
 }
 
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
@@ -73,6 +86,7 @@ export interface MsgCreateRoom {
   type: 'createRoom';
   name: string;
   maxPlayers?: number; // 2–7, defaults to 7
+  mode?: GameMode; // defaults to 'classic'
 }
 
 export interface MsgJoinRoom {

@@ -114,7 +114,8 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       const maxPlayers = typeof msg.maxPlayers === 'number'
         ? Math.min(7, Math.max(2, Math.floor(msg.maxPlayers)))
         : 7;
-      const room = new Room(roomId, maxPlayers);
+      const mode = (msg.mode === 'upDown' || msg.mode === 'blind') ? msg.mode : 'classic';
+      const room = new Room(roomId, maxPlayers, mode);
       room.onDestroy = () => { rooms.delete(roomId); };
       rooms.set(roomId, room);
 

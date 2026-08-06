@@ -1,5 +1,5 @@
 import { AnimatePresence } from 'framer-motion';
-import { TrickCard, Player, Suit } from 'shared';
+import { TrickCard, Player, Suit, GameMode, GAME_MODES } from 'shared';
 import { CardView } from './CardView';
 
 const SUIT_SYMBOL: Record<string, string> = { D: '♦', C: '♣', H: '♥', S: '♠' };
@@ -13,10 +13,12 @@ interface Props {
   status: string;
   trump: Suit | null;
   urgent: boolean;
+  mode: GameMode;
 }
 
-export function TrickArea({ trick, players, round, status, trump, urgent }: Props) {
+export function TrickArea({ trick, players, round, status, trump, urgent, mode }: Props) {
   const playerName = (id: string) => players.find(p => p.id === id)?.name ?? '?';
+  const modeShort = GAME_MODES.find(m => m.id === mode)?.short ?? '';
 
   return (
     <div className="trick-area">
@@ -40,6 +42,7 @@ export function TrickArea({ trick, players, round, status, trump, urgent }: Prop
               <span className="trump-chip__none">No&nbsp;Trump</span>
             )}
           </div>
+          <div className="mode-chip">{modeShort}</div>
         </div>
 
         <AnimatePresence>

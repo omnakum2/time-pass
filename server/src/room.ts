@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import {
-  Card, GamePhase, GameState, Player, RoundScore,
+  Card, GameMode, GamePhase, GameState, Player, RoundScore,
   Suit, TrickCard, ServerMessage, MsgRoundResult, QUICK_MESSAGES
 } from 'shared';
 import {
   deal, pickTrump, firstBidderSeat,
-  legalMoves, trickWinner, scoreRound
+  legalMoves, trickWinner, scoreRound, roundsForMode
 } from 'shared';
 import { config } from './config';
 
@@ -29,6 +29,8 @@ export class Room {
   private phase: GamePhase = 'LOBBY';
 
   // Round state
+  private mode: GameMode = 'classic';
+  private rounds: number[] = ROUNDS;
   private roundIndex = 0; // index into ROUNDS array
   private currentRound: number | null = null;
   private trump: Suit | null = null;
@@ -52,9 +54,11 @@ export class Room {
   // Called when the room should be destroyed
   onDestroy: (() => void) | null = null;
 
-  constructor(id: string, maxPlayers = 7) {
+  constructor(id: string, maxPlayers = 7, mode: GameMode = 'classic') {
     this.id = id;
     this.maxPlayers = Math.min(7, Math.max(2, maxPlayers));
+    this.mode = mode;
+    this.rounds = roundsForMode(mode);
   }
 
   // ─── Seat helpers ─────────────────────────────────────────────────────────
@@ -265,7 +269,7 @@ export class Room {
 
   private startRound(): void {
     this.phase = 'DEALING';
-    this.currentRound = ROUNDS[this.roundIndex];
+    this.currentRound = this.rounds[this.roundIndex];
     this.trump = pickTrump(this.previousTrump);
     this.previousTrump = this.trump;
     this.bids = new Map(this.seats.map(s => [s.player.id, null]));
@@ -414,7 +418,7 @@ export class Room {
     // Advance to next round or end game
     setTimeout(() => {
       this.roundIndex++;
-      if (this.roundIndex < ROUNDS.length) {
+      if (this.roundIndex < this.rounds.length) {
         this.startRound();
       } else {
         this.endGame();
@@ -577,7 +581,7 @@ export class Room {
       maxPlayers: this.maxPlayers,
       round: this.currentRound,
       trump: this.trump,
-      yourHand: seat?.hand ?? [],
+      yourHand: (this.mode === 'blind' && (this.phase === 'BIDDING' || this.phase === 'DEALING')) ? [] : (seat?.hand ?? []),
       handCounts,
       bids: bidsObj,
       currentTurn: this.currentTurnPlayerId() || null,
@@ -589,6 +593,7 @@ export class Room {
       countdownMs: this.countdownEndsAt ? Math.max(0, this.countdownEndsAt - Date.now()) : null,
       turnTimeoutMs: this.phase === 'BIDDING' ? config.bidTimeoutMs : config.playTimeoutMs,
       roomExpiresInMs: this.gameOverExpiresAt ? Math.max(0, this.gameOverExpiresAt - Date.now()) : null,
+      mode: this.mode,
     };
   }
 
