@@ -7,6 +7,7 @@ import { sendMsg } from '../net/socket';
 import { CardView } from '../components/CardView';
 import { TrickArea } from '../components/TrickArea';
 import { BidPanel } from '../components/BidPanel';
+import { TrumpPicker } from '../components/TrumpPicker';
 import { PlayerChip } from '../components/PlayerChip';
 import { Popup } from '../components/Popup';
 import { RoundResultOverlay } from '../components/RoundResultOverlay';
@@ -52,7 +53,7 @@ export function GamePage() {
   }
 
   const {
-    round, trump, yourHand, bids,
+    round, trump, trumpConfig, yourHand, bids,
     players, tricksWon, scoreboard, mode,
   } = gameState;
 
@@ -116,7 +117,9 @@ export function GamePage() {
   const blindHidden = mode === 'blind' && (phase === 'BIDDING' || phase === 'DEALING');
 
   const activeName = currentTurn ? (players.find(p => p.id === currentTurn)?.name ?? '') : '';
-  const statusText = phase === 'BIDDING'
+  const statusText = phase === 'TRUMP_SELECT'
+    ? (isMyTurn ? 'Choose the trump' : (currentTurn ? `Waiting for ${activeName} to choose the trump…` : ''))
+    : phase === 'BIDDING'
     ? (isMyTurn ? 'Place your bid' : (currentTurn ? `Waiting for ${activeName} to bid…` : ''))
     : phase === 'PLAYING'
     ? (isMyTurn ? 'Your turn' : (currentTurn ? `Waiting for ${activeName}…` : ''))
@@ -135,6 +138,14 @@ export function GamePage() {
         <BidPanel round={round!} turnKey={turnKey} durationMs={turnTimeoutMs} />
       </Popup>
 
+      {/* Trump-select popup — shown when it's MY turn to pick the round's trump */}
+      <Popup
+        visible={phase === 'TRUMP_SELECT' && isMyTurn}
+        title="Choose this round's trump"
+      >
+        <TrumpPicker turnKey={turnKey} durationMs={turnTimeoutMs} />
+      </Popup>
+
       <div className="game-area">
         {/* ── Full-width Game panel ─────────────────────────── */}
         <div className="game-panel">
@@ -151,7 +162,7 @@ export function GamePage() {
 
             {/* Middle: trick area */}
             <div className="table-middle-row">
-              <TrickArea trick={currentTrick} players={players} round={round} status={statusText} trump={trump} urgent={urgent} mode={mode} />
+              <TrickArea trick={currentTrick} players={players} round={round} status={statusText} trump={trump} trumpConfig={trumpConfig} urgent={urgent} mode={mode} />
             </div>
           </div>
 

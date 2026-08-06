@@ -1,4 +1,4 @@
-import { Card, Rank, Suit, TrickCard, GameMode } from './types';
+import { Card, Rank, Suit, TrickCard, GameMode, TrumpConfig } from './types';
 
 // ─── Rank ordering (higher index = higher rank) ──────────────────────────────
 
@@ -93,31 +93,42 @@ export function legalMoves(hand: Card[], leadSuit: Suit | null): Card[] {
 
 // ─── Trick winner ────────────────────────────────────────────────────────────
 
-/**
- * Determines the winner of a trick.
- * Returns the TrickCard that won.
- * Rules:
- *  - Highest trump played wins.
- *  - If no trump played, highest card of the leading suit wins.
- *  - Off-suit non-trump cards cannot win.
- */
-export function trickWinner(
-  trick: TrickCard[],
-  leadSuit: Suit,
-  trump: Suit | null
-): TrickCard {
-  if (trump !== null) {
-    const trumpCards = trick.filter(tc => tc.card.suit === trump);
-    if (trumpCards.length > 0) {
-      return trumpCards.reduce((best, tc) =>
-        rankValue(tc.card.rank) > rankValue(best.card.rank) ? tc : best
-      );
-    }
+const AK47_RANKS: Rank[] = ['A', 'K', '4', '7'];
+const KQ_RANKS: Rank[] = ['K', 'Q'];
+
+function isTrumpCard(card: Card, cfg: TrumpConfig): boolean {
+  switch (cfg.kind) {
+    case 'suit':      return card.suit === cfg.suit;
+    case 'ak47':      return AK47_RANKS.includes(card.rank);
+    case 'kingQueen': return KQ_RANKS.includes(card.rank);
+    case 'oneTrump':  return card.rank === cfg.rank;
+    default:          return false; // noTrump, highCard, lowCard have no trump cards
   }
-  const leadCards = trick.filter(tc => tc.card.suit === leadSuit);
-  return leadCards.reduce((best, tc) =>
-    rankValue(tc.card.rank) > rankValue(best.card.rank) ? tc : best
-  );
+}
+
+// Winner among `cards` (a subset of the trick, in play order). Highest rank wins;
+// on a rank tie (e.g. two Kings) the card played FIRST wins (reduce keeps `best`).
+function highestOf(cards: TrickCard[]): TrickCard {
+  return cards.reduce((best, tc) => rankValue(tc.card.rank) > rankValue(best.card.rank) ? tc : best);
+}
+function lowestOf(cards: TrickCard[]): TrickCard {
+  return cards.reduce((best, tc) => rankValue(tc.card.rank) < rankValue(best.card.rank) ? tc : best);
+}
+
+/**
+ * Determines the winning TrickCard, generalized over all Revolving-Trump options.
+ *  - If any trump cards were played → highest trump (first-played wins ties).
+ *  - highCard → highest card overall (any suit); lowCard → lowest overall.
+ *  - Otherwise (suit with no trump played, or noTrump) → highest of the led suit.
+ * Follow-suit legality is unchanged (see legalMoves).
+ */
+export function trickWinner(trick: TrickCard[], leadSuit: Suit, cfg: TrumpConfig): TrickCard {
+  const trumps = trick.filter(tc => isTrumpCard(tc.card, cfg));
+  if (trumps.length > 0) return highestOf(trumps);
+  if (cfg.kind === 'highCard') return highestOf(trick);
+  if (cfg.kind === 'lowCard')  return lowestOf(trick);
+  const led = trick.filter(tc => tc.card.suit === leadSuit);
+  return highestOf(led.length ? led : trick);
 }
 
 // ─── Scoring ─────────────────────────────────────────────────────────────────

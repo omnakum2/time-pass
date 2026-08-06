@@ -179,6 +179,17 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       break;
     }
 
+    case 'selectTrump': {
+      const ctx = wsContext.get(ws);
+      if (!ctx) return;
+      if (typeof msg.kind !== 'string') return;
+      const room = rooms.get(ctx.roomId);
+      if (!room) return;
+      const err = room.selectTrump(ctx.playerId, msg.kind, msg.suit);
+      if (err) send(ws, { type: 'error', code: err, message: err });
+      break;
+    }
+
     case 'playCard': {
       const ctx = wsContext.get(ws);
       if (!ctx) return;

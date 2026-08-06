@@ -405,6 +405,29 @@ body {
 .trump-chip__label { opacity: 0.7; font-size: 0.82em; }
 .trump-chip__suit  { font-size: 1.15em; }
 
+/* ─── Info tooltip (the ⓘ button inside the trump chip) ───────────────────── */
+.info-tip { position: relative; display: inline-flex; align-items: center; margin-left: 6px; }
+.info-tip__btn {
+  width: 16px; height: 16px; border-radius: 50%; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; font-weight: 800; font-style: italic; line-height: 1;
+  background: rgba(233,184,74,0.16); color: var(--gold);
+  border: 1px solid var(--gold-border);
+}
+.info-tip__btn:hover { background: rgba(233,184,74,0.28); }
+.info-tip__bubble {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  z-index: 20; width: max-content; max-width: 220px; white-space: normal; text-align: center;
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  color: var(--cream); font-size: 0.75rem; font-weight: 600; line-height: 1.4;
+  padding: 7px 10px; border-radius: 10px; border: 1px solid var(--gold-border);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+}
+.info-tip__bubble::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: var(--card-2);
+}
+
 /* ─── Mode chip (beside the round/trump chips) ────────────────────────────── */
 .mode-chip {
   display: inline-flex; align-items: center; white-space: nowrap; flex-shrink: 0;
@@ -482,6 +505,28 @@ body {
 }
 .bid-btn:hover  { background: var(--gold); color: #3A1B10; }
 .bid-btn:active { transform: scale(0.93); }
+
+/* ─── Trump picker (inside the trump-select popup) ────────────────────────── */
+.trump-picker { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.trump-picker__suits { display: flex; gap: 10px; justify-content: center; }
+.trump-picker__suit {
+  width: 52px; height: 52px; border-radius: 12px; cursor: pointer;
+  font-size: 1.8rem; line-height: 1; font-weight: 800;
+  background: #fff; border: 2px solid var(--gold-border);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.35);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.trump-picker__suit:hover  { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,0.45); }
+.trump-picker__suit:active { transform: scale(0.94); }
+.trump-picker__specials { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; width: 100%; max-width: 300px; }
+.trump-picker__special {
+  padding: 10px 12px; border-radius: 12px; cursor: pointer; font-weight: 800; font-size: 0.9rem;
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  color: var(--gold); border: 1px solid var(--gold-border);
+  transition: border-color 0.15s, transform 0.1s;
+}
+.trump-picker__special:hover  { border-color: var(--gold); }
+.trump-picker__special:active { transform: scale(0.96); }
 
 /* ─── Game area (full-width, relative container for HUD overlay) ──────────── */
 .game-area {

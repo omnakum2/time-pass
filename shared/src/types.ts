@@ -11,11 +11,11 @@ export interface Card {
 
 // ─── Game phases ─────────────────────────────────────────────────────────────
 
-export type GamePhase = 'LOBBY' | 'DEALING' | 'BIDDING' | 'PLAYING' | 'ROUND_SCORING' | 'GAME_OVER';
+export type GamePhase = 'LOBBY' | 'DEALING' | 'TRUMP_SELECT' | 'BIDDING' | 'PLAYING' | 'ROUND_SCORING' | 'GAME_OVER';
 
 // ─── Game modes ──────────────────────────────────────────────────────────────
 
-export type GameMode = 'classic' | 'upDown' | 'blind';
+export type GameMode = 'classic' | 'upDown' | 'blind' | 'revolvingTrump';
 
 export interface GameModeInfo { id: GameMode; label: string; short: string; desc: string; }
 
@@ -23,7 +23,55 @@ export const GAME_MODES: GameModeInfo[] = [
   { id: 'classic', label: 'Classic',   short: 'Classic',   desc: 'Random trump each round — the original game.' },
   { id: 'upDown',  label: 'Up & Down', short: 'Up & Down', desc: 'Rounds climb 1→7, then back down to 1 (13 rounds).' },
   { id: 'blind',   label: 'Blind Bid', short: 'Blind',     desc: 'Bid before you see your cards.' },
+  { id: 'revolvingTrump', label: 'Revolving Trump', short: 'Rev. Trump', desc: 'The first bidder picks the trump each round.' },
 ];
+
+// ─── Trump options (Revolving Trump mode) ───────────────────────────────────
+
+export type TrumpKind = 'suit' | 'noTrump' | 'highCard' | 'lowCard' | 'ak47' | 'oneTrump' | 'kingQueen';
+
+export interface TrumpConfig {
+  kind: TrumpKind;
+  suit?: Suit;  // when kind === 'suit'
+  rank?: Rank;  // when kind === 'oneTrump' (server picks the rank)
+}
+
+// Special (non-suit) options the first bidder can choose, in picker order.
+export interface TrumpSpecial { kind: TrumpKind; label: string; }
+export const TRUMP_SPECIALS: TrumpSpecial[] = [
+  { kind: 'noTrump',   label: 'No Trump' },
+  { kind: 'highCard',  label: 'High Card' },
+  { kind: 'lowCard',   label: 'Low Card' },
+  { kind: 'ak47',      label: 'AK47' },
+  { kind: 'oneTrump',  label: 'One Trump' },
+  { kind: 'kingQueen', label: 'King-Queen' },
+];
+
+// Short label for the trump chip (client maps 'suit' to its symbol + name itself).
+export function trumpLabel(cfg: TrumpConfig): string {
+  switch (cfg.kind) {
+    case 'suit':      return cfg.suit ?? '';
+    case 'noTrump':   return 'No Trump';
+    case 'highCard':  return 'High Card';
+    case 'lowCard':   return 'Low Card';
+    case 'ak47':      return 'AK47';
+    case 'oneTrump':  return `One Trump (${cfg.rank ?? '?'})`;
+    case 'kingQueen': return 'King-Queen';
+  }
+}
+
+// One-liner rule shown in the trump chip's info (ⓘ) tooltip.
+export function trumpInfo(cfg: TrumpConfig): string {
+  switch (cfg.kind) {
+    case 'suit':      return 'This suit beats every other suit.';
+    case 'noTrump':   return 'No trump — the highest card of the led suit wins.';
+    case 'highCard':  return 'No trump — the highest card played wins, any suit.';
+    case 'lowCard':   return 'No trump — the lowest card played wins, any suit.';
+    case 'ak47':      return 'Every A, K, 4 and 7 is a trump.';
+    case 'oneTrump':  return `Every ${cfg.rank ?? '?'} is a trump.`;
+    case 'kingQueen': return 'Every King and Queen is a trump.';
+  }
+}
 
 // ─── Player ──────────────────────────────────────────────────────────────────
 
@@ -65,6 +113,7 @@ export interface GameState {
   maxPlayers: number;
   round: number | null;        // current round number (7..1), null in LOBBY
   trump: Suit | null;
+  trumpConfig: TrumpConfig | null; // full trump rule for the round (Revolving Trump specials)
   yourHand: Card[];            // only the recipient's cards
   handCounts: Record<string, number>; // other players' card counts
   bids: Record<string, number | null>; // playerId → bid (null if not yet bid)
@@ -128,6 +177,12 @@ export interface MsgQuickMessage {
   id: string; // one of QUICK_MESSAGES[].id
 }
 
+export interface MsgSelectTrump {
+  type: 'selectTrump';
+  kind: TrumpKind;
+  suit?: Suit; // required when kind === 'suit'
+}
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
@@ -137,7 +192,8 @@ export type ClientMessage =
   | MsgPlayCard
   | MsgRestartGame
   | MsgLeaveRoom
-  | MsgQuickMessage;
+  | MsgQuickMessage
+  | MsgSelectTrump;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 
