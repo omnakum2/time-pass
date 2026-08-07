@@ -12,13 +12,12 @@ interface Props {
   players: Player[];
   round: number | null;
   status: string;
-  trump: Suit | null;
   trumpConfig: TrumpConfig | null;
   urgent: boolean;
   mode: GameMode;
 }
 
-export function TrickArea({ trick, players, round, status, trump, trumpConfig, urgent, mode }: Props) {
+export function TrickArea({ trick, players, round, status, trumpConfig, urgent, mode }: Props) {
   const playerName = (id: string) => players.find(p => p.id === id)?.name ?? '?';
   const modeShort = GAME_MODES.find(m => m.id === mode)?.short ?? '';
 

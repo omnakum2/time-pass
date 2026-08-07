@@ -23,7 +23,7 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, t
           {bubble.text}
         </div>
       )}
-      {isActive && (phase === 'BIDDING' || phase === 'PLAYING') && timerMs !== undefined && (
+      {isActive && (phase === 'BIDDING' || phase === 'PLAYING' || phase === 'TRUMP_SELECT') && timerMs !== undefined && (
         <TurnBorder key={turnKey} durationMs={timerMs} />
       )}
 

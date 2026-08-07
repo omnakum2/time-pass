@@ -53,7 +53,7 @@ export function GamePage() {
   }
 
   const {
-    round, trump, trumpConfig, yourHand, bids,
+    round, trumpConfig, yourHand, bids,
     players, tricksWon, scoreboard, mode,
   } = gameState;
 
@@ -162,7 +162,7 @@ export function GamePage() {
 
             {/* Middle: trick area */}
             <div className="table-middle-row">
-              <TrickArea trick={currentTrick} players={players} round={round} status={statusText} trump={trump} trumpConfig={trumpConfig} urgent={urgent} mode={mode} />
+              <TrickArea trick={currentTrick} players={players} round={round} status={statusText} trumpConfig={trumpConfig} urgent={urgent} mode={mode} />
             </div>
           </div>
 
