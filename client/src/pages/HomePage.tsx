@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { NAME_MIN_LEN, NAME_MAX_LEN } from 'shared';
 import { sendMsg } from '../net/socket';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
+import { Button } from '../components/Button';
+import { Field } from '../components/Field';
 
 export function HomePage() {
   const [name, setName] = useState(storage.getPlayer()?.name ?? '');
@@ -34,7 +37,7 @@ export function HomePage() {
   }
 
   const saveName = useCallback(() => {
-    const trimmed = name.trim().slice(0, 20);
+    const trimmed = name.trim().slice(0, NAME_MAX_LEN);
     if (!trimmed) return null;
     storage.setPlayer({ name: trimmed });
     return trimmed;
@@ -96,12 +99,12 @@ export function HomePage() {
     <div className="page">
       {mode === 'landing' ? (
         <div className="landing">
-          <div style={{ textAlign: 'center' }}>
-            <h1 className="jhatpat-title">Bid Club</h1>
+          <div className="text-center">
+            <h1 className="brand-title">Bid Club</h1>
           </div>
           <div className="home-actions">
-            <button className="btn btn--primary" onClick={() => setMode('create')}>Start</button>
-            <button className="btn btn--secondary" onClick={() => setMode('join')}>Join Room</button>
+            <Button variant="primary" onClick={() => setMode('create')}>Start</Button>
+            <Button variant="secondary" onClick={() => setMode('join')}>Join Room</Button>
           </div>
           <section className="home-seo">
             <p>
@@ -117,24 +120,22 @@ export function HomePage() {
         <div className="panel flex-col gap-lg" style={{ maxWidth: 400, width: '100%' }}>
           {mode === 'create' && (
             <>
-              <div style={{ textAlign: 'center' }}>
-                <h1 className="jhatpat-title jhatpat-title--card">Bid Club</h1>
+              <div className="text-center">
+                <h1 className="brand-title brand-title--card">Bid Club</h1>
               </div>
+              <Field
+                label="Your name"
+                hint={`${NAME_MIN_LEN}-${NAME_MAX_LEN} characters`}
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Enter your name"
+                minLength={NAME_MIN_LEN}
+                maxLength={NAME_MAX_LEN}
+                autoFocus
+                onKeyDown={e => e.key === 'Enter' ? handleCreate() : undefined}
+              />
               <div className="flex-col gap-sm">
-                <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Your name</label>
-                <input
-                  className="input"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Enter your name"
-                  minLength={2}
-                  maxLength={10}
-                  autoFocus
-                />
-                <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>2-10 characters</span>
-              </div>
-              <div className="flex-col gap-sm">
-                <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>
+                <label className="field-label">
                   Number of players (2-7)
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -154,71 +155,65 @@ export function HomePage() {
                 </div>
               </div>
               <div className="flex-col gap-sm">
-                <button
-                  className="btn btn--primary"
+                <Button
+                  variant="primary"
                   onClick={handleCreate}
                   disabled={pending !== null || name.trim().length < 2}
                 >
                   {pending === 'create' ? 'Starting…' : 'Create Room'}
-                </button>
-                <button
-                  className="btn btn--secondary"
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={() => setMode('landing')}
                 >
                   Back
-                </button>
+                </Button>
               </div>
             </>
           )}
 
           {mode === 'join' && (
             <>
-              <div style={{ textAlign: 'center' }}>
-                <h1 className="jhatpat-title jhatpat-title--card">Bid Club</h1>
+              <div className="text-center">
+                <h1 className="brand-title brand-title--card">Bid Club</h1>
               </div>
-              <div className="flex-col gap-sm">
-                <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Your name</label>
-                <input
-                  className="input"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Enter your name"
-                  minLength={2}
-                  maxLength={10}
-                  onKeyDown={e => e.key === 'Enter' ? handleJoin() : undefined}
-                  autoFocus
-                />
-                <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>2-10 characters</span>
-              </div>
+              <Field
+                label="Your name"
+                hint={`${NAME_MIN_LEN}-${NAME_MAX_LEN} characters`}
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Enter your name"
+                minLength={NAME_MIN_LEN}
+                maxLength={NAME_MAX_LEN}
+                onKeyDown={e => e.key === 'Enter' ? handleJoin() : undefined}
+                autoFocus
+              />
               {!pendingHost && (
-                <div className="flex-col gap-sm">
-                  <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Room code</label>
-                  <input
-                    className="input"
-                    value={roomCode}
-                    onChange={e => setRoomCode(e.target.value.toUpperCase())}
-                    placeholder="e.g. AB12CD"
-                    maxLength={6}
-                    onKeyDown={e => e.key === 'Enter' && handleJoin()}
-                  />
-                </div>
+                <Field
+                  label="Room code"
+                  value={roomCode}
+                  onChange={e => setRoomCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. AB12CD"
+                  maxLength={6}
+                  onKeyDown={e => e.key === 'Enter' && handleJoin()}
+                />
               )}
               <div className="flex-col gap-sm">
-                <button
-                  className="btn btn--primary"
+                <Button
+                  variant="primary"
                   onClick={handleJoin}
                   disabled={pending !== null || name.trim().length < 2 || !roomCode.trim()}
                 >
                   {pending === 'join'
                     ? 'Joining…'
                     : pendingHost ? `Join ${pendingHost}'s room` : 'Join'}
-                </button>
-                <button
-                  className="btn btn--secondary"
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={() => setMode('landing')}
                 >
                   Back
-                </button>
+                </Button>
               </div>
             </>
           )}

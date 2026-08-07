@@ -1,4 +1,6 @@
 import { GameState } from 'shared';
+import { StandingsTable } from './StandingsTable';
+import { Delta } from './Delta';
 
 const ALL_ROUNDS = [7, 6, 5, 4, 3, 2, 1];
 
@@ -26,42 +28,37 @@ export function Scoreboard({ gameState }: { gameState: GameState }) {
   };
 
   return (
-    <div className="scoreboard-scroll">
-      <table className="scoreboard">
-        <thead>
-          <tr>
-            <th>#</th>
-            {players.map(p => (
-              <th key={p.id}>{p.name}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {roundsPlayed.map(r => (
-            <tr key={r}>
-              <td>R{r}</td>
-              {players.map(p => {
-                const row = getRow(p.id, r);
-                if (!row) return <td key={p.id}>-</td>;
-                const cls = row.delta >= 0 ? 'delta--pos' : 'delta--neg';
-                return (
-                  <td key={p.id}>
-                    <span className={cls}>
-                      {row.delta > 0 ? `+${row.delta}` : row.delta}
-                    </span>
-                  </td>
-                );
-              })}
-            </tr>
+    <StandingsTable>
+      <thead>
+        <tr>
+          <th>#</th>
+          {players.map(p => (
+            <th key={p.id}>{p.name}</th>
           ))}
-          <tr>
-            <td>Total</td>
-            {players.map(p => (
-              <td key={p.id}>{getTotal(p.id)}</td>
-            ))}
+        </tr>
+      </thead>
+      <tbody>
+        {roundsPlayed.map(r => (
+          <tr key={r}>
+            <td>R{r}</td>
+            {players.map(p => {
+              const row = getRow(p.id, r);
+              if (!row) return <td key={p.id}>-</td>;
+              return (
+                <td key={p.id}>
+                  <Delta value={row.delta} />
+                </td>
+              );
+            })}
           </tr>
-        </tbody>
-      </table>
-    </div>
+        ))}
+        <tr>
+          <td>Total</td>
+          {players.map(p => (
+            <td key={p.id}>{getTotal(p.id)}</td>
+          ))}
+        </tr>
+      </tbody>
+    </StandingsTable>
   );
 }

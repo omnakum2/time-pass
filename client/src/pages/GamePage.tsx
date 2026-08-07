@@ -1,9 +1,10 @@
 import { useRef, useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Suit, Player } from 'shared';
-import { legalMoves } from 'shared';
+import { legalMoves, SUIT_ORDER, RANK_ORDER } from 'shared';
 import { useGameStore } from '../store/gameStore';
 import { sendMsg } from '../net/socket';
+import { getTotal } from '../lib/helpers';
 import { CardView } from '../components/CardView';
 import { TrickArea } from '../components/TrickArea';
 import { BidPanel } from '../components/BidPanel';
@@ -66,8 +67,6 @@ export function GamePage() {
     : [];
 
   // Sort hand: by suit order then rank
-  const SUIT_ORDER = ['S', 'H', 'D', 'C'];
-  const RANK_ORDER = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
   const sortedHand = [...yourHand].sort((a, b) => {
     const si = SUIT_ORDER.indexOf(a.suit) - SUIT_ORDER.indexOf(b.suit);
     return si !== 0 ? si : RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
@@ -96,11 +95,6 @@ export function GamePage() {
     }
   }
 
-  const getTotal = (id: string) => {
-    const rows = scoreboard[id] ?? [];
-    return rows.length > 0 ? rows[rows.length - 1].total : 0;
-  };
-
   const chipProps = (p: Player) => ({
     player: p,
     bid: bids[p.id] ?? null,
@@ -108,8 +102,8 @@ export function GamePage() {
     isActive: currentTurn === p.id,
     phase,
     turnKey,
-    timerMs: turnTimeoutMs,
-    totalScore: getTotal(p.id),
+    durationMs: turnTimeoutMs,
+    totalScore: getTotal(scoreboard, p.id),
   });
 
   const activeName = currentTurn ? (players.find(p => p.id === currentTurn)?.name ?? '') : '';
@@ -161,8 +155,8 @@ export function GamePage() {
               isActive={isMyTurn}
               phase={phase}
               turnKey={turnKey}
-              timerMs={turnTimeoutMs}
-              totalScore={getTotal(playerId)}
+              durationMs={turnTimeoutMs}
+              totalScore={getTotal(scoreboard, playerId)}
               isMe
             />
             {selectedCard && (

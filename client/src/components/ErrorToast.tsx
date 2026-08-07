@@ -10,7 +10,7 @@ export function ErrorToast() {
     return () => clearTimeout(t);
   }, [error, clearError]);
 
-  const msg = error?.message || 'Something went wrong.';
+  const msg = error ? (error.message || 'Something went wrong.') : '';
 
   return (
     <div className={`error-toast${error ? ' error-toast--visible' : ''}`} onClick={clearError}>
