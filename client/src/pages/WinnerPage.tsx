@@ -6,6 +6,7 @@ import { sendMsg } from '../net/socket';
 import { StandingsTable } from '../components/StandingsTable';
 import { Delta } from '../components/Delta';
 import { Button } from '../components/Button';
+import { Surface } from '../components/Surface';
 import { STATUS_COLORS } from '../lib/helpers';
 
 export function WinnerPage() {
@@ -79,7 +80,7 @@ export function WinnerPage() {
 
   return (
     <div className="winner-page-wrap">
-      <div className="winner-card">
+      <Surface className="winner-card">
 
         {/* Trophy / icon */}
         <div style={{ fontSize: '4rem', lineHeight: 1 }}>
@@ -164,7 +165,7 @@ export function WinnerPage() {
             </Button>
           </>
         )}
-      </div>
+      </Surface>
     </div>
   );
 }

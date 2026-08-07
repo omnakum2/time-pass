@@ -1,6 +1,9 @@
-import type { HTMLAttributes } from 'react';
+import type { ElementType, HTMLAttributes } from 'react';
 
-/** The dark-wine gradient surface shared by panels, cards and popups (`.surface`). */
-export function Surface({ className, ...rest }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={['surface', className ?? ''].filter(Boolean).join(' ')} {...rest} />;
+type SurfaceProps = HTMLAttributes<HTMLElement> & { as?: ElementType };
+
+/** The dark-wine gradient surface shared by panels, cards and popups (`.surface`).
+ *  Pass `as` to render a different element (e.g. `as="article"`). */
+export function Surface({ as: Tag = 'div', className, ...rest }: SurfaceProps) {
+  return <Tag className={['surface', className ?? ''].filter(Boolean).join(' ')} {...rest} />;
 }

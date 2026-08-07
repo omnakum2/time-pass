@@ -6,6 +6,7 @@ import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
 import { Button } from '../components/Button';
 import { Field } from '../components/Field';
+import { Surface } from '../components/Surface';
 
 export function HomePage() {
   const [name, setName] = useState(storage.getPlayer()?.name ?? '');
@@ -117,7 +118,7 @@ export function HomePage() {
           </section>
         </div>
       ) : (
-        <div className="panel flex-col gap-lg" style={{ maxWidth: 400, width: '100%' }}>
+        <Surface className="flex-col gap-lg" style={{ maxWidth: 400, width: '100%' }}>
           {mode === 'create' && (
             <>
               <div className="text-center">
@@ -217,7 +218,7 @@ export function HomePage() {
               </div>
             </>
           )}
-        </div>
+        </Surface>
       )}
     </div>
   );
