@@ -6,7 +6,7 @@ import { ErrorCode } from 'shared';
 
 // ─── 1. Timers & limits ──────────────────────────────────────────────────────
 export const MAX_PAYLOAD_BYTES = 8192;        // inbound WebSocket message cap (messages are tiny)
-export const MAX_CONN_PER_IP = 20;            // concurrent connections per IP
+export const MAX_CONN_PER_IP = 30;            // concurrent connections per IP
 export const RATE_LIMIT_PER_SEC = 25;         // messages / second / connection
 export const BID_TIMEOUT_MS = 30_000;         // time to bid before an auto-bid of 0
 export const PLAY_TIMEOUT_MS = 30_000;        // time to play before an auto-play of a legal card
