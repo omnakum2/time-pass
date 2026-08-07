@@ -2,11 +2,11 @@ import dotenv from 'dotenv';
 dotenv.config(); // load .env into process.env before anything reads it
 
 import { createServer } from 'http';
-import { randomInt } from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Room } from './room';
-import { config } from './config';
-import { ClientMessage, ServerMessage, ErrorCode, ERROR_MESSAGES } from 'shared';
+import { ClientMessage, MAX_PLAYERS } from 'shared';
+import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC } from './constants';
+import { sendMessage, sendError, sanitizeName, clampPlayers, validateMessage, randomRoomCode } from './helpers';
 
 // ─── Environment-specific settings (from process.env) ──────────────────────
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -14,24 +14,14 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '').split(',').map(s => 
 
 const rooms = new Map<string, Room>();
 
-// Generate a 6-char uppercase room code (crypto-random, non-enumerable)
+// Generate a unique room code (retries on the rare collision).
 function generateRoomId(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let id = '';
-  for (let i = 0; i < 6; i++) id += chars[randomInt(chars.length)];
+  const id = randomRoomCode();
   return rooms.has(id) ? generateRoomId() : id;
 }
 
 // Track which ws belongs to which player/room
 const wsContext = new WeakMap<WebSocket, { playerId: string; roomId: string }>();
-
-function send(ws: WebSocket, msg: ServerMessage): void {
-  try { ws.send(JSON.stringify(msg)); } catch { /* ignore */ }
-}
-
-function sendError(ws: WebSocket, code: ErrorCode): void {
-  send(ws, { type: "error", code, message: ERROR_MESSAGES[code] });
-}
 
 // Release the seat a socket currently holds (on explicit leave, or when it hops rooms)
 function releaseOldSeat(ws: WebSocket): void {
@@ -39,6 +29,15 @@ function releaseOldSeat(ws: WebSocket): void {
   if (!ctx) return;
   rooms.get(ctx.roomId)?.leaveRoom(ctx.playerId);
   wsContext.delete(ws);
+}
+
+// Resolve the room + player for a socket that should already be seated.
+function getRoom(ws: WebSocket): { room: Room; playerId: string } | null {
+  const ctx = wsContext.get(ws);
+  if (!ctx) return null;
+  const room = rooms.get(ctx.roomId);
+  if (!room) return null;
+  return { room, playerId: ctx.playerId };
 }
 
 const httpServer = createServer((req, res) => {
@@ -55,7 +54,7 @@ const httpServer = createServer((req, res) => {
 
 const wss = new WebSocketServer({
   server: httpServer,
-  maxPayload: config.maxPayloadBytes, // messages are tiny; reject oversized payloads
+  maxPayload: MAX_PAYLOAD_BYTES, // messages are tiny; reject oversized payloads
   verifyClient: (info, cb) => {
     if (ALLOWED_ORIGINS.length === 0) return cb(true);           // no allowlist configured (dev) = allow
     cb(!!info.origin && ALLOWED_ORIGINS.includes(info.origin));  // else require a listed Origin (anti-CSWSH)
@@ -63,8 +62,6 @@ const wss = new WebSocketServer({
 });
 
 // Per-IP concurrent-connection cap + per-connection message rate limit
-const MAX_CONN_PER_IP = config.maxConnPerIp;
-const RATE_LIMIT = config.rateLimitPerSec; // messages / second / connection
 const connByIp = new Map<string, number>();
 const rate = new WeakMap<WebSocket, { count: number; windowStart: number }>();
 
@@ -90,7 +87,7 @@ wss.on('connection', (ws, req) => {
     const now = Date.now();
     let r = rate.get(ws);
     if (!r || now - r.windowStart >= 1000) { r = { count: 0, windowStart: now }; rate.set(ws, r); }
-    if (++r.count > RATE_LIMIT) return;
+    if (++r.count > RATE_LIMIT_PER_SEC) return;
 
     let msg: ClientMessage;
     try {
@@ -108,16 +105,15 @@ wss.on('connection', (ws, req) => {
 });
 
 function handleMessage(ws: WebSocket, msg: ClientMessage): void {
+  const invalid = validateMessage(msg);
+  if (invalid) { sendError(ws, invalid); return; }
   switch (msg.type) {
     case 'createRoom': {
-      if (typeof msg.name !== 'string') { sendError(ws, 'INVALID_NAME'); return; }
       releaseOldSeat(ws); // hopping rooms: drop any old seat first
-      const name = msg.name.trim().slice(0, 20);
+      const name = sanitizeName(msg.name);
       if (!name) { sendError(ws, 'INVALID_NAME'); return; }
       const roomId = generateRoomId();
-      const maxPlayers = typeof msg.maxPlayers === 'number'
-        ? Math.min(7, Math.max(2, Math.floor(msg.maxPlayers)))
-        : 7;
+      const maxPlayers = clampPlayers(typeof msg.maxPlayers === 'number' ? msg.maxPlayers : MAX_PLAYERS);
       const room = new Room(roomId, maxPlayers);
       room.onDestroy = () => { rooms.delete(roomId); };
       rooms.set(roomId, room);
@@ -125,14 +121,13 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       const seat = room.addPlayer(ws, name, true);
       if (!seat) { sendError(ws, 'JOIN_FAILED'); return; }
       wsContext.set(ws, { playerId: seat.player.id, roomId });
-      send(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
+      sendMessage(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
       room.broadcastState();
       break;
     }
 
     case 'joinRoom': {
-      if (typeof msg.name !== 'string' || typeof msg.roomId !== 'string') { sendError(ws, 'INVALID_NAME'); return; }
-      const name = msg.name.trim().slice(0, 20);
+      const name = sanitizeName(msg.name);
       const roomId = msg.roomId.toUpperCase();
       if (!name) { sendError(ws, 'INVALID_NAME'); return; }
       const room = rooms.get(roomId);
@@ -143,62 +138,52 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       const seat = room.addPlayer(ws, name);
       if (!seat) { sendError(ws, 'JOIN_FAILED'); return; }
       wsContext.set(ws, { playerId: seat.player.id, roomId });
-      send(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
+      sendMessage(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
       room.broadcastState();
       break;
     }
 
     case 'reconnect': {
-      if (typeof msg.roomId !== 'string' || typeof msg.token !== 'string') { sendError(ws, 'INVALID_TOKEN'); return; }
       const roomId = msg.roomId.toUpperCase();
       const room = rooms.get(roomId);
       if (!room) { sendError(ws, 'ROOM_NOT_FOUND'); return; }
       const seat = room.reconnect(ws, msg.token);
       if (!seat) { sendError(ws, 'INVALID_TOKEN'); return; }
       wsContext.set(ws, { playerId: seat.player.id, roomId });
-      send(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
+      sendMessage(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
       room.sendState(ws, seat.player.id);
       room.broadcastState();
       break;
     }
 
     case 'startGame': {
-      const ctx = wsContext.get(ws);
-      if (!ctx) { sendError(ws, 'NOT_IN_ROOM'); return; }
-      const room = rooms.get(ctx.roomId);
-      if (!room) return;
-      const err = room.startGame(ctx.playerId);
+      const r = getRoom(ws);
+      if (!r) { sendError(ws, 'NOT_IN_ROOM'); return; }
+      const err = r.room.startGame(r.playerId);
       if (err) sendError(ws, err);
       break;
     }
 
     case 'placeBid': {
-      const ctx = wsContext.get(ws);
-      if (!ctx) return;
-      const room = rooms.get(ctx.roomId);
-      if (!room) return;
-      const err = room.placeBid(ctx.playerId, msg.bid);
+      const r = getRoom(ws);
+      if (!r) return;
+      const err = r.room.placeBid(r.playerId, msg.bid);
       if (err) sendError(ws, err);
       break;
     }
 
     case 'playCard': {
-      const ctx = wsContext.get(ws);
-      if (!ctx) return;
-      if (typeof msg.cardId !== 'string') { sendError(ws, 'BAD_MESSAGE'); return; }
-      const room = rooms.get(ctx.roomId);
-      if (!room) return;
-      const err = room.playCard(ctx.playerId, msg.cardId);
+      const r = getRoom(ws);
+      if (!r) return;
+      const err = r.room.playCard(r.playerId, msg.cardId);
       if (err) sendError(ws, err);
       break;
     }
 
     case 'restartGame': {
-      const ctx = wsContext.get(ws);
-      if (!ctx) return;
-      const room = rooms.get(ctx.roomId);
-      if (!room) return;
-      const err = room.restartGame(ctx.playerId);
+      const r = getRoom(ws);
+      if (!r) return;
+      const err = r.room.restartGame(r.playerId);
       if (err) sendError(ws, err);
       break;
     }
