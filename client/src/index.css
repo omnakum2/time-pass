@@ -374,7 +374,10 @@ body {
   top: 12px; left: 50%; transform: translateX(-50%);
   z-index: 2;
   display: flex; align-items: center; gap: 10px;
-  max-width: 92%; flex-wrap: wrap; justify-content: center;
+  /* Single row, never wrapping — Round + Trump must stay side by side so the
+     trump is always visible (incl. behind the mobile bid popup). The mode chip
+     lives in the corner (.mode-chip--corner), so it can't push these to line 2. */
+  max-width: 92%; flex-wrap: nowrap; justify-content: center;
 }
 
 /* ─── Round chip (inside the felt-badges row) ─────────────────────────────── */
@@ -435,6 +438,11 @@ body {
   border: 1px solid rgba(233,184,74,0.4); border-radius: 22px;
   padding: 5px 12px; font-weight: 700; font-size: 0.9rem;
   box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+}
+/* Pinned to the felt's top-right corner (out of the Round/Trump flow). z-index
+   below the trump ⓘ tooltip (z 20) so the tooltip stays readable over it. */
+.mode-chip--corner {
+  position: absolute; top: 12px; right: 14px; z-index: 2;
 }
 
 /* ─── Turn status text (bottom-center of the trick table, plain text) ─────── */
@@ -626,11 +634,11 @@ body {
   max-width: 875px;
   min-height: 190px;
   /* Don't fill the full height — the table is vertically centered by
-     .table-middle-row, leaving ~48px slack above & below so chat bubbles
+     .table-middle-row, leaving ~34px slack above & below so chat bubbles
      (opponents below their card, You above) clear the header and the gold
-     rail on desktop. Change 96px → 68px for ~34px slack if a taller table
-     is ever needed. (Mobile overrides this with a 42vh cap.) */
-  height: calc(100% - 96px);
+     rail on desktop. (68px total → ~34px each side. Mobile overrides this
+     with a 42vh cap.) */
+  height: calc(100% - 68px);
   padding: 14px;                              /* the ~14px gold rail */
   border-radius: 82px;
   background: linear-gradient(180deg, #F7DE97 0%, #E4B24A 22%, #A9701C 50%, #E4B24A 78%, #7A4E12 100%);
@@ -716,25 +724,32 @@ body {
 /* Speech bubble above a player's chip */
 .chat-bubble {
   position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-  z-index: 5; white-space: nowrap; max-width: 62vw; overflow: hidden; text-overflow: ellipsis;
+  z-index: 5; white-space: nowrap; max-width: min(62vw, 180px);
+  text-overflow: ellipsis;
+  /* NB: no `overflow: hidden` here — it would clip the ::after tail (a positioned
+     child of this bubble) and the pointer would vanish. Quick messages are short
+     fixed presets, so the width cap above is enough without clipping. */
   background: linear-gradient(150deg, var(--card-1), var(--card-2));
   color: var(--gold); font-weight: 700; font-size: 0.8rem;
   padding: 6px 12px; border-radius: 14px; border: 1px solid var(--gold-border);
   box-shadow: 0 6px 16px rgba(0,0,0,0.45);
   animation: bubblePop 0.18s ease-out;
 }
+/* Tail: matches the bubble's bottom edge colour (--card-2) — this bubble sits
+   ABOVE the chip (used for "You"), so the tail points down. */
 .chat-bubble::after {
   content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-  border: 6px solid transparent; border-top-color: var(--card-2);
+  border: 7px solid transparent; border-top-color: var(--card-2);
 }
-/* Opponents sit under the header, so their bubble renders BELOW the chip (tail up). */
+/* Opponents sit under the header, so their bubble renders BELOW the chip (tail up).
+   The tail points at the chip from the bubble's TOP edge, so colour it --card-1. */
 .chat-bubble--below {
   bottom: auto; top: calc(100% + 8px);
   animation: bubblePopDown 0.18s ease-out;
 }
 .chat-bubble--below::after {
   top: auto; bottom: 100%;
-  border-top-color: transparent; border-bottom-color: var(--card-2);
+  border-top-color: transparent; border-bottom-color: var(--card-1);
 }
 @keyframes bubblePop {
   from { opacity: 0; transform: translateX(-50%) translateY(4px) scale(0.92); }
@@ -813,9 +828,11 @@ body {
   .trick-card-slot .card { width: 46px; height: 67px; }
   .trick-felt { gap: 6px; }
 
-  /* Round + Trump + Mode: allow whole chips to wrap on the narrowest phones */
-  .felt-badges { flex-wrap: wrap; gap: 8px; max-width: none; }
+  /* Round + Trump stay on ONE row (no wrap) so the trump is always visible;
+     the mode chip sits in the corner and doesn't affect this row. */
+  .felt-badges { flex-wrap: nowrap; gap: 6px; max-width: none; }
   .round-chip, .trump-chip, .mode-chip { font-size: 0.76rem; padding: 4px 9px; }
+  .mode-chip--corner { top: 8px; right: 8px; }
 
   /* Reclaim vertical space around the felt */
   .player-chip { min-width: 70px; padding: 5px 10px; }

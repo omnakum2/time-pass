@@ -31,6 +31,7 @@ export function TrickArea({ trick, players, round, status, trumpConfig, urgent, 
           <div className="felt-watermark__flourish">✦&nbsp;&nbsp;❦&nbsp;&nbsp;✦</div>
         </div>
 
+        {/* Round + Trump stay together in one centered row (never stacked). */}
         <div className="felt-badges">
           {round != null && <div className="round-chip">Round {round}</div>}
           <div className="trump-chip">
@@ -44,8 +45,11 @@ export function TrickArea({ trick, players, round, status, trumpConfig, urgent, 
             )}
             {trumpConfig && <InfoTooltip text={trumpInfo(trumpConfig)} />}
           </div>
-          <div className="mode-chip">{modeShort}</div>
         </div>
+
+        {/* Mode label is pinned to the felt's top-right corner so a third chip
+            never pushes Round/Trump into a stacked second row on small screens. */}
+        {modeShort && <div className="mode-chip mode-chip--corner">{modeShort}</div>}
 
         <AnimatePresence>
           {trick.map(({ playerId, card }) => (

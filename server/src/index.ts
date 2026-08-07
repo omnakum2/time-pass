@@ -6,7 +6,7 @@ import { randomInt } from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Room } from './room';
 import { config } from './config';
-import { ClientMessage, ServerMessage } from 'shared';
+import { ClientMessage, ServerMessage, GameMode, GAME_MODES } from 'shared';
 
 // ─── Environment-specific settings (from process.env) ──────────────────────
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -114,7 +114,7 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       const maxPlayers = typeof msg.maxPlayers === 'number'
         ? Math.min(7, Math.max(2, Math.floor(msg.maxPlayers)))
         : 7;
-      const mode = (msg.mode === 'upDown' || msg.mode === 'blind') ? msg.mode : 'classic';
+      const mode: GameMode = GAME_MODES.some(m => m.id === msg.mode) ? (msg.mode as GameMode) : 'classic';
       const room = new Room(roomId, maxPlayers, mode);
       room.onDestroy = () => { rooms.delete(roomId); };
       rooms.set(roomId, room);
