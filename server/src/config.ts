@@ -9,7 +9,7 @@
 export const config = {
   // ─── Abuse / payload limits ────────────────────────────────
   maxPayloadBytes: 8192, // inbound WebSocket message cap (messages are tiny)
-  maxConnPerIp: 20,      // concurrent connections per IP
+  maxConnPerIp: 30,      // concurrent connections per IP (friends on shared home wifi share one public IP)
   rateLimitPerSec: 25,   // messages / second / connection
 
   // ─── Gameplay timers (ms) ──────────────────────────────────
