@@ -271,7 +271,7 @@ export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean 
 
   return (
     <>
-      <h1>{PAGE_TITLE[lang]}</h1>
+      <h1 className="guide-title">{PAGE_TITLE[lang]}</h1>
       <div className="guide-lang">
         <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>
           English

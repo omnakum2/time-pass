@@ -1,8 +1,19 @@
-import type { Player, RoundScore, Scoreboard } from 'shared';
+import type { Player, Scoreboard } from 'shared';
+import { latestTotal } from 'shared';
 
-// JS mirror of the CSS --success/--warning/--danger tokens, for places that need a
-// color *string* (SVG stroke, canvas confetti). Keep these in sync with index.css.
-export const STATUS_COLORS = { success: '#5FD07A', warning: '#FFB300', danger: '#F0736C' } as const;
+// Read the semantic status colors from the CSS --success/--warning/--danger tokens
+// so index.css stays the single source of truth. Resolved once at module load, for
+// places that need a color *string* (SVG stroke, canvas confetti). Fallbacks match
+// the CSS values and only apply if the vars aren't mounted yet.
+function cssVar(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback;
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+export const STATUS_COLORS = {
+  success: cssVar('--success', '#5FD07A'),
+  warning: cssVar('--warning', '#FFB300'),
+  danger: cssVar('--danger', '#F0736C'),
+} as const;
 
 /** Format a score delta with an explicit sign: 5 → "+5", -3 → "-3", 0 → "0". */
 export function formatDelta(n: number): string {
@@ -16,8 +27,7 @@ export function deltaClass(n: number): string {
 
 /** A player's latest running total from the scoreboard (0 if none). */
 export function getTotal(scoreboard: Scoreboard, playerId: string): number {
-  const rows: RoundScore[] = scoreboard[playerId] ?? [];
-  return rows.length > 0 ? rows[rows.length - 1].total : 0;
+  return latestTotal(scoreboard[playerId] ?? []);
 }
 
 /** Look up a player's display name by id. */

@@ -6,8 +6,8 @@ import { Suit, Rank } from './types';
 
 // ─── 1. Game constants ───────────────────────────────────────────────────────
 export const START_ROUND = 7;
-export const TOTAL_ROUNDS = 7;
-export const ROUNDS: number[] = [7, 6, 5, 4, 3, 2, 1];
+export const ROUNDS: number[] = Array.from({ length: START_ROUND }, (_, i) => START_ROUND - i); // [7,6,5,4,3,2,1]
+export const TOTAL_ROUNDS = ROUNDS.length;
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 7;
 export const NAME_MIN_LEN = 2;

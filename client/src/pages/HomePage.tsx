@@ -76,14 +76,14 @@ export function HomePage() {
   // pending action. Extra clicks are ignored while something is pending.
   const handleCreate = () => {
     if (pending) return;
-    if (name.trim().length < 2) return;
+    if (name.trim().length < NAME_MIN_LEN) return;
     if (connected) fireCreate();
     else setPending('create');
   };
 
   const handleJoin = () => {
     if (pending) return;
-    if (name.trim().length < 2 || !roomCode.trim()) return;
+    if (name.trim().length < NAME_MIN_LEN || !roomCode.trim()) return;
     if (connected) fireJoin();
     else setPending('join');
   };
@@ -159,7 +159,7 @@ export function HomePage() {
                 <Button
                   variant="primary"
                   onClick={handleCreate}
-                  disabled={pending !== null || name.trim().length < 2}
+                  disabled={pending !== null || name.trim().length < NAME_MIN_LEN}
                 >
                   {pending === 'create' ? 'Starting…' : 'Create Room'}
                 </Button>
@@ -203,7 +203,7 @@ export function HomePage() {
                 <Button
                   variant="primary"
                   onClick={handleJoin}
-                  disabled={pending !== null || name.trim().length < 2 || !roomCode.trim()}
+                  disabled={pending !== null || name.trim().length < NAME_MIN_LEN || !roomCode.trim()}
                 >
                   {pending === 'join'
                     ? 'Joining…'

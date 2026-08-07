@@ -1,7 +1,7 @@
 import { WebSocket } from 'ws';
 import { randomInt } from 'crypto';
 import {
-  ServerMessage, ClientMessage, ErrorCode, RoundScore,
+  ServerMessage, ClientMessage, ErrorCode,
   MIN_PLAYERS, MAX_PLAYERS, NAME_MAX_LEN,
 } from 'shared';
 import { ERROR_MESSAGES } from './constants';
@@ -66,11 +66,4 @@ export function validateMessage(msg: ClientMessage): ErrorCode | null {
     default:
       return 'BAD_MESSAGE';
   }
-}
-
-// ─── Scoring ─────────────────────────────────────────────────────────────────
-
-/** Latest running total from a player's score rows (0 if none). */
-export function latestTotal(rows: RoundScore[]): number {
-  return rows.length > 0 ? rows[rows.length - 1].total : 0;
 }

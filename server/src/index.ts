@@ -192,10 +192,7 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       releaseOldSeat(ws);
       break;
     }
-
-    default: {
-      sendError(ws, 'BAD_MESSAGE');
-    }
+    // No default: validateMessage() has already rejected any unknown message type.
   }
 }
 
