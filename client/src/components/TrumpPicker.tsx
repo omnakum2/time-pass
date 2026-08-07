@@ -1,10 +1,6 @@
-import { Suit, TRUMP_SPECIALS } from 'shared';
+import { TRUMP_SPECIALS, SUIT_SYMBOL, SUIT_ORDER, isRedSuit } from 'shared';
 import { sendMsg } from '../net/socket';
 import { CountdownRing } from './CountdownRing';
-
-const SUIT_SYMBOL: Record<Suit, string> = { D: '♦', C: '♣', H: '♥', S: '♠' };
-const SUITS: Suit[] = ['S', 'H', 'D', 'C'];
-const RED = new Set<Suit>(['D', 'H']);
 
 interface Props { turnKey: string; durationMs: number; }
 
@@ -17,10 +13,10 @@ export function TrumpPicker({ turnKey, durationMs }: Props) {
       </div>
       <div className="trump-picker">
         <div className="trump-picker__suits">
-          {SUITS.map(s => (
+          {SUIT_ORDER.map(s => (
             <button
               key={s}
-              className={`trump-picker__suit ${RED.has(s) ? 'suit-red' : 'suit-black'}`}
+              className={`trump-picker__suit ${isRedSuit(s) ? 'suit-red' : 'suit-black'}`}
               onClick={() => sendMsg({ type: 'selectTrump', kind: 'suit', suit: s })}
             >
               {SUIT_SYMBOL[s]}

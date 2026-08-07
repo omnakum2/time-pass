@@ -28,6 +28,11 @@
   --hud-brown: #A9701C;
   --red:       #C0392B;
 
+  /* Semantic status — one set used everywhere (deltas, timer ring, urgency) */
+  --success: #5FD07A;
+  --warning: #FFB300;
+  --danger:  #F0736C;
+
   --card-w:  clamp(46px, 9vw, 72px);
   --card-h:  calc(var(--card-w) * 1.45);
   --radius:  10px;
@@ -203,16 +208,6 @@ body {
 .mode-option__label { font-weight: 800; color: var(--gold); font-size: 1rem; }
 .mode-option__desc  { font-size: 0.8rem; color: var(--cream-muted); line-height: 1.35; }
 
-/* ─── Card / panel (dark-wine) ────────────────────────────────────────────── */
-.panel {
-  background: linear-gradient(150deg, var(--card-1), var(--card-2));
-  border: 1px solid var(--gold-border);
-  border-radius: 16px;
-  padding: 24px;
-  color: var(--cream);
-  box-shadow: 0 16px 44px rgba(0,0,0,0.5);
-}
-
 /* ─── Trump suit glyph colors (on dark chip: black suits render light) ─────── */
 .suit-red   { color: #EF6E5F; }
 .suit-black { color: var(--cream); }
@@ -226,7 +221,7 @@ body {
   width: 100%;
   max-width: 460px;
 }
-.jhatpat-title {
+.brand-title {
   font-size: clamp(3.4rem, 13vw, 5.5rem);
   font-weight: 800;
   letter-spacing: 1.5px;
@@ -236,7 +231,7 @@ body {
   text-shadow: 0 4px 0 rgba(0,0,0,0.45), 0 0 34px rgba(233,184,74,0.4);
 }
 /* Compact variant for the Create/Join cards — keeps the title on one line */
-.jhatpat-title--card {
+.brand-title--card {
   font-size: clamp(1.8rem, 6vw, 2.2rem);
   white-space: nowrap;
 }
@@ -306,12 +301,7 @@ body {
   background: transparent; border: none; cursor: pointer; padding: 0;
 }
 .guide-toc__link:hover { color: var(--gold); }
-.guide-content {
-  background: linear-gradient(150deg, var(--card-1), var(--card-2));
-  border: 1px solid var(--gold-border); border-radius: 16px;
-  padding: 26px 32px; color: var(--cream);
-  box-shadow: 0 16px 44px rgba(0,0,0,0.4);
-}
+/* .guide-content surface deltas live with the .surface base (Phase 3 primitives) */
 .guide-section { margin-bottom: 26px; scroll-margin-top: 16px; }
 .guide-section:last-child { margin-bottom: 0; }
 .guide-section h2 {
@@ -351,7 +341,7 @@ body {
   padding: 2px;
   background: conic-gradient(
     from -90deg,
-    var(--turn-color, #43A047) 0 var(--turn-rp, 100%),
+    var(--turn-color, var(--success)) 0 var(--turn-rp, 100%),
     rgba(255,255,255,0.14) var(--turn-rp, 100%) 100%
   );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -455,7 +445,7 @@ body {
   text-align: center; white-space: nowrap;
   text-shadow: 0 1px 3px rgba(0,0,0,0.55);
 }
-@keyframes statusTick { 0%, 49.9% { color: #FF5A4E; } 50%, 100% { color: #fff; } }
+@keyframes statusTick { 0%, 49.9% { color: var(--danger); } 50%, 100% { color: #fff; } }
 .trick-status--urgent { animation: statusTick 2s steps(1) infinite; text-shadow: 0 1px 4px rgba(0,0,0,0.65); }
 
 /* ─── Player chip (dark-wine card) ────────────────────────────────────────── */
@@ -481,25 +471,6 @@ body {
 .player-chip__stats { color: var(--cream-muted); font-size: 0.72rem; text-align: center; }
 .player-chip__total { font-size: 0.68rem; color: var(--cream-muted); text-align: center; }
 .player-chip__disconnected { font-size: 0.65rem; color: #E9A94A; }
-
-/* ─── Popup / modal (dark-wine) ───────────────────────────────────────────── */
-.popup-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 800;
-}
-.popup {
-  background: linear-gradient(150deg, var(--card-1), var(--card-2));
-  border: 2px solid var(--gold-border);
-  border-radius: 18px;
-  padding: 24px 28px;
-  min-width: 280px; max-width: 90vw;
-  display: flex; flex-direction: column; align-items: center; gap: 16px;
-  color: var(--cream);
-  box-shadow: 0 18px 55px rgba(0,0,0,0.6);
-}
-.popup-title { font-size: 1.1rem; font-weight: 700; color: var(--gold); text-align: center; }
 
 /* ─── Bid buttons ─────────────────────────────────────────────────────────── */
 .bid-buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
@@ -545,40 +516,7 @@ body {
   overflow: hidden;
 }
 
-/* ─── Scoreboard modal overlay ────────────────────────────────────────────── */
-.scoreboard-overlay {
-  position: fixed; inset: 0; z-index: 1200;
-  background: rgba(0,0,0,0.35);
-  display: flex; align-items: center; justify-content: center; padding: 16px;
-}
-.scoreboard-overlay__panel {
-  position: relative;
-  background: linear-gradient(160deg, var(--card-1), var(--card-2));
-  border: 1px solid var(--gold-border);
-  border-radius: 20px;
-  width: fit-content; min-width: 360px; max-width: 92vw; max-height: 80vh; overflow: auto;
-  padding: 24px 28px 22px;
-  box-shadow: 0 24px 70px rgba(0,0,0,0.7), inset 0 1px 0 rgba(233,184,74,0.12);
-  display: flex; flex-direction: column; gap: 4px;
-}
-.scoreboard-overlay__close {
-  position: absolute; top: 12px; right: 14px; z-index: 2;
-  width: 30px; height: 30px; border-radius: 8px;
-  border: 1px solid rgba(233,184,74,0.3);
-  background: rgba(0,0,0,0.25);
-  color: var(--gold); font-size: 0.9rem; cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.scoreboard-overlay__close:hover {
-  background: rgba(233,184,74,0.15);
-  border-color: rgba(233,184,74,0.6);
-}
-.scoreboard-overlay__title {
-  color: var(--gold); font-size: 1.2rem; font-weight: 800;
-  letter-spacing: 1px; text-transform: uppercase;
-  text-shadow: 0 0 18px rgba(233,184,74,0.35);
-  margin-bottom: 2px;
-}
+/* ─── Scoreboard (rendered inside <Modal>) ────────────────────────────────── */
 .scoreboard-overlay__note {
   color: rgba(243,236,221,0.45); font-size: 0.75rem; margin-bottom: 14px;
 }
@@ -613,8 +551,8 @@ body {
   color: var(--gold);
 }
 .scoreboard tr:last-child td:first-child { background: rgba(233,184,74,0.16); }
-.delta--pos { color: #5FD07A; font-weight: 600; }
-.delta--neg { color: #F0736C; font-weight: 600; }
+.delta--pos { color: var(--success); font-weight: 600; }
+.delta--neg { color: var(--danger); font-weight: 600; }
 
 /* ─── Game panel (full width, centered) ───────────────────────────────────── */
 .game-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 8px; gap: 6px; }
@@ -776,15 +714,24 @@ body {
   padding: 2px 8px; border-radius: 20px; font-weight: 700;
 }
 
-/* ─── Winner page (dark-wine card, consistent with all cards) ─────────────── */
+/* ─── Winner page ─────────────────────────────────────────────────────────── */
 .winner-page-wrap {
   flex: 1; min-height: 0; overflow: auto;
   display: flex; align-items: center; justify-content: center;
   padding: 16px; position: relative;
 }
-.winner-card {
+
+/* ─── Phase 3 primitives (Surface, Button block, Field, Modal, utilities) ───── */
+.surface {
   background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  border: 1px solid var(--gold-border);
+  border-radius: 16px;
+  padding: 24px;
   color: var(--cream);
+  box-shadow: 0 16px 44px rgba(0,0,0,0.5);
+}
+/* Surface modifiers — base `.surface` + these deltas (must follow `.surface`) */
+.winner-card {
   border: 2px solid var(--gold-border);
   border-radius: 24px;
   padding: 32px 40px; text-align: center;
@@ -793,6 +740,38 @@ body {
   box-shadow: 0 22px 60px rgba(0,0,0,0.6), 0 0 44px rgba(233,184,74,0.14);
   position: relative; z-index: 1;
 }
+.guide-content { padding: 26px 32px; box-shadow: 0 16px 44px rgba(0,0,0,0.4); }
+.btn--block { width: 100%; }
+
+.text-center { text-align: center; }
+.muted { opacity: 0.7; }
+.field-label { font-size: 0.85rem; opacity: 0.7; }
+.field-hint  { font-size: 0.75rem; opacity: 0.5; }
+
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 900;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal-panel {
+  position: relative;
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  border: 2px solid var(--gold-border);
+  border-radius: 18px;
+  padding: 24px 28px;
+  min-width: 280px; max-width: 92vw; max-height: 88vh; overflow: auto;
+  display: flex; flex-direction: column; gap: 16px;
+  color: var(--cream);
+  box-shadow: 0 18px 55px rgba(0,0,0,0.6);
+}
+.modal-close {
+  position: absolute; top: 12px; right: 14px;
+  width: 32px; height: 32px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--gold-border); background: rgba(0,0,0,0.35);
+  color: var(--gold); cursor: pointer;
+}
+.modal-close:hover { background: rgba(233,184,74,0.15); }
 
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 760px) {
@@ -800,7 +779,6 @@ body {
   .guide-toc { position: static; }
 }
 @media (max-width: 600px) {
-  .scoreboard-overlay__panel { padding: 18px 14px 16px; }
   :root { --card-w: 72px; }
 
   /* Header: scale down so brand + nav fit narrow screens on one row */

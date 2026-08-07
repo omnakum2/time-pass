@@ -1,11 +1,8 @@
-import { AnimatePresence } from 'framer-motion';
-import { TrickCard, Player, Suit, GameMode, GAME_MODES, TrumpConfig, trumpLabel, trumpInfo } from 'shared';
+import { TrickCard, Player, GameMode, GAME_MODES, TrumpConfig, trumpLabel, trumpInfo, SUIT_SYMBOL, SUIT_NAME, RED_SUITS } from 'shared';
 import { CardView } from './CardView';
 import { InfoTooltip } from './InfoTooltip';
-
-const SUIT_SYMBOL: Record<string, string> = { D: '♦', C: '♣', H: '♥', S: '♠' };
-const SUIT_NAME: Record<string, string> = { D: 'Diamonds', C: 'Clubs', H: 'Hearts', S: 'Spades' };
-const RED_SUITS = new Set<Suit>(['D', 'H']);
+import { playerName } from '../lib/helpers';
+import { AnimatePresence } from 'framer-motion';
 
 interface Props {
   trick: TrickCard[];
@@ -18,7 +15,6 @@ interface Props {
 }
 
 export function TrickArea({ trick, players, round, status, trumpConfig, urgent, mode }: Props) {
-  const playerName = (id: string) => players.find(p => p.id === id)?.name ?? '?';
   const modeShort = GAME_MODES.find(m => m.id === mode)?.short ?? '';
 
   return (
@@ -54,7 +50,7 @@ export function TrickArea({ trick, players, round, status, trumpConfig, urgent, 
         <AnimatePresence>
           {trick.map(({ playerId, card }) => (
             <div key={`${playerId}-${card.id}`} className="trick-card-slot">
-              <span className="trick-card-slot__name">{playerName(playerId)}</span>
+              <span className="trick-card-slot__name">{playerName(players, playerId)}</span>
               <CardView card={card} played layoutId={`card-${card.id}`} />
             </div>
           ))}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Surface } from '../components/Surface';
 
 type Lang = 'en' | 'gu';
 
@@ -379,7 +380,7 @@ export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean 
             </li>
           ))}
         </ol>
-        <article className="guide-content">
+        <Surface as="article" className="guide-content">
           {sections.map(({ id, title, body }) => (
             <section id={id} key={id} className="guide-section">
               <h2>{title}</h2>
@@ -401,7 +402,7 @@ export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean 
               )}
             </p>
           )}
-        </article>
+        </Surface>
       </div>
     </>
   );

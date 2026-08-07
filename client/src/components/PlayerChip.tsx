@@ -1,5 +1,6 @@
 import { Player } from 'shared';
 import { TurnBorder } from './TurnTimer';
+import { Delta } from './Delta';
 import { useGameStore } from '../store/gameStore';
 
 interface Props {
@@ -9,12 +10,12 @@ interface Props {
   isActive: boolean;
   phase: string;
   turnKey: string;
-  timerMs?: number;
+  durationMs?: number;
   isMe?: boolean;
   totalScore?: number;
 }
 
-export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, timerMs, isMe, totalScore }: Props) {
+export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, durationMs, isMe, totalScore }: Props) {
   const bubble = useGameStore(s => s.activeBubbles[player.id]);
   return (
     <div className={`player-chip${isActive ? ' player-chip--active' : ''}${isMe ? ' player-chip--me' : ''}`}>
@@ -23,8 +24,8 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, t
           {bubble.text}
         </div>
       )}
-      {isActive && (phase === 'BIDDING' || phase === 'PLAYING' || phase === 'TRUMP_SELECT') && timerMs !== undefined && (
-        <TurnBorder key={turnKey} durationMs={timerMs} />
+      {isActive && (phase === 'BIDDING' || phase === 'PLAYING' || phase === 'TRUMP_SELECT') && durationMs !== undefined && (
+        <TurnBorder key={turnKey} durationMs={durationMs} />
       )}
 
       <div className="player-chip__name">
@@ -39,7 +40,7 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, t
 
       {totalScore !== undefined && (
         <div className="player-chip__total">
-          Score: <span className={totalScore >= 0 ? 'delta--pos' : 'delta--neg'}>{totalScore > 0 ? `+${totalScore}` : totalScore}</span>
+          Score: <Delta value={totalScore} />
         </div>
       )}
 

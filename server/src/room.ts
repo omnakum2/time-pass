@@ -2,17 +2,17 @@ import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import {
   Card, GameMode, GamePhase, GameState, Player, RoundScore,
-  Suit, Rank, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, QUICK_MESSAGES
+  Suit, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, ErrorCode, QUICK_MESSAGES
 } from 'shared';
 import {
   deal, pickTrump, firstBidderSeat,
-  legalMoves, trickWinner, scoreRound, roundsForMode
+  legalMoves, trickWinner, scoreRound, roundsForMode, ROUNDS, SUITS, RANK_ORDER
 } from 'shared';
-import { config } from './config';
-
-const ROUNDS = [7, 6, 5, 4, 3, 2, 1];
-const SUITS: Suit[] = ['D', 'C', 'H', 'S'];
-const ALL_RANKS: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+import {
+  BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS,
+  GAME_OVER_TTL_MS, COUNTDOWN_MS, DISCONNECTED_AUTO_MOVE_MS, TRICK_DISPLAY_MS, ROUND_END_DELAY_MS,
+} from './constants';
+import { sendMessage, latestTotal, clampPlayers } from './helpers';
 
 export interface Seat {
   player: Player;
@@ -25,7 +25,7 @@ export interface Seat {
 
 export class Room {
   readonly id: string;
-  readonly maxPlayers: number = 7;
+  readonly maxPlayers: number;
   private seats: Seat[] = [];
   private hostId: string | null = null;
   private phase: GamePhase = 'LOBBY';
@@ -59,7 +59,7 @@ export class Room {
 
   constructor(id: string, maxPlayers = 7, mode: GameMode = 'classic') {
     this.id = id;
-    this.maxPlayers = Math.min(7, Math.max(2, maxPlayers));
+    this.maxPlayers = clampPlayers(maxPlayers);
     this.mode = mode;
     this.rounds = roundsForMode(mode);
   }
@@ -85,6 +85,18 @@ export class Room {
   get playerCount(): number { return this.seats.length; }
   get isFull(): boolean { return this.seats.length >= this.maxPlayers; }
   get isEmpty(): boolean { return this.seats.every(s => s.ws === null); }
+
+  // Remove a seat and reindex; promote a new host if the leaver was host, and
+  // cancel a pending lobby countdown if the room is no longer full.
+  private removeSeat(playerId: string): void {
+    this.seats = this.seats.filter(s => s.player.id !== playerId);
+    this.seats.forEach((s, i) => { s.player.seatIndex = i; });
+    this.scoreboard.delete(playerId);
+    if (playerId === this.hostId && this.seats.length > 0) {
+      this.hostId = this.seats[0].player.id; // promote next player to host
+    }
+    if (this.countdownTimer && this.seats.length < this.maxPlayers) this.cancelCountdown();
+  }
 
   // ─── Join / Create ────────────────────────────────────────────────────────
 
@@ -117,10 +129,7 @@ export class Room {
   reconnect(ws: WebSocket, token: string): Seat | null {
     const seat = this.getSeatByToken(token);
     if (!seat) return null;
-    if (seat.reconnectTimer) {
-      clearTimeout(seat.reconnectTimer);
-      seat.reconnectTimer = null;
-    }
+    seat.reconnectTimer = this.clearTimer(seat.reconnectTimer);
     seat.ws = ws;
     seat.player.connected = true;
     this.cancelEmptyRoomTimer();
@@ -135,23 +144,13 @@ export class Room {
     seat.player.connected = false;
 
     if (this.phase === 'LOBBY') {
-      // Remove from lobby entirely
-      this.seats = this.seats.filter(s => s.player.id !== playerId);
-      this.seats.forEach((s, i) => { s.player.seatIndex = i; });
-      this.scoreboard.delete(playerId);
-
-      if (playerId === this.hostId && this.seats.length > 0) {
-        // Promote next player to host
-        this.hostId = this.seats[0].player.id;
-      }
-
-      if (this.countdownTimer && this.seats.length < this.maxPlayers) { this.cancelCountdown(); }
+      this.removeSeat(playerId); // remove from lobby entirely
     } else {
       // In-game: start reconnect window
       seat.reconnectTimer = setTimeout(() => {
         seat.reconnectTimer = null;
         // Seat stays but keeps auto-playing via turn timer
-      }, config.reconnectWindowMs);
+      }, RECONNECT_WINDOW_MS);
 
       // If host left during game → end immediately
       if (playerId === this.hostId) {
@@ -186,22 +185,8 @@ export class Room {
       return;
     }
 
-    if (seat.reconnectTimer) {
-      clearTimeout(seat.reconnectTimer);
-      seat.reconnectTimer = null;
-    }
-
-    // Remove the seat entirely
-    this.seats = this.seats.filter(s => s.player.id !== playerId);
-    this.seats.forEach((s, i) => { s.player.seatIndex = i; });
-    this.scoreboard.delete(playerId);
-
-    if (playerId === this.hostId && this.seats.length > 0) {
-      // Promote next player to host
-      this.hostId = this.seats[0].player.id;
-    }
-
-    if (this.countdownTimer && this.seats.length < this.maxPlayers) { this.cancelCountdown(); }
+    seat.reconnectTimer = this.clearTimer(seat.reconnectTimer);
+    this.removeSeat(playerId); // remove the seat entirely
 
     this.broadcastState();
 
@@ -212,7 +197,7 @@ export class Room {
 
   // ─── Lobby ────────────────────────────────────────────────────────────────
 
-  startGame(requesterId: string): string | null {
+  startGame(requesterId: string): ErrorCode | null {
     if (requesterId !== this.hostId) return 'NOT_HOST';
     if (this.phase !== 'LOBBY') return 'WRONG_PHASE';
     if (this.seats.length < 2) return 'NOT_ENOUGH_PLAYERS';
@@ -223,7 +208,7 @@ export class Room {
     return null;
   }
 
-  restartGame(requesterId: string): string | null {
+  restartGame(requesterId: string): ErrorCode | null {
     if (requesterId !== this.hostId) return 'NOT_HOST';
     if (this.phase !== 'GAME_OVER') return 'WRONG_PHASE';
 
@@ -246,17 +231,17 @@ export class Room {
     if (this.phase !== 'LOBBY') return;
     if (this.seats.length < this.maxPlayers) return; // only when full
     if (this.countdownTimer) clearTimeout(this.countdownTimer);
-    this.countdownEndsAt = Date.now() + config.countdownMs;
+    this.countdownEndsAt = Date.now() + COUNTDOWN_MS;
     this.countdownTimer = setTimeout(() => {
       this.countdownTimer = null;
       this.countdownEndsAt = null;
       this.beginGame();
-    }, config.countdownMs);
+    }, COUNTDOWN_MS);
     this.broadcastState();
   }
 
   private cancelCountdown(): void {
-    if (this.countdownTimer) { clearTimeout(this.countdownTimer); this.countdownTimer = null; }
+    this.countdownTimer = this.clearTimer(this.countdownTimer);
     this.countdownEndsAt = null;
   }
 
@@ -303,7 +288,7 @@ export class Room {
 
   // ─── Trump selection (Revolving Trump) ────────────────────────────────────
 
-  selectTrump(playerId: string, kind: TrumpKind, suit?: Suit): string | null {
+  selectTrump(playerId: string, kind: TrumpKind, suit?: Suit): ErrorCode | null {
     if (this.phase !== 'TRUMP_SELECT') return 'WRONG_PHASE';
     if (this.currentTurnPlayerId() !== playerId) return 'NOT_YOUR_TURN';
     const cfg = this.buildTrumpConfig(kind, suit);
@@ -317,7 +302,7 @@ export class Room {
       case 'suit':
         return (suit === 'D' || suit === 'C' || suit === 'H' || suit === 'S') ? { kind: 'suit', suit } : null;
       case 'oneTrump':
-        return { kind: 'oneTrump', rank: ALL_RANKS[Math.floor(Math.random() * ALL_RANKS.length)] };
+        return { kind: 'oneTrump', rank: RANK_ORDER[Math.floor(Math.random() * RANK_ORDER.length)] };
       case 'noTrump': case 'highCard': case 'lowCard': case 'ak47': case 'kingQueen':
         return { kind };
       default:
@@ -326,7 +311,7 @@ export class Room {
   }
 
   private applyTrump(cfg: TrumpConfig): void {
-    this.clearTurnTimer();
+    this.cancelTurnTimer();
     this.trumpConfig = cfg;
     this.trump = cfg.kind === 'suit' ? (cfg.suit ?? null) : null;
     this.previousTrump = this.trump;
@@ -337,7 +322,7 @@ export class Room {
 
   // ─── Bidding ──────────────────────────────────────────────────────────────
 
-  placeBid(playerId: string, bid: number): string | null {
+  placeBid(playerId: string, bid: number): ErrorCode | null {
     if (this.phase !== 'BIDDING') return 'WRONG_PHASE';
     if (this.currentTurnPlayerId() !== playerId) return 'NOT_YOUR_TURN';
     if (!Number.isInteger(bid) || bid < 0 || bid > (this.currentRound ?? 0)) {
@@ -350,7 +335,7 @@ export class Room {
   }
 
   private advanceBidder(): void {
-    this.clearTurnTimer();
+    this.cancelTurnTimer();
 
     // Find next player who hasn't bid
     let next = this.nextSeatIndex(this.currentTurnSeatIndex);
@@ -376,7 +361,7 @@ export class Room {
 
   // ─── Playing ──────────────────────────────────────────────────────────────
 
-  playCard(playerId: string, cardId: string): string | null {
+  playCard(playerId: string, cardId: string): ErrorCode | null {
     if (this.phase !== 'PLAYING') return 'WRONG_PHASE';
     if (this.currentTurnPlayerId() !== playerId) return 'NOT_YOUR_TURN';
 
@@ -397,7 +382,7 @@ export class Room {
     }
     this.currentTrick.push({ playerId, card });
 
-    this.clearTurnTimer();
+    this.cancelTurnTimer();
 
     if (this.currentTrick.length === this.seats.length) {
       // Trick complete
@@ -427,12 +412,12 @@ export class Room {
 
     // Check if round is over (no cards left)
     if (this.seats[0].hand.length === 0) {
-      setTimeout(() => this.endRound(), config.trickDisplayMs);
+      setTimeout(() => this.endRound(), TRICK_DISPLAY_MS);
     } else {
       setTimeout(() => {
         this.broadcastState();
         this.startTurnTimer();
-      }, config.trickDisplayMs);
+      }, TRICK_DISPLAY_MS);
     }
   }
 
@@ -448,7 +433,7 @@ export class Room {
       const won = this.tricksWon.get(pid) ?? 0;
       const delta = scoreRound(bid, won);
       const rows = this.scoreboard.get(pid) ?? [];
-      const prevTotal = rows.length > 0 ? rows[rows.length - 1].total : 0;
+      const prevTotal = latestTotal(rows);
       const total = prevTotal + delta;
       rows.push({ round: roundNum, bid, won, delta, total });
       this.scoreboard.set(pid, rows);
@@ -468,78 +453,69 @@ export class Room {
       } else {
         this.endGame();
       }
-    }, config.roundEndDelayMs);
+    }, ROUND_END_DELAY_MS);
   }
 
-  private endGame(): void {
-    this.phase = 'GAME_OVER';
-
+  private computeFinalScores(): { finalScores: Record<string, number>; playerNames: Record<string, string>; maxScore: number } {
     const finalScores: Record<string, number> = {};
     const playerNames: Record<string, string> = {};
     let maxScore = -Infinity;
 
     for (const seat of this.seats) {
-      const rows = this.scoreboard.get(seat.player.id) ?? [];
-      const total = rows.length > 0 ? rows[rows.length - 1].total : 0;
+      const total = latestTotal(this.scoreboard.get(seat.player.id) ?? []);
       finalScores[seat.player.id] = total;
       playerNames[seat.player.id] = seat.player.name;
       if (total > maxScore) maxScore = total;
     }
 
-    const winners = Object.entries(finalScores)
-      .filter(([, s]) => s === maxScore)
-      .map(([id]) => id);
+    return { finalScores, playerNames, maxScore };
+  }
 
+  private finishGame(winners: string[], finalScores: Record<string, number>, playerNames: Record<string, string>): void {
+    this.phase = 'GAME_OVER';
     this.broadcast({ type: 'gameOver', winners, finalScores, playerNames });
     this.broadcastState();
-
-    // TTL-destroy finished rooms unless a rematch cancels it
     this.startGameOverTimer();
   }
 
+  private endGame(): void {
+    const { finalScores, playerNames, maxScore } = this.computeFinalScores();
+    const winners = Object.entries(finalScores)
+      .filter(([, s]) => s === maxScore)
+      .map(([id]) => id);
+    this.finishGame(winners, finalScores, playerNames);
+  }
+
   private endGameImmediately(): void {
-    this.clearTurnTimer();
-    this.phase = 'GAME_OVER';
-
-    const finalScores: Record<string, number> = {};
-    const playerNames: Record<string, string> = {};
-
-    for (const seat of this.seats) {
-      const rows = this.scoreboard.get(seat.player.id) ?? [];
-      const total = rows.length > 0 ? rows[rows.length - 1].total : 0;
-      finalScores[seat.player.id] = total;
-      playerNames[seat.player.id] = seat.player.name;
-    }
-
-    // No winners when host leaves (per spec)
-    this.broadcast({ type: 'gameOver', winners: [], finalScores, playerNames });
-    this.broadcastState();
-
-    // Host-left rooms also auto-close after the TTL
-    this.startGameOverTimer();
+    this.cancelTurnTimer();
+    const { finalScores, playerNames } = this.computeFinalScores();
+    this.finishGame([], finalScores, playerNames);
   }
 
   // ─── Timers ───────────────────────────────────────────────────────────────
 
+  // Clear a timer handle if set; returns null so the caller can null its field.
+  private clearTimer(timer: ReturnType<typeof setTimeout> | null): null {
+    if (timer) clearTimeout(timer);
+    return null;
+  }
+
   private startTurnTimer(): void {
-    this.clearTurnTimer();
+    this.cancelTurnTimer();
     const currentSeat = this.seats[this.currentTurnSeatIndex];
     const disconnected = !!currentSeat && !currentSeat.player.connected;
     // A disconnected player shouldn't make everyone wait the full turn timer —
     // auto-move after a short beat (enough for others to see it) instead of 30s.
     const timeoutMs = disconnected
-      ? config.disconnectedAutoMoveMs
-      : ((this.phase === 'BIDDING' || this.phase === 'TRUMP_SELECT') ? config.bidTimeoutMs : config.playTimeoutMs);
+      ? DISCONNECTED_AUTO_MOVE_MS
+      : ((this.phase === 'BIDDING' || this.phase === 'TRUMP_SELECT') ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS);
     this.turnTimer = setTimeout(() => {
       this.autoAction();
     }, timeoutMs);
   }
 
-  private clearTurnTimer(): void {
-    if (this.turnTimer) {
-      clearTimeout(this.turnTimer);
-      this.turnTimer = null;
-    }
+  private cancelTurnTimer(): void {
+    this.turnTimer = this.clearTimer(this.turnTimer);
   }
 
   private autoAction(): void {
@@ -562,31 +538,25 @@ export class Room {
     this.cancelEmptyRoomTimer();
     this.emptyRoomTimer = setTimeout(() => {
       this.onDestroy?.();
-    }, config.emptyRoomDestroyMs);
+    }, EMPTY_ROOM_DESTROY_MS);
   }
 
   private cancelEmptyRoomTimer(): void {
-    if (this.emptyRoomTimer) {
-      clearTimeout(this.emptyRoomTimer);
-      this.emptyRoomTimer = null;
-    }
+    this.emptyRoomTimer = this.clearTimer(this.emptyRoomTimer);
   }
 
   private startGameOverTimer(): void {
     this.cancelGameOverTimer();
-    this.gameOverExpiresAt = Date.now() + config.gameOverTtlMs;
+    this.gameOverExpiresAt = Date.now() + GAME_OVER_TTL_MS;
     this.gameOverTimer = setTimeout(() => {
       this.gameOverTimer = null;
       this.broadcast({ type: 'roomClosed' });
       this.onDestroy?.();
-    }, config.gameOverTtlMs);
+    }, GAME_OVER_TTL_MS);
   }
 
   private cancelGameOverTimer(): void {
-    if (this.gameOverTimer) {
-      clearTimeout(this.gameOverTimer);
-      this.gameOverTimer = null;
-    }
+    this.gameOverTimer = this.clearTimer(this.gameOverTimer);
     this.gameOverExpiresAt = null;
   }
 
@@ -601,20 +571,9 @@ export class Room {
       }
     }
 
-    const bidsObj: Record<string, number | null> = {};
-    for (const [pid, bid] of this.bids) {
-      bidsObj[pid] = bid;
-    }
-
-    const tricksWonObj: Record<string, number> = {};
-    for (const [pid, won] of this.tricksWon) {
-      tricksWonObj[pid] = won;
-    }
-
-    const scoreboardObj: Record<string, RoundScore[]> = {};
-    for (const [pid, rows] of this.scoreboard) {
-      scoreboardObj[pid] = rows;
-    }
+    const bidsObj = Object.fromEntries(this.bids);
+    const tricksWonObj = Object.fromEntries(this.tricksWon);
+    const scoreboardObj = Object.fromEntries(this.scoreboard);
 
     // Use last trick briefly so clients can show the completed trick
     const trickToShow = lastTrick ?? this.currentTrick;
@@ -638,24 +597,30 @@ export class Room {
       firstBidder: this.seats[this.bidderSeatIndex]?.player.id ?? null,
       tricksWon: tricksWonObj,
       countdownMs: this.countdownEndsAt ? Math.max(0, this.countdownEndsAt - Date.now()) : null,
-      turnTimeoutMs: (this.phase === 'BIDDING' || this.phase === 'TRUMP_SELECT') ? config.bidTimeoutMs : config.playTimeoutMs,
+      turnTimeoutMs: (this.phase === 'BIDDING' || this.phase === 'TRUMP_SELECT') ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS,
       roomExpiresInMs: this.gameOverExpiresAt ? Math.max(0, this.gameOverExpiresAt - Date.now()) : null,
       mode: this.mode,
     };
   }
 
-  broadcastState(lastTrick?: TrickCard[]): void {
+  private forEachOpenSeat(cb: (seat: Seat) => void): void {
     for (const seat of this.seats) {
       if (seat.ws?.readyState === WebSocket.OPEN) {
-        const state = this.buildState(seat.player.id, lastTrick);
-        this.send(seat.ws, { type: 'state', state });
+        cb(seat);
       }
     }
   }
 
+  broadcastState(lastTrick?: TrickCard[]): void {
+    this.forEachOpenSeat(seat => {
+      const state = this.buildState(seat.player.id, lastTrick);
+      sendMessage(seat.ws!, { type: 'state', state });
+    });
+  }
+
   sendState(ws: WebSocket, playerId: string): void {
     const state = this.buildState(playerId);
-    this.send(ws, { type: 'state', state });
+    sendMessage(ws, { type: 'state', state });
   }
 
   // ─── Quick chat messages ──────────────────────────────────────────────────
@@ -672,19 +637,9 @@ export class Room {
   }
 
   private broadcast(msg: ServerMessage): void {
-    for (const seat of this.seats) {
-      if (seat.ws?.readyState === WebSocket.OPEN) {
-        this.send(seat.ws, msg);
-      }
-    }
-  }
-
-  private send(ws: WebSocket, msg: ServerMessage): void {
-    try {
-      ws.send(JSON.stringify(msg));
-    } catch {
-      // ignore
-    }
+    this.forEachOpenSeat(seat => {
+      sendMessage(seat.ws!, msg);
+    });
   }
 
   getPhase(): GamePhase { return this.phase; }

@@ -1,8 +1,7 @@
 import { Card, Rank, Suit, TrickCard, GameMode, TrumpConfig } from './types';
+import { RANK_ORDER, SUITS, START_ROUND } from './constants';
 
 // ─── Rank ordering (higher index = higher rank) ──────────────────────────────
-
-const RANK_ORDER: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
 export function rankValue(rank: Rank): number {
   return RANK_ORDER.indexOf(rank);
@@ -17,13 +16,10 @@ export function roundsForMode(mode: GameMode): number[] {
 
 // ─── Deck ────────────────────────────────────────────────────────────────────
 
-const SUITS: Suit[] = ['D', 'C', 'H', 'S'];
-const RANKS: Rank[] = RANK_ORDER;
-
 export function createDeck(): Card[] {
   const deck: Card[] = [];
   for (const suit of SUITS) {
-    for (const rank of RANKS) {
+    for (const rank of RANK_ORDER) {
       deck.push({ id: `${rank}${suit}`, rank, suit });
     }
   }
@@ -42,7 +38,9 @@ export function shuffle<T>(arr: T[]): T[] {
 // ─── Dealing ─────────────────────────────────────────────────────────────────
 
 /**
- * Returns a map: seatIndex → cards dealt.
+ * Deals the round from a freshly shuffled deck.
+ * Returns { hands }, an array of hands where the array index is the seat index
+ * (hands[0] is seat 0, hands[1] is seat 1, …). Each hand has `roundNumber` cards.
  * roundNumber = 7..1, playerCount ≤ 7.
  */
 export function deal(
@@ -75,7 +73,7 @@ export function pickTrump(prev: Suit | null | undefined): Suit | null {
  * Round 7 → seat 0, Round 6 → seat 1, etc. (wraps with playerCount)
  */
 export function firstBidderSeat(round: number, playerCount: number): number {
-  return (7 - round) % playerCount;
+  return (START_ROUND - round) % playerCount;
 }
 
 // ─── Legal moves ─────────────────────────────────────────────────────────────

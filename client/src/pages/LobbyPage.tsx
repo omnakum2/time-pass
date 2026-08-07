@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
+import { Surface } from '../components/Surface';
+import { Icon } from '../components/Icon';
 
 export function LobbyPage() {
   const { roomId: urlRoomId } = useParams<{ roomId: string }>();
@@ -94,24 +96,9 @@ export function LobbyPage() {
     }
   };
 
-  const copySvg = (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  );
-
-  const checkSvg = (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-
   return (
     <div className="page">
-      <div className="panel lobby flex-col gap-lg">
+      <Surface className="lobby flex-col gap-lg">
         <div style={{ textAlign: 'center' }}>
           <h2 style={{ color: 'var(--gold)', fontSize: '1.5rem' }}>Waiting Room</h2>
           <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
@@ -124,7 +111,7 @@ export function LobbyPage() {
               title="Copy invite link"
               aria-label="Copy invite link"
             >
-              {copied ? checkSvg : copySvg}
+              {copied ? <Icon name="check" /> : <Icon name="copy" />}
             </button>
           </div>
           <p style={{ opacity: 0.6, fontSize: '0.8rem', marginTop: 4 }}>
@@ -157,7 +144,7 @@ export function LobbyPage() {
             Waiting for players ({players.length}/{gameState.maxPlayers})
           </p>
         )}
-      </div>
+      </Surface>
     </div>
   );
 }
