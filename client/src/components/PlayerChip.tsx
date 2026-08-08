@@ -30,7 +30,7 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, d
 
       <div className="player-chip__name">
         {player.name}
-        {isMe && <span style={{ opacity: 0.5, fontSize: '0.7em', marginLeft: 4 }}>(you)</span>}
+        {isMe && <span className="tag-faint" style={{ marginLeft: 4 }}>(you)</span>}
       </div>
 
       <div className="player-chip__stats">

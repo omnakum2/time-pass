@@ -1,19 +1,17 @@
-import { GameState } from 'shared';
+import { GameState, ROUNDS } from 'shared';
 import { StandingsTable } from './StandingsTable';
 import { Delta } from './Delta';
-
-const ALL_ROUNDS = [7, 6, 5, 4, 3, 2, 1];
 
 export function Scoreboard({ gameState }: { gameState: GameState }) {
   const { players, scoreboard } = gameState;
 
-  const roundsPlayed = ALL_ROUNDS.filter(r =>
+  const roundsPlayed = ROUNDS.filter(r =>
     players.some(p => scoreboard[p.id]?.some(row => row.round === r))
   );
 
   if (roundsPlayed.length === 0) {
     return (
-      <div style={{ padding: '12px', opacity: 0.5, fontSize: '0.8rem', textAlign: 'center' }}>
+      <div className="text-center tag-faint" style={{ padding: '12px' }}>
         Scores will appear here
       </div>
     );
@@ -28,7 +26,7 @@ export function Scoreboard({ gameState }: { gameState: GameState }) {
   };
 
   return (
-    <StandingsTable>
+    <StandingsTable variant="matrix">
       <thead>
         <tr>
           <th>#</th>

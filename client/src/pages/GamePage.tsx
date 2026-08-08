@@ -174,7 +174,7 @@ export function GamePage() {
               isMe
             />
             {selectedCard && (
-              <span style={{ fontSize: '0.8rem', opacity: 0.75, marginLeft: 8 }}>
+              <span className="tag-faint" style={{ marginLeft: 8 }}>
                 Tap again to play
               </span>
             )}

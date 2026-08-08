@@ -90,12 +90,12 @@ export function WinnerPage() {
         {/* Headline */}
         {hostLeft ? (
           <>
-            <h1 style={{ color: 'var(--gold)', fontSize: '1.6rem' }}>Host Left</h1>
-            <p style={{ opacity: 0.7, fontSize: '0.9rem' }}>Game ended early. Current standings:</p>
+            <h1 className="card-title card-title--md">Host Left</h1>
+            <p className="hint">Game ended early. Current standings:</p>
           </>
         ) : (
           <>
-            <h1 style={{ color: 'var(--gold)', fontSize: '1.8rem' }}>
+            <h1 className="card-title card-title--lg">
               {isWinner
                 ? 'You win!'
                 : `${winnerNames.join(' & ')} win${winners.length > 1 ? '!' : 's!'}`}
@@ -115,11 +115,11 @@ export function WinnerPage() {
             {sortedPlayers.map((p, i) => {
               const isTopPlayer = winners.includes(p.id);
               return (
-                <tr key={p.id} style={{ background: isTopPlayer ? 'rgba(212,175,55,0.12)' : 'transparent' }}>
-                  <td style={{ fontWeight: p.id === playerId ? 700 : 400 }}>
+                <tr key={p.id} className={isTopPlayer ? 'row-highlight' : undefined}>
+                  <td className={p.id === playerId ? 'cell-me' : undefined}>
                     {p.name}
                     {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''}
-                    {p.id === playerId && <span style={{ opacity: 0.45, marginLeft: 5, fontSize: '0.78rem' }}>(you)</span>}
+                    {p.id === playerId && <span className="tag-faint" style={{ marginLeft: 5 }}>(you)</span>}
                   </td>
                   <td>
                     <Delta value={p.score} />
@@ -132,7 +132,7 @@ export function WinnerPage() {
 
         {roomClosed ? (
           <>
-            <p style={{ opacity: 0.7, fontSize: '0.9rem' }}>This game has ended and the room has closed.</p>
+            <p className="hint">This game has ended and the room has closed.</p>
             <Button
               variant="primary"
               block
@@ -151,7 +151,7 @@ export function WinnerPage() {
               Play Again
             </Button>
             {secsLeft != null && (
-              <p style={{ opacity: 0.6, fontSize: '0.8rem', margin: 0 }}>Room closes in {secsLeft}s</p>
+              <p className="tag-faint" style={{ margin: 0 }}>Room closes in {secsLeft}s</p>
             )}
             <Button variant="secondary" block onClick={handleLeave}>
               Leave
@@ -159,7 +159,7 @@ export function WinnerPage() {
           </>
         ) : (
           <>
-            <p style={{ opacity: 0.7, fontSize: '0.9rem' }}>Waiting for the host to start a rematch…</p>
+            <p className="hint">Waiting for the host to start a rematch…</p>
             <Button variant="secondary" block onClick={handleLeave}>
               Leave
             </Button>

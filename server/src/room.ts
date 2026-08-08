@@ -2,17 +2,15 @@ import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import {
   Card, GameMode, GamePhase, GameState, Player, RoundScore,
-  Suit, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, ErrorCode, QUICK_MESSAGES
-} from 'shared';
-import {
-  deal, pickTrump, firstBidderSeat,
-  legalMoves, trickWinner, scoreRound, roundsForMode, ROUNDS, SUITS, RANK_ORDER
+  Suit, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, ErrorCode, QUICK_MESSAGES,
+  roundsForMode, deal, pickTrump, firstBidderSeat,
+  legalMoves, trickWinner, scoreRound, latestTotal, ROUNDS, SUITS, RANK_ORDER
 } from 'shared';
 import {
   BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS,
   GAME_OVER_TTL_MS, COUNTDOWN_MS, DISCONNECTED_AUTO_MOVE_MS, TRICK_DISPLAY_MS, ROUND_END_DELAY_MS,
 } from './constants';
-import { sendMessage, latestTotal, clampPlayers } from './helpers';
+import { sendMessage, clampPlayers } from './helpers';
 
 export interface Seat {
   player: Player;

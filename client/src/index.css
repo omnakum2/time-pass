@@ -275,7 +275,8 @@ body {
   display: flex; flex-direction: column; align-items: center;
   padding: 24px 16px 48px;
 }
-.guide-page h1 { color: var(--gold); text-align: center; font-size: 1.9rem; margin-bottom: 6px; }
+/* Class-based (not `.guide-page h1`) so the title is gold in the in-game <Modal> overlay too */
+.guide-title { color: var(--gold); text-align: center; font-size: 1.9rem; margin-bottom: 6px; }
 .guide-page > *, .guide-lang, .guide-layout { width: 100%; max-width: 900px; }
 .guide-lang { display: flex; gap: 10px; justify-content: center; margin: 10px 0 22px; }
 .guide-lang button {
@@ -313,24 +314,7 @@ body {
 .guide-section li { margin: 5px 0; }
 .guide-section ol li::marker, .guide-section ul li::marker { color: var(--gold); }
 
-.guide-overlay {
-  position: fixed; inset: 0; z-index: 1200;
-  background: rgba(0,0,0,0.62);
-  display: flex; align-items: center; justify-content: center; padding: 16px;
-}
-.guide-overlay__panel {
-  position: relative;
-  background: linear-gradient(160deg, var(--grad-1), var(--grad-2));
-  border: 1px solid var(--gold-border); border-radius: 18px;
-  max-width: 920px; width: 100%; max-height: 88vh; overflow: auto;
-  padding: 22px 20px; box-shadow: 0 24px 70px rgba(0,0,0,0.7);
-}
-.guide-overlay__close {
-  position: absolute; top: 12px; right: 14px; z-index: 2;
-  width: 32px; height: 32px; border-radius: 8px;
-  border: 1px solid var(--gold-border); background: rgba(0,0,0,0.35);
-  color: var(--gold); font-size: 1rem; cursor: pointer;
-}
+/* Guide is rendered inside <Modal>; only the intro note is bespoke. */
 .guide-overlay__note { text-align: center; color: var(--cream-muted); font-size: 0.8rem; margin-bottom: 8px; }
 
 /* ─── Active-player timer border (tri-color, gold-border thickness, no pulse) ─ */
@@ -536,21 +520,23 @@ body {
   font-size: 0.85rem;
   color: var(--cream);
 }
-.scoreboard th:first-child, .scoreboard td:first-child {
+/* Matrix-only chrome: sticky round-label column + highlighted Total row.
+   Scoped so the plain Winner standings list (no `--matrix`) doesn't inherit it. */
+.scoreboard--matrix th:first-child, .scoreboard--matrix td:first-child {
   position: sticky; left: 0;
   background: #2E171E; z-index: 2;
   font-weight: 700; border-right: 2px solid rgba(255,255,255,0.14);
 }
-.scoreboard th:first-child { background: #3A1B26; }
-.scoreboard tbody tr:not(:last-child):hover td { background: rgba(255,255,255,0.04); }
-.scoreboard tbody tr:not(:last-child):hover td:first-child { background: rgba(15,6,10,0.55); }
-.scoreboard tr:last-child td {
+.scoreboard--matrix th:first-child { background: #3A1B26; }
+.scoreboard--matrix tbody tr:not(:last-child):hover td { background: rgba(255,255,255,0.04); }
+.scoreboard--matrix tbody tr:not(:last-child):hover td:first-child { background: rgba(15,6,10,0.55); }
+.scoreboard--matrix tr:last-child td {
   font-weight: 800; font-size: 1.05em;
   background: rgba(233,184,74,0.1);
   border-top: 1px solid rgba(233,184,74,0.3);
   color: var(--gold);
 }
-.scoreboard tr:last-child td:first-child { background: rgba(233,184,74,0.16); }
+.scoreboard--matrix tr:last-child td:first-child { background: rgba(233,184,74,0.16); }
 .delta--pos { color: var(--success); font-weight: 600; }
 .delta--neg { color: var(--danger); font-weight: 600; }
 
@@ -747,6 +733,16 @@ body {
 .muted { opacity: 0.7; }
 .field-label { font-size: 0.85rem; opacity: 0.7; }
 .field-hint  { font-size: 0.75rem; opacity: 0.5; }
+/* ── Shared text & layout utilities ─────────────────────────────────────────── */
+.card-title { margin: 0; text-align: center; color: var(--gold); font-weight: 700; }
+.card-title--lg { font-size: 1.8rem; }
+.card-title--md { font-size: 1.5rem; }
+.card-title--sm { font-size: 1.1rem; }
+.tag-faint { opacity: 0.5; font-size: 0.75rem; }
+.hint { opacity: 0.7; font-size: 0.9rem; }
+.row-between { display: flex; align-items: center; justify-content: space-between; }
+.row-highlight { background: rgba(212,175,55,0.12); }
+.cell-me { font-weight: 700; }
 
 .modal-overlay {
   position: fixed; inset: 0; z-index: 900;
@@ -772,6 +768,11 @@ body {
   color: var(--gold); cursor: pointer;
 }
 .modal-close:hover { background: rgba(233,184,74,0.15); }
+.modal-title {
+  margin: 0; text-align: center;
+  color: var(--gold); font-size: 1.15rem; font-weight: 800;
+  letter-spacing: 0.5px; text-shadow: 0 0 18px rgba(233,184,74,0.3);
+}
 
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 760px) {

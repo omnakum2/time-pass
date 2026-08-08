@@ -8,12 +8,14 @@ interface Props {
 }
 
 export function RoundResultOverlay({ result, visible }: Props) {
-  if (!result) return null;
-
   return (
-    <Modal open={visible} dismissable={false} title={`Round ${result.round} Over`}>
-      {result.perPlayer.map(p => (
-        <div key={p.playerId} style={{ display: 'flex', justifyContent: 'space-between' }}>
+    <Modal
+      open={visible && !!result}
+      dismissable={false}
+      title={result ? `Round ${result.round} Over` : undefined}
+    >
+      {result?.perPlayer.map(p => (
+        <div key={p.playerId} className="row-between">
           <span>{p.name}</span>
           <span>
             bid {p.bid}, won {p.won} →{' '}

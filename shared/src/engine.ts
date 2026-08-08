@@ -1,4 +1,4 @@
-import { Card, Rank, Suit, TrickCard, GameMode, TrumpConfig } from './types';
+import { Card, Rank, Suit, TrickCard, RoundScore, GameMode, TrumpConfig } from './types';
 import { RANK_ORDER, SUITS, START_ROUND } from './constants';
 
 // ─── Rank ordering (higher index = higher rank) ──────────────────────────────
@@ -147,4 +147,9 @@ export function scoreRound(bid: number, won: number): number {
     return bid * 11;
   }
   return -(bid * 10);
+}
+
+/** Latest running total from a player's score rows (0 if none). */
+export function latestTotal(rows: RoundScore[]): number {
+  return rows.length > 0 ? rows[rows.length - 1].total : 0;
 }
