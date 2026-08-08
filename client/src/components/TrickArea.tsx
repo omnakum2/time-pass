@@ -15,7 +15,9 @@ interface Props {
 }
 
 export function TrickArea({ trick, players, round, status, trumpConfig, urgent, mode }: Props) {
-  const modeShort = GAME_MODES.find(m => m.id === mode)?.short ?? '';
+  const modeInfo = GAME_MODES.find(m => m.id === mode);
+  const modeShort = modeInfo?.short ?? '';
+  const modeLabel = modeInfo?.label ?? '';
 
   return (
     <div className="trick-area">
@@ -27,9 +29,21 @@ export function TrickArea({ trick, players, round, status, trumpConfig, urgent, 
           <div className="felt-watermark__flourish">✦&nbsp;&nbsp;❦&nbsp;&nbsp;✦</div>
         </div>
 
-        {/* Round + Trump stay together in one centered row (never stacked). */}
+        {/* Round + Trump in one centered row. The mode rides inside the round chip:
+            its name on desktop, and an ⓘ tooltip on mobile (where the name would
+            overflow the row) — mirroring the trump ⓘ. */}
         <div className="felt-badges">
-          {round != null && <div className="round-chip">Round {round}</div>}
+          {round != null && (
+            <div className="round-chip">
+              Round {round}
+              {modeShort && <span className="round-chip__mode">{modeShort}</span>}
+              {modeLabel && (
+                <span className="round-chip__mode-tip">
+                  <InfoTooltip text={modeLabel} label="Game mode" />
+                </span>
+              )}
+            </div>
+          )}
           <div className="trump-chip">
             <span className="trump-chip__label">Trump</span>
             {trumpConfig && trumpConfig.kind === 'suit' && trumpConfig.suit ? (
@@ -39,13 +53,9 @@ export function TrickArea({ trick, players, round, status, trumpConfig, urgent, 
             ) : (
               <span className="trump-chip__none">{trumpConfig ? trumpLabel(trumpConfig) : '—'}</span>
             )}
-            {trumpConfig && <InfoTooltip text={trumpInfo(trumpConfig)} />}
+            {trumpConfig && <InfoTooltip text={trumpInfo(trumpConfig)} label="Trump info" />}
           </div>
         </div>
-
-        {/* Mode label is pinned to the felt's top-right corner so a third chip
-            never pushes Round/Trump into a stacked second row on small screens. */}
-        {modeShort && <div className="mode-chip mode-chip--corner">{modeShort}</div>}
 
         <AnimatePresence>
           {trick.map(({ playerId, card }) => (

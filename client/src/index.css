@@ -349,15 +349,16 @@ body {
   z-index: 2;
   display: flex; align-items: center; gap: 10px;
   /* Single row, never wrapping — Round + Trump must stay side by side so the
-     trump is always visible (incl. behind the mobile bid popup). The mode chip
-     lives in the corner (.mode-chip--corner), so it can't push these to line 2. */
+     trump is always visible (incl. behind the mobile bid popup). The mode label
+     rides inside the round chip (.round-chip__mode), so there's no third slot. */
   max-width: 92%; flex-wrap: nowrap; justify-content: center;
 }
 
 /* ─── Round chip (inside the felt-badges row) ─────────────────────────────── */
 .round-chip {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   white-space: nowrap; flex-shrink: 0;
+  min-height: 32px; box-sizing: border-box;
   background: rgba(0,0,0,0.4);
   color: var(--gold);
   border: 1px solid rgba(233,184,74,0.55);
@@ -369,8 +370,9 @@ body {
 
 /* ─── Trump chip (beside the round chip) ──────────────────────────────────── */
 .trump-chip {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   white-space: nowrap; flex-shrink: 0;
+  min-height: 32px; box-sizing: border-box;
   background: rgba(0,0,0,0.4);
   color: var(--cream);
   border: 1px solid rgba(233,184,74,0.4);
@@ -392,8 +394,11 @@ body {
   border: 1px solid var(--gold-border);
 }
 .info-tip__btn:hover { background: rgba(233,184,74,0.28); }
+/* Opens DOWNWARD (into the felt) — the chip sits at the felt's top edge and the
+   felt clips overflow, so an upward bubble was hidden behind the top rail. It's
+   absolutely positioned, so it overlays the trick cards without shifting them. */
 .info-tip__bubble {
-  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
   z-index: 20; width: max-content; max-width: 220px; white-space: normal; text-align: center;
   background: linear-gradient(150deg, var(--card-1), var(--card-2));
   color: var(--cream); font-size: 0.75rem; font-weight: 600; line-height: 1.4;
@@ -401,23 +406,15 @@ body {
   box-shadow: 0 8px 20px rgba(0,0,0,0.5);
 }
 .info-tip__bubble::after {
-  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-  border: 5px solid transparent; border-top-color: var(--card-2);
+  content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-bottom-color: var(--card-1);
 }
 
-/* ─── Mode chip (beside the round/trump chips) ────────────────────────────── */
-.mode-chip {
-  display: inline-flex; align-items: center; white-space: nowrap; flex-shrink: 0;
-  background: rgba(0,0,0,0.4); color: var(--cream);
-  border: 1px solid rgba(233,184,74,0.4); border-radius: 22px;
-  padding: 5px 12px; font-weight: 700; font-size: 0.9rem;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.35);
-}
-/* Pinned to the felt's top-right corner (out of the Round/Trump flow). z-index
-   below the trump ⓘ tooltip (z 20) so the tooltip stays readable over it. */
-.mode-chip--corner {
-  position: absolute; top: 12px; right: 14px; z-index: 2;
-}
+/* ─── Mode label (rides inside the round chip) ────────────────────────────── */
+.round-chip__mode { font-weight: 700; color: var(--cream); }
+.round-chip__mode::before { content: '·'; margin: 0 6px; opacity: 0.55; }
+/* The mobile ⓘ tooltip variant of the mode is hidden on desktop (name shows). */
+.round-chip__mode-tip { display: none; align-items: center; }
 
 /* ─── Turn status text (bottom-center of the trick table, plain text) ─────── */
 .trick-status {
@@ -481,6 +478,10 @@ body {
 }
 .trump-picker__suit:hover  { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,0.45); }
 .trump-picker__suit:active { transform: scale(0.94); }
+/* These glyphs sit on a WHITE box, so use real card colours — the felt chip's
+   light-on-dark .suit-black (var(--cream)) would vanish on white. */
+.trump-picker__suit.suit-red   { color: #C0392B; }
+.trump-picker__suit.suit-black { color: #1A1A1A; }
 .trump-picker__specials { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; width: 100%; max-width: 300px; }
 .trump-picker__special {
   padding: 10px 12px; border-radius: 12px; cursor: pointer; font-weight: 800; font-size: 0.9rem;
@@ -807,11 +808,17 @@ body {
   .trick-card-slot .card { width: 46px; height: 67px; }
   .trick-felt { gap: 6px; }
 
-  /* Round + Trump stay on ONE row (no wrap) so the trump is always visible;
-     the mode chip sits in the corner and doesn't affect this row. */
+  /* Round + Trump stay on ONE row (no wrap) so the trump is always visible.
+     The mode name would overflow this row on phones, so swap it for a compact
+     ⓘ tooltip (like the trump ⓘ) that reveals the mode name on tap. */
   .felt-badges { flex-wrap: nowrap; gap: 6px; max-width: none; }
-  .round-chip, .trump-chip, .mode-chip { font-size: 0.76rem; padding: 4px 9px; }
-  .mode-chip--corner { top: 8px; right: 8px; }
+  .round-chip, .trump-chip { font-size: 0.76rem; padding: 4px 9px; min-height: 28px; }
+  .round-chip__mode { display: none; }
+  .round-chip__mode-tip { display: inline-flex; }
+
+  /* Chat bubbles: cap to ~a chip's width and let them WRAP, so two opponents
+     messaging at once (esp. long text) no longer overlap into each other. */
+  .chat-bubble { white-space: normal; max-width: min(28vw, 92px); word-break: break-word; }
 
   /* Reclaim vertical space around the felt */
   .player-chip { min-width: 70px; padding: 5px 10px; }

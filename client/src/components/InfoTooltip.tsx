@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-export function InfoTooltip({ text }: { text: string }) {
+export function InfoTooltip({ text, label = 'Info' }: { text: string; label?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -14,7 +14,7 @@ export function InfoTooltip({ text }: { text: string }) {
       <button
         type="button"
         className="info-tip__btn"
-        aria-label="Trump info"
+        aria-label={label}
         title={text}
         onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
       >
