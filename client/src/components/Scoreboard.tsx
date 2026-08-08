@@ -11,7 +11,7 @@ export function Scoreboard({ gameState }: { gameState: GameState }) {
 
   if (roundsPlayed.length === 0) {
     return (
-      <div style={{ padding: '12px', opacity: 0.5, fontSize: '0.8rem', textAlign: 'center' }}>
+      <div className="text-center tag-faint" style={{ padding: '12px' }}>
         Scores will appear here
       </div>
     );

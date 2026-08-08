@@ -575,6 +575,16 @@ body {
 .muted { opacity: 0.7; }
 .field-label { font-size: 0.85rem; opacity: 0.7; }
 .field-hint  { font-size: 0.75rem; opacity: 0.5; }
+/* ── Shared text & layout utilities ─────────────────────────────────────────── */
+.card-title { margin: 0; text-align: center; color: var(--gold); font-weight: 700; }
+.card-title--lg { font-size: 1.8rem; }
+.card-title--md { font-size: 1.5rem; }
+.card-title--sm { font-size: 1.1rem; }
+.tag-faint { opacity: 0.5; font-size: 0.75rem; }
+.hint { opacity: 0.7; font-size: 0.9rem; }
+.row-between { display: flex; align-items: center; justify-content: space-between; }
+.row-highlight { background: rgba(212,175,55,0.12); }
+.cell-me { font-weight: 700; }
 
 .modal-overlay {
   position: fixed; inset: 0; z-index: 900;

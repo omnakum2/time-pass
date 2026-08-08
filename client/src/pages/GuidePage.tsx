@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Surface } from '../components/Surface';
+import { Button } from '../components/Button';
 
 type Lang = 'en' | 'gu';
 
@@ -328,12 +329,14 @@ export function GuidePage() {
 
   return (
     <div className="guide-page">
-      <button
-        className="btn btn--secondary btn--sm guide-back"
+      <Button
+        variant="secondary"
+        size="sm"
+        className="guide-back"
         onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
       >
         Go Back
-      </button>
+      </Button>
       <GuideContent showHomeLink />
     </div>
   );

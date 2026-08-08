@@ -15,7 +15,7 @@ export function RoundResultOverlay({ result, visible }: Props) {
       title={result ? `Round ${result.round} Over` : undefined}
     >
       {result?.perPlayer.map(p => (
-        <div key={p.playerId} style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div key={p.playerId} className="row-between">
           <span>{p.name}</span>
           <span>
             bid {p.bid}, won {p.won} →{' '}
