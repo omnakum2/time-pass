@@ -1,10 +1,7 @@
 import { AnimatePresence } from 'framer-motion';
-import { TrickCard, Player, Suit } from 'shared';
+import { TrickCard, Player, Suit, SUIT_SYMBOL, SUIT_NAME, RED_SUITS } from 'shared';
 import { CardView } from './CardView';
-
-const SUIT_SYMBOL: Record<string, string> = { D: '♦', C: '♣', H: '♥', S: '♠' };
-const SUIT_NAME: Record<string, string> = { D: 'Diamonds', C: 'Clubs', H: 'Hearts', S: 'Spades' };
-const RED_SUITS = new Set<Suit>(['D', 'H']);
+import { playerName } from '../lib/helpers';
 
 interface Props {
   trick: TrickCard[];
@@ -16,8 +13,6 @@ interface Props {
 }
 
 export function TrickArea({ trick, players, round, status, trump, urgent }: Props) {
-  const playerName = (id: string) => players.find(p => p.id === id)?.name ?? '?';
-
   return (
     <div className="trick-area">
       <div className="trick-felt">
@@ -45,7 +40,7 @@ export function TrickArea({ trick, players, round, status, trump, urgent }: Prop
         <AnimatePresence>
           {trick.map(({ playerId, card }) => (
             <div key={`${playerId}-${card.id}`} className="trick-card-slot">
-              <span className="trick-card-slot__name">{playerName(playerId)}</span>
+              <span className="trick-card-slot__name">{playerName(players, playerId)}</span>
               <CardView card={card} played layoutId={`card-${card.id}`} />
             </div>
           ))}

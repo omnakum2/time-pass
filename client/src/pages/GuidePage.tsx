@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Surface } from '../components/Surface';
+import { Button } from '../components/Button';
 
 type Lang = 'en' | 'gu';
 
@@ -270,7 +272,7 @@ export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean 
 
   return (
     <>
-      <h1>{PAGE_TITLE[lang]}</h1>
+      <h1 className="guide-title">{PAGE_TITLE[lang]}</h1>
       <div className="guide-lang">
         <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>
           English
@@ -294,7 +296,7 @@ export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean 
             </li>
           ))}
         </ol>
-        <article className="guide-content">
+        <Surface as="article" className="guide-content">
           {sections.map(({ id, title, body }) => (
             <section id={id} key={id} className="guide-section">
               <h2>{title}</h2>
@@ -316,7 +318,7 @@ export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean 
               )}
             </p>
           )}
-        </article>
+        </Surface>
       </div>
     </>
   );
@@ -327,12 +329,14 @@ export function GuidePage() {
 
   return (
     <div className="guide-page">
-      <button
-        className="btn btn--secondary btn--sm guide-back"
+      <Button
+        variant="secondary"
+        size="sm"
+        className="guide-back"
         onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
       >
         Go Back
-      </button>
+      </Button>
       <GuideContent showHomeLink />
     </div>
   );

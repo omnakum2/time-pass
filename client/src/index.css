@@ -28,6 +28,11 @@
   --hud-brown: #A9701C;
   --red:       #C0392B;
 
+  /* Semantic status — one set used everywhere (deltas, timer ring, urgency) */
+  --success: #5FD07A;
+  --warning: #FFB300;
+  --danger:  #F0736C;
+
   --card-w:  clamp(46px, 9vw, 72px);
   --card-h:  calc(var(--card-w) * 1.45);
   --radius:  10px;
@@ -181,16 +186,6 @@ body {
 .input:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(233,184,74,0.25); }
 .input::placeholder { color: rgba(233,184,74,0.45); }
 
-/* ─── Card / panel (dark-wine) ────────────────────────────────────────────── */
-.panel {
-  background: linear-gradient(150deg, var(--card-1), var(--card-2));
-  border: 1px solid var(--gold-border);
-  border-radius: 16px;
-  padding: 24px;
-  color: var(--cream);
-  box-shadow: 0 16px 44px rgba(0,0,0,0.5);
-}
-
 /* ─── Trump suit glyph colors (on dark chip: black suits render light) ─────── */
 .suit-red   { color: #EF6E5F; }
 .suit-black { color: var(--cream); }
@@ -204,7 +199,7 @@ body {
   width: 100%;
   max-width: 460px;
 }
-.jhatpat-title {
+.brand-title {
   font-size: clamp(3.4rem, 13vw, 5.5rem);
   font-weight: 800;
   letter-spacing: 1.5px;
@@ -214,7 +209,7 @@ body {
   text-shadow: 0 4px 0 rgba(0,0,0,0.45), 0 0 34px rgba(233,184,74,0.4);
 }
 /* Compact variant for the Create/Join cards — keeps the title on one line */
-.jhatpat-title--card {
+.brand-title--card {
   font-size: clamp(1.8rem, 6vw, 2.2rem);
   white-space: nowrap;
 }
@@ -258,7 +253,8 @@ body {
   display: flex; flex-direction: column; align-items: center;
   padding: 24px 16px 48px;
 }
-.guide-page h1 { color: var(--gold); text-align: center; font-size: 1.9rem; margin-bottom: 6px; }
+/* Class-based (not `.guide-page h1`) so the title is gold in the in-game <Modal> overlay too */
+.guide-title { color: var(--gold); text-align: center; font-size: 1.9rem; margin-bottom: 6px; }
 .guide-page > *, .guide-lang, .guide-layout { width: 100%; max-width: 900px; }
 .guide-lang { display: flex; gap: 10px; justify-content: center; margin: 10px 0 22px; }
 .guide-lang button {
@@ -284,12 +280,7 @@ body {
   background: transparent; border: none; cursor: pointer; padding: 0;
 }
 .guide-toc__link:hover { color: var(--gold); }
-.guide-content {
-  background: linear-gradient(150deg, var(--card-1), var(--card-2));
-  border: 1px solid var(--gold-border); border-radius: 16px;
-  padding: 26px 32px; color: var(--cream);
-  box-shadow: 0 16px 44px rgba(0,0,0,0.4);
-}
+/* .guide-content surface deltas live with the .surface base (Phase 3 primitives) */
 .guide-section { margin-bottom: 26px; scroll-margin-top: 16px; }
 .guide-section:last-child { margin-bottom: 0; }
 .guide-section h2 {
@@ -301,24 +292,7 @@ body {
 .guide-section li { margin: 5px 0; }
 .guide-section ol li::marker, .guide-section ul li::marker { color: var(--gold); }
 
-.guide-overlay {
-  position: fixed; inset: 0; z-index: 1200;
-  background: rgba(0,0,0,0.62);
-  display: flex; align-items: center; justify-content: center; padding: 16px;
-}
-.guide-overlay__panel {
-  position: relative;
-  background: linear-gradient(160deg, var(--grad-1), var(--grad-2));
-  border: 1px solid var(--gold-border); border-radius: 18px;
-  max-width: 920px; width: 100%; max-height: 88vh; overflow: auto;
-  padding: 22px 20px; box-shadow: 0 24px 70px rgba(0,0,0,0.7);
-}
-.guide-overlay__close {
-  position: absolute; top: 12px; right: 14px; z-index: 2;
-  width: 32px; height: 32px; border-radius: 8px;
-  border: 1px solid var(--gold-border); background: rgba(0,0,0,0.35);
-  color: var(--gold); font-size: 1rem; cursor: pointer;
-}
+/* Guide is rendered inside <Modal>; only the intro note is bespoke. */
 .guide-overlay__note { text-align: center; color: var(--cream-muted); font-size: 0.8rem; margin-bottom: 8px; }
 
 /* ─── Active-player timer border (tri-color, gold-border thickness, no pulse) ─ */
@@ -329,7 +303,7 @@ body {
   padding: 2px;
   background: conic-gradient(
     from -90deg,
-    var(--turn-color, #43A047) 0 var(--turn-rp, 100%),
+    var(--turn-color, var(--success)) 0 var(--turn-rp, 100%),
     rgba(255,255,255,0.14) var(--turn-rp, 100%) 100%
   );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -393,7 +367,7 @@ body {
   text-align: center; white-space: nowrap;
   text-shadow: 0 1px 3px rgba(0,0,0,0.55);
 }
-@keyframes statusTick { 0%, 49.9% { color: #FF5A4E; } 50%, 100% { color: #fff; } }
+@keyframes statusTick { 0%, 49.9% { color: var(--danger); } 50%, 100% { color: #fff; } }
 .trick-status--urgent { animation: statusTick 2s steps(1) infinite; text-shadow: 0 1px 4px rgba(0,0,0,0.65); }
 
 /* ─── Player chip (dark-wine card) ────────────────────────────────────────── */
@@ -420,25 +394,6 @@ body {
 .player-chip__total { font-size: 0.68rem; color: var(--cream-muted); text-align: center; }
 .player-chip__disconnected { font-size: 0.65rem; color: #E9A94A; }
 
-/* ─── Popup / modal (dark-wine) ───────────────────────────────────────────── */
-.popup-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 800;
-}
-.popup {
-  background: linear-gradient(150deg, var(--card-1), var(--card-2));
-  border: 2px solid var(--gold-border);
-  border-radius: 18px;
-  padding: 24px 28px;
-  min-width: 280px; max-width: 90vw;
-  display: flex; flex-direction: column; align-items: center; gap: 16px;
-  color: var(--cream);
-  box-shadow: 0 18px 55px rgba(0,0,0,0.6);
-}
-.popup-title { font-size: 1.1rem; font-weight: 700; color: var(--gold); text-align: center; }
-
 /* ─── Bid buttons ─────────────────────────────────────────────────────────── */
 .bid-buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .bid-btn {
@@ -461,40 +416,7 @@ body {
   overflow: hidden;
 }
 
-/* ─── Scoreboard modal overlay ────────────────────────────────────────────── */
-.scoreboard-overlay {
-  position: fixed; inset: 0; z-index: 1200;
-  background: rgba(0,0,0,0.35);
-  display: flex; align-items: center; justify-content: center; padding: 16px;
-}
-.scoreboard-overlay__panel {
-  position: relative;
-  background: linear-gradient(160deg, var(--card-1), var(--card-2));
-  border: 1px solid var(--gold-border);
-  border-radius: 20px;
-  width: fit-content; min-width: 360px; max-width: 92vw; max-height: 80vh; overflow: auto;
-  padding: 24px 28px 22px;
-  box-shadow: 0 24px 70px rgba(0,0,0,0.7), inset 0 1px 0 rgba(233,184,74,0.12);
-  display: flex; flex-direction: column; gap: 4px;
-}
-.scoreboard-overlay__close {
-  position: absolute; top: 12px; right: 14px; z-index: 2;
-  width: 30px; height: 30px; border-radius: 8px;
-  border: 1px solid rgba(233,184,74,0.3);
-  background: rgba(0,0,0,0.25);
-  color: var(--gold); font-size: 0.9rem; cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.scoreboard-overlay__close:hover {
-  background: rgba(233,184,74,0.15);
-  border-color: rgba(233,184,74,0.6);
-}
-.scoreboard-overlay__title {
-  color: var(--gold); font-size: 1.2rem; font-weight: 800;
-  letter-spacing: 1px; text-transform: uppercase;
-  text-shadow: 0 0 18px rgba(233,184,74,0.35);
-  margin-bottom: 2px;
-}
+/* ─── Scoreboard (rendered inside <Modal>) ────────────────────────────────── */
 .scoreboard-overlay__note {
   color: rgba(243,236,221,0.45); font-size: 0.75rem; margin-bottom: 14px;
 }
@@ -514,23 +436,25 @@ body {
   font-size: 0.85rem;
   color: var(--cream);
 }
-.scoreboard th:first-child, .scoreboard td:first-child {
+/* Matrix-only chrome: sticky round-label column + highlighted Total row.
+   Scoped so the plain Winner standings list (no `--matrix`) doesn't inherit it. */
+.scoreboard--matrix th:first-child, .scoreboard--matrix td:first-child {
   position: sticky; left: 0;
   background: #2E171E; z-index: 2;
   font-weight: 700; border-right: 2px solid rgba(255,255,255,0.14);
 }
-.scoreboard th:first-child { background: #3A1B26; }
-.scoreboard tbody tr:not(:last-child):hover td { background: rgba(255,255,255,0.04); }
-.scoreboard tbody tr:not(:last-child):hover td:first-child { background: rgba(15,6,10,0.55); }
-.scoreboard tr:last-child td {
+.scoreboard--matrix th:first-child { background: #3A1B26; }
+.scoreboard--matrix tbody tr:not(:last-child):hover td { background: rgba(255,255,255,0.04); }
+.scoreboard--matrix tbody tr:not(:last-child):hover td:first-child { background: rgba(15,6,10,0.55); }
+.scoreboard--matrix tr:last-child td {
   font-weight: 800; font-size: 1.05em;
   background: rgba(233,184,74,0.1);
   border-top: 1px solid rgba(233,184,74,0.3);
   color: var(--gold);
 }
-.scoreboard tr:last-child td:first-child { background: rgba(233,184,74,0.16); }
-.delta--pos { color: #5FD07A; font-weight: 600; }
-.delta--neg { color: #F0736C; font-weight: 600; }
+.scoreboard--matrix tr:last-child td:first-child { background: rgba(233,184,74,0.16); }
+.delta--pos { color: var(--success); font-weight: 600; }
+.delta--neg { color: var(--danger); font-weight: 600; }
 
 /* ─── Game panel (full width, centered) ───────────────────────────────────── */
 .game-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 8px; gap: 6px; }
@@ -618,15 +542,24 @@ body {
   padding: 2px 8px; border-radius: 20px; font-weight: 700;
 }
 
-/* ─── Winner page (dark-wine card, consistent with all cards) ─────────────── */
+/* ─── Winner page ─────────────────────────────────────────────────────────── */
 .winner-page-wrap {
   flex: 1; min-height: 0; overflow: auto;
   display: flex; align-items: center; justify-content: center;
   padding: 16px; position: relative;
 }
-.winner-card {
+
+/* ─── Phase 3 primitives (Surface, Button block, Field, Modal, utilities) ───── */
+.surface {
   background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  border: 1px solid var(--gold-border);
+  border-radius: 16px;
+  padding: 24px;
   color: var(--cream);
+  box-shadow: 0 16px 44px rgba(0,0,0,0.5);
+}
+/* Surface modifiers — base `.surface` + these deltas (must follow `.surface`) */
+.winner-card {
   border: 2px solid var(--gold-border);
   border-radius: 24px;
   padding: 32px 40px; text-align: center;
@@ -635,6 +568,53 @@ body {
   box-shadow: 0 22px 60px rgba(0,0,0,0.6), 0 0 44px rgba(233,184,74,0.14);
   position: relative; z-index: 1;
 }
+.guide-content { padding: 26px 32px; box-shadow: 0 16px 44px rgba(0,0,0,0.4); }
+.btn--block { width: 100%; }
+
+.text-center { text-align: center; }
+.muted { opacity: 0.7; }
+.field-label { font-size: 0.85rem; opacity: 0.7; }
+.field-hint  { font-size: 0.75rem; opacity: 0.5; }
+/* ── Shared text & layout utilities ─────────────────────────────────────────── */
+.card-title { margin: 0; text-align: center; color: var(--gold); font-weight: 700; }
+.card-title--lg { font-size: 1.8rem; }
+.card-title--md { font-size: 1.5rem; }
+.card-title--sm { font-size: 1.1rem; }
+.tag-faint { opacity: 0.5; font-size: 0.75rem; }
+.hint { opacity: 0.7; font-size: 0.9rem; }
+.row-between { display: flex; align-items: center; justify-content: space-between; }
+.row-highlight { background: rgba(212,175,55,0.12); }
+.cell-me { font-weight: 700; }
+
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 900;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal-panel {
+  position: relative;
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  border: 2px solid var(--gold-border);
+  border-radius: 18px;
+  padding: 24px 28px;
+  min-width: 280px; max-width: 92vw; max-height: 88vh; overflow: auto;
+  display: flex; flex-direction: column; gap: 16px;
+  color: var(--cream);
+  box-shadow: 0 18px 55px rgba(0,0,0,0.6);
+}
+.modal-close {
+  position: absolute; top: 12px; right: 14px;
+  width: 32px; height: 32px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--gold-border); background: rgba(0,0,0,0.35);
+  color: var(--gold); cursor: pointer;
+}
+.modal-close:hover { background: rgba(233,184,74,0.15); }
+.modal-title {
+  margin: 0; text-align: center;
+  color: var(--gold); font-size: 1.15rem; font-weight: 800;
+  letter-spacing: 0.5px; text-shadow: 0 0 18px rgba(233,184,74,0.3);
+}
 
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 760px) {
@@ -642,7 +622,6 @@ body {
   .guide-toc { position: static; }
 }
 @media (max-width: 600px) {
-  .scoreboard-overlay__panel { padding: 18px 14px 16px; }
   :root { --card-w: 72px; }
 
   /* Header: scale down so brand + nav fit narrow screens on one row */

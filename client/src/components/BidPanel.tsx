@@ -12,7 +12,7 @@ export function BidPanel({ round, turnKey, durationMs }: Props) {
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
-        <span style={{ opacity: 0.7, fontSize: '0.85rem' }}>Time left:</span>
+        <span className="hint">Time left:</span>
         <CountdownRing durationMs={durationMs} startKey={turnKey} />
       </div>
       <div className="bid-buttons">

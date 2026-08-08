@@ -1,9 +1,5 @@
 import { motion } from 'framer-motion';
-import { Card } from 'shared';
-
-const SUIT_SYMBOL: Record<string, string> = {
-  D: '♦', C: '♣', H: '♥', S: '♠',
-};
+import { Card, SUIT_SYMBOL, isRedSuit } from 'shared';
 
 interface Props {
   card: Card;
@@ -16,7 +12,7 @@ interface Props {
 }
 
 export function CardView({ card, disabled, selected, played, onClick, layoutId, style }: Props) {
-  const isRed = card.suit === 'D' || card.suit === 'H';
+  const isRed = isRedSuit(card.suit);
   const cls = [
     'card',
     isRed ? 'card--red' : 'card--black',

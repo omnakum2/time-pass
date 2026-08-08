@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
+import { Surface } from '../components/Surface';
+import { Icon } from '../components/Icon';
 
 export function LobbyPage() {
   const { roomId: urlRoomId } = useParams<{ roomId: string }>();
@@ -94,26 +96,11 @@ export function LobbyPage() {
     }
   };
 
-  const copySvg = (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  );
-
-  const checkSvg = (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-
   return (
     <div className="page">
-      <div className="panel lobby flex-col gap-lg">
-        <div style={{ textAlign: 'center' }}>
-          <h2 style={{ color: 'var(--gold)', fontSize: '1.5rem' }}>Waiting Room</h2>
+      <Surface className="lobby flex-col gap-lg">
+        <div className="text-center">
+          <h2 className="card-title card-title--md">Waiting Room</h2>
           <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             <span style={{ fontSize: '1.3rem', fontWeight: 700, letterSpacing: 3 }}>
               {displayRoomId}
@@ -124,16 +111,16 @@ export function LobbyPage() {
               title="Copy invite link"
               aria-label="Copy invite link"
             >
-              {copied ? checkSvg : copySvg}
+              {copied ? <Icon name="check" /> : <Icon name="copy" />}
             </button>
           </div>
-          <p style={{ opacity: 0.6, fontSize: '0.8rem', marginTop: 4 }}>
+          <p className="tag-faint" style={{ marginTop: 4 }}>
             Share this code or link for others to join
           </p>
         </div>
 
         <div className="flex-col gap-sm">
-          <p style={{ opacity: 0.7, fontSize: '0.85rem' }}>
+          <p className="hint">
             Players ({players.length}/{gameState.maxPlayers})
           </p>
           <ul className="player-list flex-col gap-sm">
@@ -141,23 +128,23 @@ export function LobbyPage() {
               <li key={p.id}>
                 <span>{p.name}</span>
                 {p.id === hostId && <span className="host-badge">HOST</span>}
-                {p.id === playerId && <span style={{ opacity: 0.5, fontSize: '0.75rem' }}>(you)</span>}
-                {!p.connected && <span style={{ opacity: 0.4, fontSize: '0.75rem' }}>disconnected</span>}
+                {p.id === playerId && <span className="tag-faint">(you)</span>}
+                {!p.connected && <span className="tag-faint">disconnected</span>}
               </li>
             ))}
           </ul>
         </div>
 
         {countdownMs != null ? (
-          <p style={{ textAlign: 'center', color: 'var(--gold)', fontWeight: 700, fontSize: '1.1rem' }}>
+          <p className="card-title card-title--sm">
             Starting in {secondsLeft ?? 0}…
           </p>
         ) : (
-          <p style={{ textAlign: 'center', opacity: 0.7 }}>
+          <p className="text-center muted">
             Waiting for players ({players.length}/{gameState.maxPlayers})
           </p>
         )}
-      </div>
+      </Surface>
     </div>
   );
 }
