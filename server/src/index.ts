@@ -4,7 +4,7 @@ dotenv.config(); // load .env into process.env before anything reads it
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Room } from './room';
-import { ClientMessage, MAX_PLAYERS } from 'shared';
+import { ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES } from 'shared';
 import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC } from './constants';
 import { sendMessage, sendError, sanitizeName, clampPlayers, validateMessage, randomRoomCode } from './helpers';
 
@@ -114,7 +114,8 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       if (!name) { sendError(ws, 'INVALID_NAME'); return; }
       const roomId = generateRoomId();
       const maxPlayers = clampPlayers(typeof msg.maxPlayers === 'number' ? msg.maxPlayers : MAX_PLAYERS);
-      const room = new Room(roomId, maxPlayers);
+      const mode: GameMode = GAME_MODES.some(m => m.id === msg.mode) ? (msg.mode as GameMode) : 'classic';
+      const room = new Room(roomId, maxPlayers, mode);
       room.onDestroy = () => { rooms.delete(roomId); };
       rooms.set(roomId, room);
 
@@ -172,6 +173,14 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       break;
     }
 
+    case 'selectTrump': {
+      const r = getRoom(ws);
+      if (!r) return;
+      const err = r.room.selectTrump(r.playerId, msg.kind, msg.suit);
+      if (err) sendError(ws, err);
+      break;
+    }
+
     case 'playCard': {
       const r = getRoom(ws);
       if (!r) return;
@@ -192,6 +201,14 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       releaseOldSeat(ws);
       break;
     }
+
+    case 'quickMessage': {
+      const r = getRoom(ws);
+      if (!r) return;
+      r.room.quickMessage(r.playerId, msg.id);
+      break;
+    }
+
     // No default: validateMessage() has already rejected any unknown message type.
   }
 }

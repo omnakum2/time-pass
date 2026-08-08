@@ -19,6 +19,7 @@ export function Header() {
   const phase = gameState?.phase;
   const inGame =
     phase === 'DEALING' ||
+    phase === 'TRUMP_SELECT' ||
     phase === 'BIDDING' ||
     phase === 'PLAYING' ||
     phase === 'ROUND_SCORING';

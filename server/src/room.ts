@@ -1,12 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import {
-  Card, GamePhase, GameState, Player, RoundScore,
-  Suit, TrickCard, ServerMessage, MsgRoundResult, ErrorCode
-} from 'shared';
-import {
-  deal, pickTrump, firstBidderSeat,
-  legalMoves, trickWinner, scoreRound, latestTotal, ROUNDS
+  Card, GameMode, GamePhase, GameState, Player, RoundScore,
+  Suit, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, ErrorCode, QUICK_MESSAGES,
+  roundsForMode, deal, pickTrump, firstBidderSeat,
+  legalMoves, trickWinner, scoreRound, latestTotal, ROUNDS, SUITS, RANK_ORDER
 } from 'shared';
 import {
   BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS,
@@ -20,6 +18,7 @@ export interface Seat {
   ws: WebSocket | null;
   hand: Card[];
   reconnectTimer: ReturnType<typeof setTimeout> | null;
+  lastQuickMsgAt?: number; // rate-limit quick chat messages
 }
 
 export class Room {
@@ -30,9 +29,12 @@ export class Room {
   private phase: GamePhase = 'LOBBY';
 
   // Round state
+  private mode: GameMode = 'classic';
+  private rounds: number[] = ROUNDS;
   private roundIndex = 0; // index into ROUNDS array
   private currentRound: number | null = null;
   private trump: Suit | null = null;
+  private trumpConfig: TrumpConfig | null = null;
   private previousTrump: Suit | null | undefined = undefined;
   private bids: Map<string, number | null> = new Map();
   private tricksWon: Map<string, number> = new Map();
@@ -53,9 +55,11 @@ export class Room {
   // Called when the room should be destroyed
   onDestroy: (() => void) | null = null;
 
-  constructor(id: string, maxPlayers = 7) {
+  constructor(id: string, maxPlayers = 7, mode: GameMode = 'classic') {
     this.id = id;
     this.maxPlayers = clampPlayers(maxPlayers);
+    this.mode = mode;
+    this.rounds = roundsForMode(mode);
   }
 
   // ─── Seat helpers ─────────────────────────────────────────────────────────
@@ -251,9 +255,7 @@ export class Room {
 
   private startRound(): void {
     this.phase = 'DEALING';
-    this.currentRound = ROUNDS[this.roundIndex];
-    this.trump = pickTrump(this.previousTrump);
-    this.previousTrump = this.trump;
+    this.currentRound = this.rounds[this.roundIndex];
     this.bids = new Map(this.seats.map(s => [s.player.id, null]));
     this.tricksWon = new Map(this.seats.map(s => [s.player.id, 0]));
     this.currentTrick = [];
@@ -267,6 +269,50 @@ export class Room {
     this.trickLeaderSeatIndex = firstSeat;
     this.currentTurnSeatIndex = firstSeat;
 
+    if (this.mode === 'revolvingTrump') {
+      this.trump = null;
+      this.trumpConfig = null;
+      this.phase = 'TRUMP_SELECT';
+    } else {
+      const t = pickTrump(this.previousTrump);
+      this.previousTrump = t;
+      this.trump = t;
+      this.trumpConfig = t ? { kind: 'suit', suit: t } : { kind: 'noTrump' };
+      this.phase = 'BIDDING';
+    }
+    this.broadcastState();
+    this.startTurnTimer();
+  }
+
+  // ─── Trump selection (Revolving Trump) ────────────────────────────────────
+
+  selectTrump(playerId: string, kind: TrumpKind, suit?: Suit): ErrorCode | null {
+    if (this.phase !== 'TRUMP_SELECT') return 'WRONG_PHASE';
+    if (this.currentTurnPlayerId() !== playerId) return 'NOT_YOUR_TURN';
+    const cfg = this.buildTrumpConfig(kind, suit);
+    if (!cfg) return 'INVALID_TRUMP';
+    this.applyTrump(cfg);
+    return null;
+  }
+
+  private buildTrumpConfig(kind: TrumpKind, suit?: Suit): TrumpConfig | null {
+    switch (kind) {
+      case 'suit':
+        return (suit === 'D' || suit === 'C' || suit === 'H' || suit === 'S') ? { kind: 'suit', suit } : null;
+      case 'oneTrump':
+        return { kind: 'oneTrump', rank: RANK_ORDER[Math.floor(Math.random() * RANK_ORDER.length)] };
+      case 'noTrump': case 'highCard': case 'lowCard': case 'ak47': case 'kingQueen':
+        return { kind };
+      default:
+        return null;
+    }
+  }
+
+  private applyTrump(cfg: TrumpConfig): void {
+    this.cancelTurnTimer();
+    this.trumpConfig = cfg;
+    this.trump = cfg.kind === 'suit' ? (cfg.suit ?? null) : null;
+    this.previousTrump = this.trump;
     this.phase = 'BIDDING';
     this.broadcastState();
     this.startTurnTimer();
@@ -349,7 +395,7 @@ export class Room {
   }
 
   private resolveTrick(): void {
-    const winner = trickWinner(this.currentTrick, this.leadSuit!, this.trump);
+    const winner = trickWinner(this.currentTrick, this.leadSuit!, this.trumpConfig ?? { kind: 'noTrump' });
     const winnerSeat = this.seats.find(s => s.player.id === winner.playerId)!;
     this.tricksWon.set(winner.playerId, (this.tricksWon.get(winner.playerId) ?? 0) + 1);
 
@@ -400,7 +446,7 @@ export class Room {
     // Advance to next round or end game
     setTimeout(() => {
       this.roundIndex++;
-      if (this.roundIndex < ROUNDS.length) {
+      if (this.roundIndex < this.rounds.length) {
         this.startRound();
       } else {
         this.endGame();
@@ -460,7 +506,7 @@ export class Room {
     // auto-move after a short beat (enough for others to see it) instead of 30s.
     const timeoutMs = disconnected
       ? DISCONNECTED_AUTO_MOVE_MS
-      : (this.phase === 'BIDDING' ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS);
+      : ((this.phase === 'BIDDING' || this.phase === 'TRUMP_SELECT') ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS);
     this.turnTimer = setTimeout(() => {
       this.autoAction();
     }, timeoutMs);
@@ -471,6 +517,7 @@ export class Room {
   }
 
   private autoAction(): void {
+    if (this.phase === 'TRUMP_SELECT') { this.applyTrump({ kind: 'suit', suit: SUITS[Math.floor(Math.random() * SUITS.length)] }); return; }
     const playerId = this.currentTurnPlayerId();
     if (this.phase === 'BIDDING') {
       this.placeBid(playerId, 0);
@@ -537,7 +584,8 @@ export class Room {
       maxPlayers: this.maxPlayers,
       round: this.currentRound,
       trump: this.trump,
-      yourHand: seat?.hand ?? [],
+      trumpConfig: this.trumpConfig,
+      yourHand: (this.mode === 'blind' && (this.phase === 'BIDDING' || this.phase === 'DEALING')) ? [] : (seat?.hand ?? []),
       handCounts,
       bids: bidsObj,
       currentTurn: this.currentTurnPlayerId() || null,
@@ -547,8 +595,9 @@ export class Room {
       firstBidder: this.seats[this.bidderSeatIndex]?.player.id ?? null,
       tricksWon: tricksWonObj,
       countdownMs: this.countdownEndsAt ? Math.max(0, this.countdownEndsAt - Date.now()) : null,
-      turnTimeoutMs: this.phase === 'BIDDING' ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS,
+      turnTimeoutMs: (this.phase === 'BIDDING' || this.phase === 'TRUMP_SELECT') ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS,
       roomExpiresInMs: this.gameOverExpiresAt ? Math.max(0, this.gameOverExpiresAt - Date.now()) : null,
+      mode: this.mode,
     };
   }
 
@@ -570,6 +619,19 @@ export class Room {
   sendState(ws: WebSocket, playerId: string): void {
     const state = this.buildState(playerId);
     sendMessage(ws, { type: 'state', state });
+  }
+
+  // ─── Quick chat messages ──────────────────────────────────────────────────
+
+  quickMessage(playerId: string, id: string): void {
+    const seat = this.getSeat(playerId);
+    if (!seat) return;
+    const item = QUICK_MESSAGES.find(m => m.id === id);
+    if (!item) return;
+    const now = Date.now();
+    if (seat.lastQuickMsgAt && now - seat.lastQuickMsgAt < 1500) return; // rate-limit
+    seat.lastQuickMsgAt = now;
+    this.broadcast({ type: 'quickMessage', senderId: playerId, text: item.text });
   }
 
   private broadcast(msg: ServerMessage): void {

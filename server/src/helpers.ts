@@ -59,6 +59,10 @@ export function validateMessage(msg: ClientMessage): ErrorCode | null {
       return Number.isInteger(msg.bid) ? null : 'INVALID_BID';
     case 'playCard':
       return typeof msg.cardId === 'string' ? null : 'BAD_MESSAGE';
+    case 'selectTrump':
+      return typeof msg.kind === 'string' ? null : 'INVALID_TRUMP';
+    case 'quickMessage':
+      return typeof msg.id === 'string' ? null : 'BAD_MESSAGE';
     case 'startGame':
     case 'restartGame':
     case 'leaveRoom':

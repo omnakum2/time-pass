@@ -1,15 +1,16 @@
-import { GameState, ROUNDS } from 'shared';
+import { GameState } from 'shared';
 import { StandingsTable } from './StandingsTable';
 import { Delta } from './Delta';
 
 export function Scoreboard({ gameState }: { gameState: GameState }) {
   const { players, scoreboard } = gameState;
 
-  const roundsPlayed = ROUNDS.filter(r =>
-    players.some(p => scoreboard[p.id]?.some(row => row.round === r))
-  );
+  // Rows are keyed by SEQUENCE INDEX (not round number). Modes that repeat a
+  // round number — e.g. Up & Down's 1..7..1 — need every played round shown,
+  // and round numbers alone would collide. Row count = longest per-player history.
+  const roundCount = players.reduce((max, p) => Math.max(max, scoreboard[p.id]?.length ?? 0), 0);
 
-  if (roundsPlayed.length === 0) {
+  if (roundCount === 0) {
     return (
       <div className="text-center tag-faint" style={{ padding: '12px' }}>
         Scores will appear here
@@ -17,8 +18,14 @@ export function Scoreboard({ gameState }: { gameState: GameState }) {
     );
   }
 
-  const getRow = (playerId: string, round: number) =>
-    scoreboard[playerId]?.find(r => r.round === round);
+  // Label for row i = the round number any player recorded at that index.
+  const roundLabel = (i: number) => {
+    for (const p of players) {
+      const row = scoreboard[p.id]?.[i];
+      if (row) return row.round;
+    }
+    return i + 1;
+  };
 
   const getTotal = (playerId: string) => {
     const rows = scoreboard[playerId] ?? [];
@@ -36,11 +43,11 @@ export function Scoreboard({ gameState }: { gameState: GameState }) {
         </tr>
       </thead>
       <tbody>
-        {roundsPlayed.map(r => (
-          <tr key={r}>
-            <td>R{r}</td>
+        {Array.from({ length: roundCount }, (_, i) => (
+          <tr key={i}>
+            <td>R{roundLabel(i)}</td>
             {players.map(p => {
-              const row = getRow(p.id, r);
+              const row = scoreboard[p.id]?.[i];
               if (!row) return <td key={p.id}>-</td>;
               return (
                 <td key={p.id}>

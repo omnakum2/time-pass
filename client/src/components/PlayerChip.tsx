@@ -1,6 +1,7 @@
 import { Player } from 'shared';
 import { TurnBorder } from './TurnTimer';
 import { Delta } from './Delta';
+import { useGameStore } from '../store/gameStore';
 
 interface Props {
   player: Player;
@@ -15,9 +16,16 @@ interface Props {
 }
 
 export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, durationMs, isMe, totalScore }: Props) {
+  const bubble = useGameStore(s => s.activeBubbles[player.id]);
   return (
     <div className={`player-chip${isActive ? ' player-chip--active' : ''}${isMe ? ' player-chip--me' : ''}`}>
-      {isActive && (phase === 'BIDDING' || phase === 'PLAYING') && durationMs !== undefined && (
+      {bubble && (
+        <div className={`chat-bubble${isMe ? '' : ' chat-bubble--below'}`} key={bubble.key}>
+          {bubble.text}
+        </div>
+      )}
+      {isActive && durationMs !== undefined &&
+        (phase === 'PLAYING' || ((phase === 'BIDDING' || phase === 'TRUMP_SELECT') && !isMe)) && (
         <TurnBorder key={turnKey} durationMs={durationMs} />
       )}
 

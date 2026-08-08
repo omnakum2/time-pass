@@ -95,6 +95,9 @@ function dispatch(msg: ServerMessage): void {
       storage.clearSession();
       store.setRoomClosed(true);
       break;
+    case 'quickMessage':
+      store.setBubble(msg.senderId, msg.text);
+      break;
     case 'error':
       // A failed auto-reconnect just means the stored session is stale (room
       // gone / server restarted). Drop it silently — don't nag the user with a

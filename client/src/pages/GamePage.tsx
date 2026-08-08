@@ -8,9 +8,11 @@ import { getTotal } from '../lib/helpers';
 import { CardView } from '../components/CardView';
 import { TrickArea } from '../components/TrickArea';
 import { BidPanel } from '../components/BidPanel';
+import { TrumpPicker } from '../components/TrumpPicker';
 import { PlayerChip } from '../components/PlayerChip';
 import { Popup } from '../components/Popup';
 import { RoundResultOverlay } from '../components/RoundResultOverlay';
+import { QuickMessages } from '../components/QuickMessages';
 
 // ─── GamePage ─────────────────────────────────────────────────────────────────
 
@@ -52,8 +54,8 @@ export function GamePage() {
   }
 
   const {
-    round, trump, yourHand, bids,
-    players, tricksWon, scoreboard,
+    round, trumpConfig, yourHand, bids,
+    players, tricksWon, scoreboard, mode,
   } = gameState;
 
   const isMyTurn = currentTurn === playerId;
@@ -106,8 +108,12 @@ export function GamePage() {
     totalScore: getTotal(scoreboard, p.id),
   });
 
+  const blindHidden = mode === 'blind' && (phase === 'BIDDING' || phase === 'DEALING');
+
   const activeName = currentTurn ? (players.find(p => p.id === currentTurn)?.name ?? '') : '';
-  const statusText = phase === 'BIDDING'
+  const statusText = phase === 'TRUMP_SELECT'
+    ? (isMyTurn ? 'Choose the trump' : (currentTurn ? `Waiting for ${activeName} to choose the trump…` : ''))
+    : phase === 'BIDDING'
     ? (isMyTurn ? 'Place your bid' : (currentTurn ? `Waiting for ${activeName} to bid…` : ''))
     : phase === 'PLAYING'
     ? (isMyTurn ? 'Your turn' : (currentTurn ? `Waiting for ${activeName}…` : ''))
@@ -126,6 +132,14 @@ export function GamePage() {
         <BidPanel round={round!} turnKey={turnKey} durationMs={turnTimeoutMs} />
       </Popup>
 
+      {/* Trump-select popup — shown when it's MY turn to pick the round's trump */}
+      <Popup
+        visible={phase === 'TRUMP_SELECT' && isMyTurn}
+        title="Choose this round's trump"
+      >
+        <TrumpPicker turnKey={turnKey} durationMs={turnTimeoutMs} />
+      </Popup>
+
       <div className="game-area">
         {/* ── Full-width Game panel ─────────────────────────── */}
         <div className="game-panel">
@@ -142,7 +156,7 @@ export function GamePage() {
 
             {/* Middle: trick area */}
             <div className="table-middle-row">
-              <TrickArea trick={currentTrick} players={players} round={round} status={statusText} trump={trump} urgent={urgent} />
+              <TrickArea trick={currentTrick} players={players} round={round} status={statusText} trumpConfig={trumpConfig} urgent={urgent} mode={mode} />
             </div>
           </div>
 
@@ -164,23 +178,30 @@ export function GamePage() {
                 Tap again to play
               </span>
             )}
+            <QuickMessages />
           </div>
 
           {/* ── My hand ─── */}
           <div className="hand-area">
             <div className="hand-cards">
-              <AnimatePresence>
-                {sortedHand.map(card => (
-                  <CardView
-                    key={card.id}
-                    card={card}
-                    layoutId={`card-${card.id}`}
-                    disabled={isMyTurn && phase === 'PLAYING' ? !legalIds.includes(card.id) : false}
-                    selected={selectedCard === card.id}
-                    onClick={() => handleCardClick(card.id)}
-                  />
-                ))}
-              </AnimatePresence>
+              {blindHidden ? (
+                Array.from({ length: round ?? 0 }).map((_, i) => (
+                  <div key={i} className="card card--back" aria-hidden="true" />
+                ))
+              ) : (
+                <AnimatePresence>
+                  {sortedHand.map(card => (
+                    <CardView
+                      key={card.id}
+                      card={card}
+                      layoutId={`card-${card.id}`}
+                      disabled={isMyTurn && phase === 'PLAYING' ? !legalIds.includes(card.id) : false}
+                      selected={selectedCard === card.id}
+                      onClick={() => handleCardClick(card.id)}
+                    />
+                  ))}
+                </AnimatePresence>
+              )}
             </div>
           </div>
         </div>

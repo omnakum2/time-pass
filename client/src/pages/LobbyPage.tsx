@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { Surface } from '../components/Surface';
 import { Icon } from '../components/Icon';
+import { GAME_MODES } from 'shared';
 
 export function LobbyPage() {
   const { roomId: urlRoomId } = useParams<{ roomId: string }>();
@@ -101,6 +102,22 @@ export function LobbyPage() {
       <Surface className="lobby flex-col gap-lg">
         <div className="text-center">
           <h2 className="card-title card-title--md">Waiting Room</h2>
+          {(() => {
+            const modeLabel = GAME_MODES.find(m => m.id === gameState.mode)?.label ?? '';
+            return modeLabel ? (
+              <div style={{ marginTop: 6 }}>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center',
+                  padding: '4px 12px', borderRadius: 20,
+                  background: 'rgba(233,184,74,0.14)', color: 'var(--gold)',
+                  border: '1px solid var(--gold-border)',
+                  fontWeight: 700, fontSize: '0.8rem',
+                }}>
+                  {modeLabel}
+                </span>
+              </div>
+            ) : null;
+          })()}
           <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             <span style={{ fontSize: '1.3rem', fontWeight: 700, letterSpacing: 3 }}>
               {displayRoomId}

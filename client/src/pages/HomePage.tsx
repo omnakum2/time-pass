@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { NAME_MIN_LEN, NAME_MAX_LEN } from 'shared';
+import { NAME_MIN_LEN, NAME_MAX_LEN, GAME_MODES, GameMode } from 'shared';
 import { sendMsg } from '../net/socket';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
@@ -13,6 +13,7 @@ export function HomePage() {
   const [roomCode, setRoomCode] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(7);
   const [mode, setMode] = useState<'landing' | 'create' | 'join'>('landing');
+  const [gameMode, setGameMode] = useState<GameMode>('classic');
   const [pendingHost, setPendingHost] = useState('');
   const [pending, setPending] = useState<'create' | 'join' | null>(null);
   const { connected, roomId, gameState } = useGameStore();
@@ -49,7 +50,7 @@ export function HomePage() {
   const fireCreate = useCallback(() => {
     const n = saveName();
     if (!n) return;
-    sendMsg({ type: 'createRoom', name: n, maxPlayers });
+    sendMsg({ type: 'createRoom', name: n, maxPlayers, mode: gameMode });
     // Navigate will happen when we receive 'joined' + 'state'
     const unsub = useGameStore.subscribe((s) => {
       if (s.roomId) {
@@ -57,7 +58,7 @@ export function HomePage() {
         unsub();
       }
     });
-  }, [saveName, maxPlayers, navigate]);
+  }, [saveName, maxPlayers, gameMode, navigate]);
 
   const fireJoin = useCallback(() => {
     const n = saveName();
@@ -153,6 +154,22 @@ export function HomePage() {
                   }}>
                     {maxPlayers}
                   </span>
+                </div>
+              </div>
+              <div className="flex-col gap-sm">
+                <label className="field-label">Game mode</label>
+                <div className="mode-picker">
+                  {GAME_MODES.map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      className={`mode-option${gameMode === m.id ? ' mode-option--active' : ''}`}
+                      onClick={() => setGameMode(m.id)}
+                    >
+                      <span className="mode-option__label">{m.label}</span>
+                      <span className="mode-option__desc">{m.desc}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
               <div className="flex-col gap-sm">

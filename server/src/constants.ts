@@ -35,4 +35,5 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   INVALID_BID: 'That bid is not allowed.',
   CARD_NOT_IN_HAND: "You don't have that card.",
   ILLEGAL_CARD: 'You must follow the lead suit if you can.',
+  INVALID_TRUMP: 'That trump choice is not allowed.',
 };
