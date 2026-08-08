@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { NAME_MIN_LEN, NAME_MAX_LEN } from 'shared';
+import { NAME_MIN_LEN, NAME_MAX_LEN, GAME_MODES, GameMode } from 'shared';
 import { sendMsg } from '../net/socket';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
-import { GAME_MODES, GameMode } from 'shared';
 import { Button } from '../components/Button';
 import { Field } from '../components/Field';
 import { Surface } from '../components/Surface';
