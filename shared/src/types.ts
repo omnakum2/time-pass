@@ -79,7 +79,8 @@ export interface Player {
   id: string;
   name: string;
   seatIndex: number;
-  connected: boolean;
+  connected: boolean;               // convenience: connected === (status === 'online')
+  status: 'online' | 'reconnecting' | 'offline';
 }
 
 // ─── Trick card entry ─────────────────────────────────────────────────────────
@@ -124,7 +125,9 @@ export interface GameState {
   firstBidder: string | null;
   tricksWon: Record<string, number>; // playerId → tricks won this round
   countdownMs: number | null; // ms left on the lobby auto-start countdown (null unless counting down)
-  turnTimeoutMs: number; // server-configured turn budget for the current phase (drives client timer rings)
+  turnTimeoutMs: number; // full turn budget for the current phase (ring denominator)
+  turnExpiresAt: number | null; // absolute epoch ms the current turn auto-resolves (null = no live turn / paused)
+  turnRemainingMs: number | null; // ms left on the current turn at broadcast (frozen value while paused)
   roomExpiresInMs: number | null; // ms until a finished room auto-closes (null unless in GAME_OVER)
   mode: GameMode; // the room's game mode
 }

@@ -9,13 +9,15 @@ interface Props {
   tricksWon: number;
   isActive: boolean;
   phase: string;
-  turnKey: string;
-  durationMs?: number;
+  remainingMs?: number;
+  fullMs?: number;
+  startKey?: string;
+  running?: boolean;
   isMe?: boolean;
   totalScore?: number;
 }
 
-export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, durationMs, isMe, totalScore }: Props) {
+export function PlayerChip({ player, bid, tricksWon, isActive, phase, remainingMs, fullMs, startKey, running, isMe, totalScore }: Props) {
   const bubble = useGameStore(s => s.activeBubbles[player.id]);
   return (
     <div className={`player-chip${isActive ? ' player-chip--active' : ''}${isMe ? ' player-chip--me' : ''}`}>
@@ -24,9 +26,9 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, d
           {bubble.text}
         </div>
       )}
-      {isActive && durationMs !== undefined &&
+      {isActive && fullMs !== undefined &&
         (phase === 'PLAYING' || ((phase === 'BIDDING' || phase === 'TRUMP_SELECT') && !isMe)) && (
-        <TurnBorder key={turnKey} durationMs={durationMs} />
+        <TurnBorder key={startKey} remainingMs={remainingMs ?? 0} fullMs={fullMs} startKey={startKey ?? ''} running={running} />
       )}
 
       <div className="player-chip__name">
@@ -45,8 +47,10 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, d
         </div>
       )}
 
-      {!player.connected && (
-        <div className="player-chip__disconnected">disconnected</div>
+      {player.status !== 'online' && (
+        <div className="player-chip__disconnected">
+          {player.status === 'reconnecting' ? 'reconnecting…' : 'disconnected'}
+        </div>
       )}
     </div>
   );

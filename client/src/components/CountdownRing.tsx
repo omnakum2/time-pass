@@ -2,12 +2,14 @@ import { useCountdown } from '../hooks/useCountdown';
 import { timerColor } from '../lib/helpers';
 
 interface Props {
-  durationMs: number;
-  startKey: string; // changes when the timer should reset
+  remainingMs: number;
+  fullMs: number;
+  startKey: string; // changes when the timer should re-anchor (new turn / resume)
+  running?: boolean;
 }
 
-export function CountdownRing({ durationMs, startKey }: Props) {
-  const { fraction, remaining } = useCountdown(durationMs, startKey);
+export function CountdownRing({ remainingMs, fullMs, startKey, running = true }: Props) {
+  const { fraction, remaining } = useCountdown(remainingMs, fullMs, startKey, running);
 
   const size = 44;
   const strokeWidth = 4;

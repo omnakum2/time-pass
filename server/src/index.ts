@@ -5,7 +5,7 @@ import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Room } from './room';
 import { ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES } from 'shared';
-import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC } from './constants';
+import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS } from './constants';
 import { sendMessage, sendError, sanitizeName, clampPlayers, validateMessage, randomRoomCode } from './helpers';
 
 // ─── Environment-specific settings (from process.env) ──────────────────────
@@ -13,6 +13,7 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '').split(',').map(s => s.trim()).filter(Boolean);
 
 const rooms = new Map<string, Room>();
+let draining = false; // during shutdown drain: reject new rooms, let existing ones finish
 
 // Generate a unique room code (retries on the rare collision).
 function generateRoomId(): string {
@@ -73,11 +74,11 @@ wss.on('connection', (ws, req) => {
     const left = (connByIp.get(ip) ?? 1) - 1;
     if (left <= 0) connByIp.delete(ip); else connByIp.set(ip, left);
     const ctx = wsContext.get(ws);
-    if (ctx) rooms.get(ctx.roomId)?.disconnect(ctx.playerId);
+    if (ctx) rooms.get(ctx.roomId)?.disconnect(ctx.playerId, ws);
   });
   ws.on('error', () => {
     const ctx = wsContext.get(ws);
-    if (ctx) rooms.get(ctx.roomId)?.disconnect(ctx.playerId);
+    if (ctx) rooms.get(ctx.roomId)?.disconnect(ctx.playerId, ws);
   });
 
   if ((connByIp.get(ip) ?? 0) > MAX_CONN_PER_IP) { ws.close(1013, 'Too many connections'); return; }
@@ -109,6 +110,7 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
   if (invalid) { sendError(ws, invalid); return; }
   switch (msg.type) {
     case 'createRoom': {
+      if (draining) { sendError(ws, 'JOIN_FAILED'); return; } // shutting down: no new rooms
       releaseOldSeat(ws); // hopping rooms: drop any old seat first
       const name = sanitizeName(msg.name);
       if (!name) { sendError(ws, 'INVALID_NAME'); return; }
@@ -215,11 +217,21 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
 
 httpServer.listen(PORT);
 
-// Graceful shutdown for clean redeploys
+// Graceful shutdown for clean redeploys: stop accepting new rooms, let active
+// rooms drain (up to DRAIN_MAX_MS), then close sockets + servers and exit.
 function shutdown(): void {
-  for (const client of wss.clients) { try { client.close(1001, 'server shutting down'); } catch { /* ignore */ } }
-  wss.close(() => httpServer.close(() => process.exit(0)));
-  setTimeout(() => process.exit(0), 5000).unref();
+  draining = true;
+  const deadline = Date.now() + DRAIN_MAX_MS;
+  const finish = () => {
+    for (const client of wss.clients) { try { client.close(1001, 'server shutting down'); } catch { /* ignore */ } }
+    wss.close(() => httpServer.close(() => process.exit(0)));
+    setTimeout(() => process.exit(0), 5000).unref();
+  };
+  const tick = () => {
+    if (rooms.size === 0 || Date.now() >= deadline) finish();
+    else setTimeout(tick, 1000).unref();
+  };
+  tick();
 }
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);

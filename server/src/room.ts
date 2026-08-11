@@ -9,6 +9,7 @@ import {
 import {
   BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS,
   GAME_OVER_TTL_MS, COUNTDOWN_MS, DISCONNECTED_AUTO_MOVE_MS, TRICK_DISPLAY_MS, ROUND_END_DELAY_MS,
+  LOBBY_RECONNECT_WINDOW_MS,
 } from './constants';
 import { sendMessage, clampPlayers } from './helpers';
 
@@ -46,6 +47,8 @@ export class Room {
   private scoreboard: Map<string, RoundScore[]> = new Map();
 
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
+  private turnExpiresAt: number | null = null;         // absolute epoch ms the current turn auto-resolves
+  private turnPausedRemainingMs: number | null = null; // frozen turn time while the room is empty (paused)
   private emptyRoomTimer: ReturnType<typeof setTimeout> | null = null;
   private gameOverTimer: ReturnType<typeof setTimeout> | null = null;
   private gameOverExpiresAt: number | null = null;
@@ -96,6 +99,16 @@ export class Room {
     if (this.countdownTimer && this.seats.length < this.maxPlayers) this.cancelCountdown();
   }
 
+  // Hand the host role to the first still-connected player (used when the host's
+  // in-game reconnect window fully expires).
+  private reassignHostToConnected(): void {
+    const next = this.seats.find(s => s.player.connected);
+    if (next && next.player.id !== this.hostId) {
+      this.hostId = next.player.id;
+      this.broadcastState();
+    }
+  }
+
   // ─── Join / Create ────────────────────────────────────────────────────────
 
   addPlayer(ws: WebSocket, name: string, asHost = false): Seat | null {
@@ -110,6 +123,7 @@ export class Room {
         name,
         seatIndex: this.seats.length,
         connected: true,
+        status: 'online',
       },
       token,
       ws,
@@ -128,39 +142,70 @@ export class Room {
     const seat = this.getSeatByToken(token);
     if (!seat) return null;
     seat.reconnectTimer = this.clearTimer(seat.reconnectTimer);
+    // FIX 9: one active connection per seat — close any older, different socket.
+    if (seat.ws && seat.ws !== ws) { try { seat.ws.close(1000, 'replaced'); } catch { /* ignore */ } }
     seat.ws = ws;
     seat.player.connected = true;
+    seat.player.status = 'online';
     this.cancelEmptyRoomTimer();
+
+    // Resume the turn timer WITHOUT extending the deadline. If the game was paused
+    // (everyone had dropped), restore the frozen remaining time first. A refresh can
+    // never buy more time — the turn's deadline is fixed for its whole duration.
+    if (this.phase === 'BIDDING' || this.phase === 'PLAYING' || this.phase === 'TRUMP_SELECT') {
+      if (this.turnPausedRemainingMs != null) {
+        this.turnExpiresAt = Date.now() + this.turnPausedRemainingMs;
+        this.turnPausedRemainingMs = null;
+      }
+      this.armTurnTimer();
+    }
     return seat;
   }
 
-  disconnect(playerId: string): void {
+  disconnect(playerId: string, closingWs?: WebSocket): void {
     const seat = this.getSeat(playerId);
     if (!seat) return;
+    // FIX 1: ignore a stale/late close from a socket that's no longer this seat's
+    // (e.g. after a fresh reconnect replaced it). Internal callers pass no ws.
+    if (closingWs !== undefined && seat.ws !== closingWs) return;
 
     seat.ws = null;
     seat.player.connected = false;
+    seat.player.status = 'reconnecting'; // they might come back within the window
 
     if (this.phase === 'LOBBY') {
-      this.removeSeat(playerId); // remove from lobby entirely
-    } else {
-      // In-game: start reconnect window
+      // FIX 4: don't drop the seat on a refresh; give a short window to reconnect.
       seat.reconnectTimer = setTimeout(() => {
         seat.reconnectTimer = null;
-        // Seat stays but keeps auto-playing via turn timer
+        if (!seat.player.connected) {
+          this.removeSeat(playerId);
+          this.broadcastState();
+          if (this.isEmpty) this.startEmptyRoomTimer();
+        }
+      }, LOBBY_RECONNECT_WINDOW_MS);
+    } else {
+      // In-game: start reconnect window. When the grace fully expires and the
+      // player is still gone, mark them offline and hand off host if needed.
+      seat.reconnectTimer = setTimeout(() => {
+        seat.reconnectTimer = null;
+        if (!seat.player.connected) {
+          seat.player.status = 'offline';
+          if (playerId === this.hostId) this.reassignHostToConnected();
+          this.broadcastState();
+        }
       }, RECONNECT_WINDOW_MS);
 
-      // If host left during game → end immediately
-      if (playerId === this.hostId) {
-        this.endGameImmediately();
-        return;
-      }
+      // NB: we deliberately DON'T touch the turn timer here. A turn's deadline is fixed
+      // when it begins, so one player dropping never shortens or resets another player's
+      // clock — and a refresh can't reset the dropped player's own clock either.
+    }
 
-      // If it's this (now-disconnected) player's turn, don't wait the full timer —
-      // restart it so their move auto-resolves promptly.
-      if ((this.phase === 'BIDDING' || this.phase === 'PLAYING') && this.currentTurnPlayerId() === playerId) {
-        this.startTurnTimer();
-      }
+    // If the room just emptied mid-turn, freeze the remaining turn time so it doesn't
+    // tick away while nobody can act; reconnect() restores it on the first return.
+    if (this.isEmpty && this.turnExpiresAt != null) {
+      this.turnPausedRemainingMs = Math.max(0, this.turnExpiresAt - Date.now());
+      this.turnExpiresAt = null;
+      this.cancelTurnTimer();
     }
 
     this.broadcastState();
@@ -200,6 +245,7 @@ export class Room {
     if (this.phase !== 'LOBBY') return 'WRONG_PHASE';
     if (this.seats.length < 2) return 'NOT_ENOUGH_PLAYERS';
 
+    this.cancelCountdown(); // a manual start supersedes any pending lobby countdown
     this.previousTrump = undefined;
     this.roundIndex = 0;
     this.startRound();
@@ -280,8 +326,8 @@ export class Room {
       this.trumpConfig = t ? { kind: 'suit', suit: t } : { kind: 'noTrump' };
       this.phase = 'BIDDING';
     }
-    this.broadcastState();
-    this.startTurnTimer();
+    this.beginTurn();        // set the turn deadline BEFORE broadcasting…
+    this.broadcastState();   // …so the state carries the fresh countdown
   }
 
   // ─── Trump selection (Revolving Trump) ────────────────────────────────────
@@ -314,8 +360,8 @@ export class Room {
     this.trump = cfg.kind === 'suit' ? (cfg.suit ?? null) : null;
     this.previousTrump = this.trump;
     this.phase = 'BIDDING';
+    this.beginTurn();
     this.broadcastState();
-    this.startTurnTimer();
   }
 
   // ─── Bidding ──────────────────────────────────────────────────────────────
@@ -348,12 +394,12 @@ export class Room {
     if (allBid) {
       this.currentTurnSeatIndex = this.trickLeaderSeatIndex; // first bidder leads first trick
       this.phase = 'PLAYING';
+      this.beginTurn();
       this.broadcastState();
-      this.startTurnTimer();
     } else {
       this.currentTurnSeatIndex = next;
+      this.beginTurn();
       this.broadcastState();
-      this.startTurnTimer();
     }
   }
 
@@ -387,8 +433,8 @@ export class Room {
       this.resolveTrick();
     } else {
       this.currentTurnSeatIndex = this.nextSeatIndex(this.currentTurnSeatIndex);
+      this.beginTurn();
       this.broadcastState();
-      this.startTurnTimer();
     }
 
     return null;
@@ -402,6 +448,7 @@ export class Room {
     const prevTrick = [...this.currentTrick];
     this.currentTrick = [];
     this.leadSuit = null;
+    this.turnExpiresAt = null; // brief trick-display gap has no live countdown
     this.trickLeaderSeatIndex = winnerSeat.player.seatIndex;
     this.currentTurnSeatIndex = this.trickLeaderSeatIndex;
 
@@ -413,8 +460,8 @@ export class Room {
       setTimeout(() => this.endRound(), TRICK_DISPLAY_MS);
     } else {
       setTimeout(() => {
+        this.beginTurn();
         this.broadcastState();
-        this.startTurnTimer();
       }, TRICK_DISPLAY_MS);
     }
   }
@@ -484,12 +531,6 @@ export class Room {
     this.finishGame(winners, finalScores, playerNames);
   }
 
-  private endGameImmediately(): void {
-    this.cancelTurnTimer();
-    const { finalScores, playerNames } = this.computeFinalScores();
-    this.finishGame([], finalScores, playerNames);
-  }
-
   // ─── Timers ───────────────────────────────────────────────────────────────
 
   // Clear a timer handle if set; returns null so the caller can null its field.
@@ -498,18 +539,29 @@ export class Room {
     return null;
   }
 
-  private startTurnTimer(): void {
+  // Begin a NEW turn: fix its absolute deadline once, then arm the auto-move timer.
+  // A just-refreshed ('reconnecting') seat still gets the full budget; only a clearly
+  // gone ('offline') seat is fast-forwarded so the table doesn't wait on someone absent.
+  private beginTurn(): void {
     this.cancelTurnTimer();
+    this.turnPausedRemainingMs = null;
+    if (this.isEmpty) { this.turnExpiresAt = null; return; } // nobody to act → paused
     const currentSeat = this.seats[this.currentTurnSeatIndex];
-    const disconnected = !!currentSeat && !currentSeat.player.connected;
-    // A disconnected player shouldn't make everyone wait the full turn timer —
-    // auto-move after a short beat (enough for others to see it) instead of 30s.
-    const timeoutMs = disconnected
+    const offline = currentSeat?.player.status === 'offline';
+    const duration = offline
       ? DISCONNECTED_AUTO_MOVE_MS
       : ((this.phase === 'BIDDING' || this.phase === 'TRUMP_SELECT') ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS);
-    this.turnTimer = setTimeout(() => {
-      this.autoAction();
-    }, timeoutMs);
+    this.turnExpiresAt = Date.now() + duration;
+    this.armTurnTimer();
+  }
+
+  // (Re)arm the auto-move timer to the REMAINING time of the current deadline. Never
+  // extends it — used on reconnect/resume so a refresh can't reset or lengthen a turn.
+  private armTurnTimer(): void {
+    this.cancelTurnTimer();
+    if (this.turnExpiresAt == null) return;
+    const ms = Math.max(0, this.turnExpiresAt - Date.now());
+    this.turnTimer = setTimeout(() => { this.autoAction(); }, ms);
   }
 
   private cancelTurnTimer(): void {
@@ -575,6 +627,7 @@ export class Room {
 
     // Use last trick briefly so clients can show the completed trick
     const trickToShow = lastTrick ?? this.currentTrick;
+    const turnActive = this.phase === 'BIDDING' || this.phase === 'PLAYING' || this.phase === 'TRUMP_SELECT';
 
     return {
       phase: this.phase,
@@ -596,6 +649,10 @@ export class Room {
       tricksWon: tricksWonObj,
       countdownMs: this.countdownEndsAt ? Math.max(0, this.countdownEndsAt - Date.now()) : null,
       turnTimeoutMs: (this.phase === 'BIDDING' || this.phase === 'TRUMP_SELECT') ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS,
+      turnExpiresAt: turnActive ? this.turnExpiresAt : null,
+      turnRemainingMs: turnActive
+        ? (this.turnExpiresAt != null ? Math.max(0, this.turnExpiresAt - Date.now()) : this.turnPausedRemainingMs)
+        : null,
       roomExpiresInMs: this.gameOverExpiresAt ? Math.max(0, this.gameOverExpiresAt - Date.now()) : null,
       mode: this.mode,
     };

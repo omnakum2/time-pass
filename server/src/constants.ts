@@ -17,6 +17,8 @@ export const COUNTDOWN_MS = 5_000;            // lobby auto-start countdown once
 export const DISCONNECTED_AUTO_MOVE_MS = 500; // auto-move delay for a disconnected player's seat
 export const TRICK_DISPLAY_MS = 1_500;        // how long a completed trick is shown
 export const ROUND_END_DELAY_MS = 3_000;      // pause after round scoring before the next round
+export const LOBBY_RECONNECT_WINDOW_MS = 15_000; // grace for a lobby player to return after a refresh
+export const DRAIN_MAX_MS = 60_000;              // max wait for active rooms to empty during shutdown drain
 
 // ─── 2. Error messages ───────────────────────────────────────────────────────
 export const ERROR_MESSAGES: Record<ErrorCode, string> = {

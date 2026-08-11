@@ -19,10 +19,8 @@ export function LobbyPage() {
       // No session: redirect to home with the room code (and host) pre-filled.
       // We store the intent in sessionStorage.
       const host = new URLSearchParams(window.location.search).get('host');
-      if (host) {
-        sessionStorage.setItem('pendingRoomId', urlRoomId);
-        sessionStorage.setItem('pendingHost', host);
-      }
+      sessionStorage.setItem('pendingRoomId', urlRoomId); // always prefill the room code
+      if (host) sessionStorage.setItem('pendingHost', host);
       navigate('/', { replace: true });
     }
   }, [roomId, urlRoomId, connected, navigate]);
@@ -146,7 +144,8 @@ export function LobbyPage() {
                 <span>{p.name}</span>
                 {p.id === hostId && <span className="host-badge">HOST</span>}
                 {p.id === playerId && <span className="tag-faint">(you)</span>}
-                {!p.connected && <span className="tag-faint">disconnected</span>}
+                {p.status === 'reconnecting' && <span className="tag-faint">reconnecting…</span>}
+                {p.status === 'offline' && <span className="tag-faint">disconnected</span>}
               </li>
             ))}
           </ul>

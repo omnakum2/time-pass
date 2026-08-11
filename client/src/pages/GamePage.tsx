@@ -19,7 +19,6 @@ import { QuickMessages } from '../components/QuickMessages';
 export function GamePage() {
   const { gameState, playerId, lastRoundResult } = useGameStore();
   const prevTurnRef = useRef<string>('');
-  const turnSeqRef = useRef(0);
   const prevTrickEmptyRef = useRef(true);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [urgent, setUrgent] = useState(false);
@@ -28,26 +27,31 @@ export function GamePage() {
   const phase = gameState?.phase ?? '';
   const currentTurn = gameState?.currentTurn ?? null;
   const turnTimeoutMs = gameState?.turnTimeoutMs ?? 0;
+  const turnRemainingMs = gameState?.turnRemainingMs ?? 0;
+  const turnExpiresAt = gameState?.turnExpiresAt ?? null;
+  // Timer key re-anchors the countdown only when the server's turn deadline changes
+  // (new turn / pause-resume) — never on a plain reconnect. Running = a live turn.
+  const timerKey = String(turnExpiresAt ?? 'none');
+  const timerRunning = turnExpiresAt != null;
   const currentTrick = gameState?.currentTrick ?? [];
 
-  // Turn key resets timer on every new turn (sequence-based)
+  // Reset the selected card whenever it becomes a new turn (new active player or a
+  // fresh trick lead). The turn TIMER is driven separately by the server deadline.
   const trickEmpty = currentTrick.length === 0;
   if (currentTurn && (currentTurn !== prevTurnRef.current || (trickEmpty && !prevTrickEmptyRef.current))) {
-    turnSeqRef.current += 1;
     prevTurnRef.current = currentTurn;
     setSelectedCard(null); // reset selection on turn change
   }
   prevTrickEmptyRef.current = trickEmpty;
-  const turnKey = String(turnSeqRef.current);
 
   useEffect(() => {
     setUrgent(false);
-    if ((phase === 'BIDDING' || phase === 'PLAYING') && currentTurn) {
-      const lead = Math.max(0, turnTimeoutMs - 6000);
+    if (timerRunning && (phase === 'BIDDING' || phase === 'PLAYING' || phase === 'TRUMP_SELECT') && currentTurn) {
+      const lead = Math.max(0, turnRemainingMs - 6000);
       const id = setTimeout(() => setUrgent(true), lead);
       return () => clearTimeout(id);
     }
-  }, [turnKey, turnTimeoutMs, phase, currentTurn]);
+  }, [timerKey, timerRunning, turnRemainingMs, phase, currentTurn]);
 
   if (!gameState || !playerId) {
     return <div className="page"><p>Loading game…</p></div>;
@@ -103,8 +107,10 @@ export function GamePage() {
     tricksWon: tricksWon[p.id] ?? 0,
     isActive: currentTurn === p.id,
     phase,
-    turnKey,
-    durationMs: turnTimeoutMs,
+    remainingMs: turnRemainingMs,
+    fullMs: turnTimeoutMs,
+    startKey: timerKey,
+    running: timerRunning,
     totalScore: getTotal(scoreboard, p.id),
   });
 
@@ -129,7 +135,7 @@ export function GamePage() {
         visible={phase === 'BIDDING' && isMyTurn}
         title={`Round ${round} · How many tricks will you win?`}
       >
-        <BidPanel round={round!} turnKey={turnKey} durationMs={turnTimeoutMs} />
+        <BidPanel round={round!} remainingMs={turnRemainingMs} fullMs={turnTimeoutMs} startKey={timerKey} running={timerRunning} />
       </Popup>
 
       {/* Trump-select popup — shown when it's MY turn to pick the round's trump */}
@@ -137,7 +143,7 @@ export function GamePage() {
         visible={phase === 'TRUMP_SELECT' && isMyTurn}
         title="Choose this round's trump"
       >
-        <TrumpPicker turnKey={turnKey} durationMs={turnTimeoutMs} />
+        <TrumpPicker remainingMs={turnRemainingMs} fullMs={turnTimeoutMs} startKey={timerKey} running={timerRunning} />
       </Popup>
 
       <div className="game-area">
@@ -168,8 +174,10 @@ export function GamePage() {
               tricksWon={myWon}
               isActive={isMyTurn}
               phase={phase}
-              turnKey={turnKey}
-              durationMs={turnTimeoutMs}
+              remainingMs={turnRemainingMs}
+              fullMs={turnTimeoutMs}
+              startKey={timerKey}
+              running={timerRunning}
               totalScore={getTotal(scoreboard, playerId)}
               isMe
             />
