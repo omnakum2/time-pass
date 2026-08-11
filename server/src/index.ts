@@ -155,6 +155,7 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       wsContext.set(ws, { playerId: seat.player.id, roomId });
       sendMessage(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
       room.sendState(ws, seat.player.id);
+      room.resendPhaseExtras(ws); // re-send GAME_OVER / ROUND_SCORING payloads a returning player missed
       room.broadcastState();
       break;
     }

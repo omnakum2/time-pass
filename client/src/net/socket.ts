@@ -23,6 +23,13 @@ export function sendMsg(msg: ClientMessage): void {
   }
 }
 
+// Ask the server to restore our seat. Used by the auto-reconnect on connect AND by the
+// "Join" screen when the user already holds a seat in the target room (e.g. tab closed).
+export function reconnectSession(roomId: string, token: string): void {
+  reconnecting = true;
+  sendMsg({ type: 'reconnect', roomId, token });
+}
+
 export function connect(): void {
   if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
   manualClose = false;
@@ -39,10 +46,7 @@ export function connect(): void {
 
     // Try to reconnect to existing session
     const session = storage.getSession();
-    if (session) {
-      reconnecting = true;
-      sendMsg({ type: 'reconnect', roomId: session.roomId, token: session.token });
-    }
+    if (session) reconnectSession(session.roomId, session.token);
   };
 
   sock.onmessage = (ev) => {
@@ -105,6 +109,7 @@ function dispatch(msg: ServerMessage): void {
       if (reconnecting && (msg.code === 'ROOM_NOT_FOUND' || msg.code === 'INVALID_TOKEN')) {
         reconnecting = false;
         storage.clearSession();
+        store.setReconnectFailed(true); // signal the UI to route to the join prompt / show "expired"
         break;
       }
       store.setError(msg.code, msg.message);

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { NAME_MIN_LEN, NAME_MAX_LEN, GAME_MODES, GameMode } from 'shared';
-import { sendMsg } from '../net/socket';
+import { sendMsg, reconnectSession } from '../net/socket';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
 import { Button } from '../components/Button';
@@ -16,7 +16,8 @@ export function HomePage() {
   const [gameMode, setGameMode] = useState<GameMode>('classic');
   const [pendingHost, setPendingHost] = useState('');
   const [pending, setPending] = useState<'create' | 'join' | null>(null);
-  const { connected, roomId, gameState } = useGameStore();
+  const { connected, roomId, gameState, reconnectFailed } = useGameStore();
+  const rejoinAttempt = useRef(false);
   const navigate = useNavigate();
 
   // If we arrived here via an invite link (redirected from the lobby), pick up
@@ -64,7 +65,15 @@ export function HomePage() {
     const n = saveName();
     const code = roomCode.trim().toUpperCase();
     if (!n || !code) return;
-    sendMsg({ type: 'joinRoom', roomId: code, name: n });
+    const session = storage.getSession();
+    if (session && session.roomId.toUpperCase() === code) {
+      // We already hold a seat in this room (e.g. the tab was closed) → restore it rather
+      // than joining as a newcomer, which a running game would reject with GAME_STARTED.
+      rejoinAttempt.current = true;
+      reconnectSession(session.roomId, session.token);
+    } else {
+      sendMsg({ type: 'joinRoom', roomId: code, name: n });
+    }
     const unsub = useGameStore.subscribe((s) => {
       if (s.roomId) {
         navigate(`/room/${s.roomId}`);
@@ -96,6 +105,18 @@ export function HomePage() {
     else fireJoin();
     setPending(null);
   }, [connected, pending, fireCreate, fireJoin]);
+
+  // A rejoin that failed (room gone) — surface it instead of leaving the button spinning.
+  // Silent for a plain auto-reconnect miss on load (no rejoin was attempted here).
+  useEffect(() => {
+    if (!reconnectFailed) return;
+    if (rejoinAttempt.current) {
+      rejoinAttempt.current = false;
+      setPending(null);
+      useGameStore.getState().setError('ROOM_NOT_FOUND', 'That room is no longer available.');
+    }
+    useGameStore.getState().setReconnectFailed(false);
+  }, [reconnectFailed]);
 
   return (
     <div className="page">

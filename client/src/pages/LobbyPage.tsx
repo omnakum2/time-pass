@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
+import { storage } from '../storage';
 import { Surface } from '../components/Surface';
 import { Icon } from '../components/Icon';
 import { GAME_MODES } from 'shared';
 
 export function LobbyPage() {
   const { roomId: urlRoomId } = useParams<{ roomId: string }>();
-  const { gameState, playerId, roomId, connected } = useGameStore();
+  const { gameState, playerId, roomId, connected, reconnectFailed } = useGameStore();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
@@ -15,15 +16,18 @@ export function LobbyPage() {
   // If someone navigates directly to /room/:id without being in a room,
   // show a join prompt via the home page logic
   useEffect(() => {
-    if (!roomId && urlRoomId && connected) {
-      // No session: redirect to home with the room code (and host) pre-filled.
-      // We store the intent in sessionStorage.
-      const host = new URLSearchParams(window.location.search).get('host');
-      sessionStorage.setItem('pendingRoomId', urlRoomId); // always prefill the room code
-      if (host) sessionStorage.setItem('pendingHost', host);
-      navigate('/', { replace: true });
-    }
-  }, [roomId, urlRoomId, connected, navigate]);
+    if (roomId || !urlRoomId || !connected) return;
+    // If we already hold a session for THIS room, an auto-reconnect is in flight — wait
+    // for it instead of bouncing to the join prompt (unless that reconnect just failed).
+    const session = storage.getSession();
+    const mineForThisRoom = session?.roomId?.toUpperCase() === urlRoomId.toUpperCase();
+    if (mineForThisRoom && !reconnectFailed) return;
+    // Genuine newcomer (or the reconnect failed): go home with the code (and host) pre-filled.
+    const host = new URLSearchParams(window.location.search).get('host');
+    sessionStorage.setItem('pendingRoomId', urlRoomId);
+    if (host) sessionStorage.setItem('pendingHost', host);
+    navigate('/', { replace: true });
+  }, [roomId, urlRoomId, connected, reconnectFailed, navigate]);
 
   // Locally tick down the countdown coming from the server.
   const countdownMs = gameState?.countdownMs ?? null;
@@ -43,9 +47,11 @@ export function LobbyPage() {
   }, [countdownMs]);
 
   if (!gameState || !playerId) {
+    const s = storage.getSession();
+    const reconnectingHere = !reconnectFailed && s?.roomId?.toUpperCase() === urlRoomId?.toUpperCase();
     return (
       <div className="page">
-        <p>Joining room…</p>
+        <p>{reconnectingHere ? 'Reconnecting…' : 'Joining room…'}</p>
       </div>
     );
   }

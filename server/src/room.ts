@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import {
   Card, GameMode, GamePhase, GameState, Player, RoundScore,
-  Suit, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, ErrorCode, QUICK_MESSAGES,
+  Suit, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, MsgGameOver, ErrorCode, QUICK_MESSAGES,
   roundsForMode, deal, pickTrump, firstBidderSeat,
   legalMoves, trickWinner, scoreRound, latestTotal, ROUNDS, SUITS, RANK_ORDER
 } from 'shared';
@@ -54,6 +54,8 @@ export class Room {
   private gameOverExpiresAt: number | null = null;
   private countdownTimer: ReturnType<typeof setTimeout> | null = null;
   private countdownEndsAt: number | null = null;
+  private lastGameOver: MsgGameOver | null = null;       // re-sent if a player reconnects during GAME_OVER
+  private lastRoundResult: MsgRoundResult | null = null;  // re-sent if a player reconnects during ROUND_SCORING
 
   // Called when the room should be destroyed
   onDestroy: (() => void) | null = null;
@@ -487,6 +489,7 @@ export class Room {
 
     // Broadcast round result
     const msg: MsgRoundResult = { type: 'roundResult', round: roundNum, perPlayer };
+    this.lastRoundResult = msg;
     this.broadcast(msg);
     this.broadcastState();
 
@@ -518,7 +521,8 @@ export class Room {
 
   private finishGame(winners: string[], finalScores: Record<string, number>, playerNames: Record<string, string>): void {
     this.phase = 'GAME_OVER';
-    this.broadcast({ type: 'gameOver', winners, finalScores, playerNames });
+    this.lastGameOver = { type: 'gameOver', winners, finalScores, playerNames };
+    this.broadcast(this.lastGameOver);
     this.broadcastState();
     this.startGameOverTimer();
   }
@@ -676,6 +680,17 @@ export class Room {
   sendState(ws: WebSocket, playerId: string): void {
     const state = this.buildState(playerId);
     sendMessage(ws, { type: 'state', state });
+  }
+
+  // On reconnect, re-send the one-shot messages the client needs for the current phase.
+  // They were broadcast once, so a returning player would otherwise miss them and land on
+  // the wrong screen (e.g. GAME_OVER state with no winner payload → blank game view).
+  resendPhaseExtras(ws: WebSocket): void {
+    if (this.phase === 'GAME_OVER') {
+      if (this.lastGameOver) sendMessage(ws, this.lastGameOver);
+    } else if (this.phase === 'ROUND_SCORING') {
+      if (this.lastRoundResult) sendMessage(ws, this.lastRoundResult);
+    }
   }
 
   // ─── Quick chat messages ──────────────────────────────────────────────────

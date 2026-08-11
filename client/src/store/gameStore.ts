@@ -12,10 +12,12 @@ interface GameStore {
   gameOver: MsgGameOver | null;
   error: ErrorState | null;
   roomClosed: boolean;
+  reconnectFailed: boolean; // last session-reconnect attempt failed (room gone / bad token)
   activeBubbles: Record<string, { text: string; key: number }>; // playerId → quick-chat bubble
 
   setConnected: (v: boolean) => void;
   setRoomClosed: (v: boolean) => void;
+  setReconnectFailed: (v: boolean) => void;
   setSession: (playerId: string, roomId: string) => void;
   setState: (s: GameState) => void;
   setRoundResult: (r: MsgRoundResult) => void;
@@ -38,11 +40,13 @@ export const useGameStore = create<GameStore>((set) => ({
   gameOver: null,
   error: null,
   roomClosed: false,
+  reconnectFailed: false,
   activeBubbles: {},
 
   setConnected: (connected) => set({ connected }),
   setRoomClosed: (roomClosed) => set({ roomClosed }),
-  setSession: (playerId, roomId) => set({ playerId, roomId }),
+  setReconnectFailed: (reconnectFailed) => set({ reconnectFailed }),
+  setSession: (playerId, roomId) => set({ playerId, roomId, reconnectFailed: false }),
   setState: (gameState) => set((s) => ({ gameState, gameOver: gameState.phase === 'GAME_OVER' ? s.gameOver : null })),
   setRoundResult: (lastRoundResult) => set({ lastRoundResult }),
   setGameOver: (gameOver) => set({ gameOver }),
@@ -61,6 +65,6 @@ export const useGameStore = create<GameStore>((set) => ({
   reset: () => set({
     playerId: null, roomId: null, gameState: null,
     lastRoundResult: null, gameOver: null, error: null, roomClosed: false,
-    activeBubbles: {},
+    reconnectFailed: false, activeBubbles: {},
   }),
 }));
