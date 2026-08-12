@@ -146,15 +146,15 @@ const SECTIONS: Record<Lang, Section[]> = {
           </ul>
           <p>Revolving Trump specials:</p>
           <ul>
-            <li><strong>High Card</strong> · no trump; the highest card played wins, any suit.</li>
-            <li><strong>Low Card</strong> · no trump; the lowest card played wins, any suit.</li>
+            <li><strong>Low Card</strong> · no trump; the <em>lowest</em> card of the led suit wins.</li>
             <li><strong>AK47</strong> · every Ace, King, 4 and 7 (all suits) is a trump.</li>
             <li><strong>One Trump</strong> · one random rank, chosen at the round's start, is trump in all four suits.</li>
             <li><strong>King-Queen</strong> · every King and Queen (all suits) is a trump.</li>
           </ul>
           <p>
             In every mode you still must follow the led suit. Among trumps the natural rank
-            order applies (Ace high), and if two trumps tie on rank the card played first wins.
+            order applies (Ace high); if two trumps tie on rank, the trump in the led suit wins,
+            otherwise the card played first wins.
           </p>
         </>
       ),
@@ -313,16 +313,15 @@ const SECTIONS: Record<Lang, Section[]> = {
           </ul>
           <p>Revolving Trump na special:</p>
           <ul>
-            <li><strong>High Card</strong> · koi Sar nahi; sauthi motu pattu jite, gme te color.</li>
-            <li><strong>Low Card</strong> · koi Sar nahi; sauthi nanu pattu jite, gme te color.</li>
+            <li><strong>Low Card</strong> · koi Sar nahi; chaal thayeli color (jo pehli chali) na patta ma sauthi <em>nanu</em> pattu jite.</li>
             <li><strong>AK47</strong> · dareky Ace, King, 4 ane 7 (badhi color) Sar che.</li>
             <li><strong>One Trump</strong> · ek kram vagar ni rank, round ni shruaat ma pasand thay, te charey color ma Sar bane che.</li>
             <li><strong>King-Queen</strong> · dareky King ane Queen (badhi color) Sar che.</li>
           </ul>
           <p>
             Dareky mode ma tame chaal thayeli color follow karvi j pade. Sar vachche natural
-            rank kram lage che (Ace sauthi motu), ane be Sar ni rank sarkhi hoy to pehlu
-            chalayel pattu jite.
+            rank kram lage che (Ace sauthi motu); be Sar ni rank sarkhi hoy to chaal thayeli
+            color no Sar jite, nahi to pehlu chalayel pattu jite.
           </p>
         </>
       ),

@@ -1,12 +1,13 @@
 import { ClientMessage, ServerMessage } from 'shared';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
+import { WS_DEFAULT_PORT, RECONNECT_BASE_MS, RECONNECT_MAX_MS, RECONNECT_EXP_CAP } from '../constants';
 
 // Environment-specific WS endpoint, from Vite's import.meta.env (see
 // .env.example). VITE_WS_URL wins when set; otherwise build
 // ws(s)://<page-host>:<VITE_WS_PORT> (protocol matches the page).
 const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-const WS_PORT = import.meta.env.VITE_WS_PORT || '3000';
+const WS_PORT = import.meta.env.VITE_WS_PORT || WS_DEFAULT_PORT;
 const WS_URL = import.meta.env.VITE_WS_URL || `${wsProto}://${window.location.hostname}:${WS_PORT}`;
 
 let ws: WebSocket | null = null;
@@ -65,7 +66,7 @@ export function connect(): void {
     // cold/slept backend and transient drops self-heal silently.
     if (!manualClose) {
       reconnectAttempts++;
-      const delay = Math.min(1000 * 2 ** Math.min(reconnectAttempts, 4), 10_000);
+      const delay = Math.min(RECONNECT_BASE_MS * 2 ** Math.min(reconnectAttempts, RECONNECT_EXP_CAP), RECONNECT_MAX_MS);
       setTimeout(() => connect(), delay);
     }
   };

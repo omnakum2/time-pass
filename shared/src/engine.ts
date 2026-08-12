@@ -1,5 +1,5 @@
 import { Card, Rank, Suit, TrickCard, RoundScore, GameMode, TrumpConfig } from './types';
-import { RANK_ORDER, SUITS, START_ROUND } from './constants';
+import { RANK_ORDER, SUITS } from './constants';
 
 // ─── Rank ordering (higher index = higher rank) ──────────────────────────────
 
@@ -69,11 +69,15 @@ export function pickTrump(prev: Suit | null | undefined): Suit | null {
 // ─── Bidding order ───────────────────────────────────────────────────────────
 
 /**
- * Returns the seat index of the first bidder for a given round.
- * Round 7 → seat 0, Round 6 → seat 1, etc. (wraps with playerCount)
+ * Returns the seat index of the first bidder for a given round, keyed off the
+ * round's 0-based sequence index (index 0 → seat 0, index 1 → seat 1, …; wraps
+ * with playerCount). Using the sequence index makes the opening bid advance
+ * exactly one seat per round in every game mode.
+ * For Classic/Blind/Revolving-Trump (rounds run 7→1) `roundIndex === 7 - round`,
+ * so this matches the old behaviour; only Up & Down changes.
  */
-export function firstBidderSeat(round: number, playerCount: number): number {
-  return (START_ROUND - round) % playerCount;
+export function firstBidderSeat(roundIndex: number, playerCount: number): number {
+  return roundIndex % playerCount;
 }
 
 // ─── Legal moves ─────────────────────────────────────────────────────────────
@@ -100,7 +104,7 @@ function isTrumpCard(card: Card, cfg: TrumpConfig): boolean {
     case 'ak47':      return AK47_RANKS.includes(card.rank);
     case 'kingQueen': return KQ_RANKS.includes(card.rank);
     case 'oneTrump':  return card.rank === cfg.rank;
-    default:          return false; // noTrump, highCard, lowCard have no trump cards
+    default:          return false; // noTrump, lowCard have no trump cards
   }
 }
 
@@ -113,20 +117,33 @@ function lowestOf(cards: TrickCard[]): TrickCard {
   return cards.reduce((best, tc) => rankValue(tc.card.rank) < rankValue(best.card.rank) ? tc : best);
 }
 
+// Winner among the trump cards. Highest rank wins (natural order — e.g. AK47 is
+// A>K>7>4). If several trumps share that top rank (suit is ignored for trump
+// status, so ties happen — e.g. two Aces, or every card in One Trump), the one
+// matching the led suit wins; otherwise the earliest-played (ties keep first).
+function winningTrump(trumps: TrickCard[], leadSuit: Suit): TrickCard {
+  const top = Math.max(...trumps.map(tc => rankValue(tc.card.rank)));
+  const tied = trumps.filter(tc => rankValue(tc.card.rank) === top);
+  if (tied.length === 1) return tied[0];
+  return tied.find(tc => tc.card.suit === leadSuit) ?? tied[0];
+}
+
 /**
  * Determines the winning TrickCard, generalized over all Revolving-Trump options.
- *  - If any trump cards were played → highest trump (first-played wins ties).
- *  - highCard → highest card overall (any suit); lowCard → lowest overall.
- *  - Otherwise (suit with no trump played, or noTrump) → highest of the led suit.
+ *  - If any trump cards were played → highest-ranked trump; on a same-rank tie the
+ *    trump matching the led suit wins, else the card played first.
+ *  - Otherwise only the led suit is eligible → Low Card = lowest of the led suit,
+ *    No Trump / everything else = highest of the led suit.
  * Follow-suit legality is unchanged (see legalMoves).
  */
 export function trickWinner(trick: TrickCard[], leadSuit: Suit, cfg: TrumpConfig): TrickCard {
   const trumps = trick.filter(tc => isTrumpCard(tc.card, cfg));
-  if (trumps.length > 0) return highestOf(trumps);
-  if (cfg.kind === 'highCard') return highestOf(trick);
-  if (cfg.kind === 'lowCard')  return lowestOf(trick);
+  if (trumps.length > 0) return winningTrump(trumps, leadSuit);
+  // No trump played: only the led suit is eligible (a void player's off-suit card
+  // can't win). Low Card takes the lowest of the led suit; everything else the highest.
   const led = trick.filter(tc => tc.card.suit === leadSuit);
-  return highestOf(led.length ? led : trick);
+  const eligible = led.length ? led : trick;
+  return cfg.kind === 'lowCard' ? lowestOf(eligible) : highestOf(eligible);
 }
 
 // ─── Scoring ─────────────────────────────────────────────────────────────────

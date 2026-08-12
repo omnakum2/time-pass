@@ -4,6 +4,7 @@ import { NAME_MIN_LEN, NAME_MAX_LEN, GAME_MODES, GameMode } from 'shared';
 import { sendMsg, reconnectSession } from '../net/socket';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
+import { STORAGE_KEYS } from '../constants';
 import { Button } from '../components/Button';
 import { Field } from '../components/Field';
 import { Surface } from '../components/Surface';
@@ -23,14 +24,14 @@ export function HomePage() {
   // If we arrived here via an invite link (redirected from the lobby), pick up
   // the pending room id + host name and drop straight into the join view.
   useEffect(() => {
-    const pendingRoomId = sessionStorage.getItem('pendingRoomId');
-    const host = sessionStorage.getItem('pendingHost');
+    const pendingRoomId = sessionStorage.getItem(STORAGE_KEYS.pendingRoomId);
+    const host = sessionStorage.getItem(STORAGE_KEYS.pendingHost);
     if (pendingRoomId) {
       setMode('join');
       setRoomCode(pendingRoomId.toUpperCase());
       setPendingHost(host ?? '');
-      sessionStorage.removeItem('pendingRoomId');
-      sessionStorage.removeItem('pendingHost');
+      sessionStorage.removeItem(STORAGE_KEYS.pendingRoomId);
+      sessionStorage.removeItem(STORAGE_KEYS.pendingHost);
     }
   }, []);
 

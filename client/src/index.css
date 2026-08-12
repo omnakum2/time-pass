@@ -14,7 +14,7 @@
   /* Dark-wine cards */
   --card-1: #4A1F2B;
   --card-2: #2E1720;
-  --gold-border: rgba(233,184,74,0.38);
+  --gold-border: rgba(var(--gold-rgb),0.38);
 
   /* Text */
   --cream:       #F3ECDD;
@@ -24,9 +24,9 @@
 
   /* Accents */
   --gold:      #E9B84A;
+  --gold-rgb:  233, 184, 74; /* --gold as R,G,B for rgba() gold tints */
   --gold-deep: #C08A2E;
   --hud-brown: #A9701C;
-  --red:       #C0392B;
 
   /* Semantic status — one set used everywhere (deltas, timer ring, urgency) */
   --success: #5FD07A;
@@ -53,7 +53,7 @@ body {
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--card-2); }
 ::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(233,184,74,0.8); }
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--gold-rgb),0.8); }
 
 /* ─── App shell (header + main) ───────────────────────────────────────────── */
 .app-shell { display: flex; flex-direction: column; min-height: 100dvh; }
@@ -84,7 +84,7 @@ body {
   transition: background 0.15s, color 0.15s;
   text-decoration: none;
 }
-.app-header__link:hover { background: rgba(233,184,74,0.14); color: var(--gold); }
+.app-header__link:hover { background: rgba(var(--gold-rgb),0.14); color: var(--gold); }
 
 /* ─── Utility ─────────────────────────────────────────────────────────────── */
 .flex-center { display: flex; align-items: center; justify-content: center; }
@@ -128,7 +128,7 @@ body {
 .card--back {
   background: repeating-linear-gradient(45deg, #5a2734 0 8px, #3a1d28 8px 16px);
   border: 1px solid var(--gold-border);
-  box-shadow: inset 0 0 0 3px rgba(233,184,74,0.14), 0 2px 8px rgba(0,0,0,0.45);
+  box-shadow: inset 0 0 0 3px rgba(var(--gold-rgb),0.14), 0 2px 8px rgba(0,0,0,0.45);
   pointer-events: none;
 }
 
@@ -191,8 +191,8 @@ body {
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.input:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(233,184,74,0.25); }
-.input::placeholder { color: rgba(233,184,74,0.45); }
+.input:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(var(--gold-rgb),0.25); }
+.input::placeholder { color: rgba(var(--gold-rgb),0.45); }
 
 /* ─── Game-mode picker (Create screen) ────────────────────────────────────── */
 .mode-picker { display: flex; flex-direction: column; gap: 8px; }
@@ -228,7 +228,7 @@ body {
   line-height: 1;
   text-align: center;
   color: var(--gold);
-  text-shadow: 0 4px 0 rgba(0,0,0,0.45), 0 0 34px rgba(233,184,74,0.4);
+  text-shadow: 0 4px 0 rgba(0,0,0,0.45), 0 0 34px rgba(var(--gold-rgb),0.4);
 }
 /* Compact variant for the Create/Join cards — keeps the title on one line */
 .brand-title--card {
@@ -242,7 +242,7 @@ body {
 /* ─── Homepage SEO blurb ──────────────────────────────────────────────────── */
 .home-seo { max-width: 540px; margin: 20px auto 0; text-align: center; color: var(--cream-muted); font-size: 0.95rem; line-height: 1.65; }
 .home-seo__link { color: var(--gold); font-weight: 700; text-decoration: none; }
-.guide-home-cta { margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(233,184,74,0.18); line-height: 1.7; color: var(--cream); }
+.guide-home-cta { margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(var(--gold-rgb),0.18); line-height: 1.7; color: var(--cream); }
 .home-seo__link:hover { color: #f0c96a; }
 
 /* ─── Icon button (copy) ──────────────────────────────────────────────────── */
@@ -256,18 +256,42 @@ body {
   cursor: pointer;
   transition: background 0.15s, color 0.15s, transform 0.1s;
 }
-.icon-btn:hover  { background: rgba(233,184,74,0.18); color: var(--gold); }
+.icon-btn:hover  { background: rgba(var(--gold-rgb),0.18); color: var(--gold); }
 .icon-btn:active { transform: scale(0.92); }
 
 /* ─── Error toast (status colors) ─────────────────────────────────────────── */
 .error-toast {
   position: fixed; bottom: 24px; left: 50%;
   transform: translateX(-50%) translateY(20px);
-  background: #c0392b; color: #fff; padding: 12px 24px; border-radius: 12px;
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(var(--card-1), var(--card-2));
+  color: var(--text);
+  border: 1px solid var(--gold-border);
+  border-left: 3px solid var(--danger); /* danger accent — still reads as an error, on-theme */
+  padding: 12px 14px 12px 18px; border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
   font-weight: 600; opacity: 0; pointer-events: none;
-  transition: opacity 0.3s, transform 0.3s; z-index: 1000; max-width: 90vw; text-align: center;
+  transition: opacity 0.3s, transform 0.3s; z-index: 1000; max-width: 90vw; text-align: left;
 }
 .error-toast--visible { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+.error-toast__msg { flex: 1; }
+.error-toast__close {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0;
+  background: none; border: none; cursor: pointer; border-radius: 6px;
+  color: var(--cream-muted);
+  transition: color 0.15s, background 0.15s;
+}
+.error-toast__close:hover { color: var(--gold); background: rgba(var(--gold-rgb), 0.14); }
+
+/* Gold pill for the lobby's game-mode label */
+.mode-badge {
+  display: inline-flex; align-items: center;
+  padding: 4px 12px; border-radius: 20px;
+  background: rgba(var(--gold-rgb), 0.14); color: var(--gold);
+  border: 1px solid var(--gold-border);
+  font-weight: 700; font-size: 0.8rem;
+}
 
 /* ─── Guide page + in-game overlay ────────────────────────────────────────── */
 .guide-page {
@@ -307,7 +331,7 @@ body {
 .guide-section:last-child { margin-bottom: 0; }
 .guide-section h2 {
   color: var(--gold); font-size: 1.32rem; margin-bottom: 10px;
-  padding-bottom: 6px; border-bottom: 1px solid rgba(233,184,74,0.18);
+  padding-bottom: 6px; border-bottom: 1px solid rgba(var(--gold-rgb),0.18);
 }
 .guide-section p  { line-height: 1.72; margin-bottom: 10px; }
 .guide-section ul, .guide-section ol { margin: 8px 0 12px 24px; line-height: 1.72; }
@@ -361,7 +385,7 @@ body {
   min-height: 32px; box-sizing: border-box;
   background: rgba(0,0,0,0.4);
   color: var(--gold);
-  border: 1px solid rgba(233,184,74,0.55);
+  border: 1px solid rgba(var(--gold-rgb),0.55);
   border-radius: 22px;
   padding: 5px 16px;
   font-weight: 800; font-size: 1rem;
@@ -375,7 +399,7 @@ body {
   min-height: 32px; box-sizing: border-box;
   background: rgba(0,0,0,0.4);
   color: var(--cream);
-  border: 1px solid rgba(233,184,74,0.4);
+  border: 1px solid rgba(var(--gold-rgb),0.4);
   border-radius: 22px;
   padding: 5px 14px;
   font-weight: 700; font-size: 0.9rem;
@@ -390,10 +414,10 @@ body {
   width: 16px; height: 16px; border-radius: 50%; padding: 0; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 0.7rem; font-weight: 800; font-style: italic; line-height: 1;
-  background: rgba(233,184,74,0.16); color: var(--gold);
+  background: rgba(var(--gold-rgb),0.16); color: var(--gold);
   border: 1px solid var(--gold-border);
 }
-.info-tip__btn:hover { background: rgba(233,184,74,0.28); }
+.info-tip__btn:hover { background: rgba(var(--gold-rgb),0.28); }
 /* Opens DOWNWARD (into the felt) — the chip sits at the felt's top edge and the
    felt clips overflow, so an upward bubble was hidden behind the top rail. It's
    absolutely positioned, so it overlays the trick cards without shifting them. */
@@ -426,7 +450,7 @@ body {
   text-align: center; white-space: nowrap;
   text-shadow: 0 1px 3px rgba(0,0,0,0.55);
 }
-@keyframes statusTick { 0%, 49.9% { color: var(--danger); } 50%, 100% { color: #fff; } }
+@keyframes statusTick { 0%, 49.9% { color: var(--danger); } 50%, 100% { color: var(--text); } }
 .trick-status--urgent { animation: statusTick 2s steps(1) infinite; text-shadow: 0 1px 4px rgba(0,0,0,0.65); }
 
 /* ─── Player chip (dark-wine card) ────────────────────────────────────────── */
@@ -505,24 +529,32 @@ body {
 .scoreboard-overlay__note {
   color: rgba(243,236,221,0.45); font-size: 0.75rem; margin-bottom: 14px;
 }
-.scoreboard-scroll { overflow: auto; flex: 1; }
+.scoreboard-scroll { overflow: auto; flex: 1; width: 100%; } /* fill the card/modal width, not shrink to content */
 
 .scoreboard {
   width: 100%; border-collapse: collapse;
-  font-size: clamp(12px, 1.8vw, 14px); white-space: nowrap;
+  font-size: clamp(12px, 1.8vw, 14px);
   color: var(--cream);
 }
+/* Clean row-based look: horizontal rules only, generous padding so long names
+   never crowd the score. Center-aligned by default (Scorecard + Round Over). */
 .scoreboard th, .scoreboard td {
-  border: 1px solid rgba(255,255,255,0.08);
-  padding: 7px 14px; text-align: center;
+  padding: 10px 14px; text-align: center;
+  border-bottom: 1px solid var(--gold-border);
 }
 .scoreboard th {
-  background: rgba(0,0,0,0.28); font-weight: 700;
-  font-size: 0.85rem;
-  color: var(--cream);
+  font-weight: 700; font-size: 0.85rem;
+  color: var(--cream-muted);
+  border-bottom: 1px solid rgba(255,255,255,0.14); /* subtle, not gold — keeps the gold line off the Rank-1 row's top */
 }
+/* 2-column standings (Winner): player names left, scores right. */
+.scoreboard--lr th:first-child, .scoreboard--lr td:first-child { text-align: left; }
+.scoreboard--lr th:last-child,  .scoreboard--lr td:last-child  { text-align: right; }
+/* Total-score emphasis — shared by every table's total (row or column). */
+.scoreboard .total-cell { font-weight: 800; color: var(--gold); }
 /* Matrix-only chrome: sticky round-label column + highlighted Total row.
    Scoped so the plain Winner standings list (no `--matrix`) doesn't inherit it. */
+.scoreboard--matrix { white-space: nowrap; } /* wide matrix scrolls horizontally rather than wrapping */
 .scoreboard--matrix th:first-child, .scoreboard--matrix td:first-child {
   position: sticky; left: 0;
   background: #2E171E; z-index: 2;
@@ -533,11 +565,11 @@ body {
 .scoreboard--matrix tbody tr:not(:last-child):hover td:first-child { background: rgba(15,6,10,0.55); }
 .scoreboard--matrix tr:last-child td {
   font-weight: 800; font-size: 1.05em;
-  background: rgba(233,184,74,0.1);
-  border-top: 1px solid rgba(233,184,74,0.3);
+  background: rgba(var(--gold-rgb),0.1);
+  border-top: 1px solid rgba(var(--gold-rgb),0.3);
   color: var(--gold);
 }
-.scoreboard--matrix tr:last-child td:first-child { background: rgba(233,184,74,0.16); }
+.scoreboard--matrix tr:last-child td:first-child { background: rgba(var(--gold-rgb),0.16); }
 .delta--pos { color: var(--success); font-weight: 600; }
 .delta--neg { color: var(--danger); font-weight: 600; }
 
@@ -585,7 +617,7 @@ body {
   box-shadow:
     inset 0 0 72px rgba(0,0,0,0.28),           /* softer felt vignette */
     inset 0 2px 8px rgba(0,0,0,0.26),          /* gentle shade under the rail */
-    inset 0 0 0 3px rgba(233,184,74,0.18);      /* faint gold inner line */
+    inset 0 0 0 3px rgba(var(--gold-rgb),0.18);      /* faint gold inner line */
   color: #e8f1ea;
   overflow: hidden;
 }
@@ -644,7 +676,7 @@ body {
   color: var(--gold); font-weight: 700; font-size: 0.9rem;
   text-align: left; padding: 8px 12px; border-radius: 8px; white-space: nowrap;
 }
-.quick-messages__item:hover { background: rgba(233,184,74,0.14); }
+.quick-messages__item:hover { background: rgba(var(--gold-rgb),0.14); }
 
 /* Speech bubble above a player's chip */
 .chat-bubble {
@@ -724,7 +756,7 @@ body {
   padding: 32px 40px; text-align: center;
   max-width: 500px; width: 100%;
   display: flex; flex-direction: column; align-items: center; gap: 20px;
-  box-shadow: 0 22px 60px rgba(0,0,0,0.6), 0 0 44px rgba(233,184,74,0.14);
+  box-shadow: 0 22px 60px rgba(0,0,0,0.6), 0 0 44px rgba(var(--gold-rgb),0.14);
   position: relative; z-index: 1;
 }
 .guide-content { padding: 26px 32px; box-shadow: 0 16px 44px rgba(0,0,0,0.4); }
@@ -741,8 +773,9 @@ body {
 .card-title--sm { font-size: 1.1rem; }
 .tag-faint { opacity: 0.5; font-size: 0.75rem; }
 .hint { opacity: 0.7; font-size: 0.9rem; }
-.row-between { display: flex; align-items: center; justify-content: space-between; }
-.row-highlight { background: rgba(212,175,55,0.12); }
+.row-highlight { background: rgba(var(--gold-rgb), 0.12); } /* Rank-1 / winner row */
+.row-highlight td { border-bottom: 1px solid var(--gold-border); } /* gold accent on the BOTTOM only */
+.row-highlight td:first-child { font-weight: 700; }
 .cell-me { font-weight: 700; }
 
 .modal-overlay {
@@ -768,11 +801,11 @@ body {
   border: 1px solid var(--gold-border); background: rgba(0,0,0,0.35);
   color: var(--gold); cursor: pointer;
 }
-.modal-close:hover { background: rgba(233,184,74,0.15); }
+.modal-close:hover { background: rgba(var(--gold-rgb),0.15); }
 .modal-title {
   margin: 0; text-align: center;
   color: var(--gold); font-size: 1.15rem; font-weight: 800;
-  letter-spacing: 0.5px; text-shadow: 0 0 18px rgba(233,184,74,0.3);
+  letter-spacing: 0.5px; text-shadow: 0 0 18px rgba(var(--gold-rgb),0.3);
 }
 
 /* ─── Responsive ──────────────────────────────────────────────────────────── */

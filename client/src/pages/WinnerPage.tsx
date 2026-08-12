@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
@@ -7,7 +7,8 @@ import { StandingsTable } from '../components/StandingsTable';
 import { Delta } from '../components/Delta';
 import { Button } from '../components/Button';
 import { Surface } from '../components/Surface';
-import { STATUS_COLORS } from '../lib/helpers';
+import { STORAGE_KEYS, CONFETTI_COLORS } from '../constants';
+import { useSecondsRemaining } from '../hooks/useSecondsRemaining';
 
 export function WinnerPage() {
   const { gameOver, playerId, gameState, reset, roomClosed } = useGameStore();
@@ -15,49 +16,55 @@ export function WinnerPage() {
 
   const isHost = gameState?.hostId === playerId;
 
+  // Track the first real host we ever see on this screen. If the host leaves a
+  // finished game, the server promotes another player and broadcasts a new
+  // hostId — we compare against this to detect that mid-screen change.
+  const currentHostId = gameState?.hostId;
+  const initialHostIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (initialHostIdRef.current == null && currentHostId) {
+      initialHostIdRef.current = currentHostId;
+    }
+  }, [currentHostId]);
+  const initialHostId = initialHostIdRef.current;
+  const hostChanged = initialHostId != null && currentHostId !== initialHostId;
+
   const hasWinners = gameOver && gameOver.winners.length > 0;
 
-  // Host-only expiry countdown. Seeded from the server-broadcast value and
-  // ticked locally each second for display.
-  const [secsLeft, setSecsLeft] = useState<number | null>(null);
+  // Host-only expiry countdown — seeded from the server-broadcast value and ticked
+  // down locally each second for display. Hidden once the room has actually closed.
+  const secsLeft = useSecondsRemaining(roomClosed ? null : (gameState?.roomExpiresInMs ?? null));
 
-  useEffect(() => {
-    const expiresInMs = gameState?.roomExpiresInMs;
-    if (roomClosed || expiresInMs == null) {
-      setSecsLeft(null);
-      return;
-    }
-
-    setSecsLeft(Math.ceil(expiresInMs / 1000));
-    const interval = setInterval(() => {
-      setSecsLeft(prev => (prev == null ? prev : Math.max(0, prev - 1)));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [gameState?.roomExpiresInMs, roomClosed]);
-
+  // Winner celebration — an energetic, two-burst confetti pop for EVERYONE at game
+  // over (win or lose). Skipped for viewers who prefer reduced motion.
   useEffect(() => {
     if (!hasWinners) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-    // Party-popper: one blast from each top corner, then natural gravity fall.
-    // Both sides use the exact same color mix — no left/right color separation.
     import('canvas-confetti').then(({ default: confetti }) => {
-      const colors = ['#E9B84A', STATUS_COLORS.success, STATUS_COLORS.danger, '#FBF6E9'];
-      const common = { particleCount: 140, spread: 55, startVelocity: 60, gravity: 1, scalar: 1.1, ticks: 220, colors };
-      // Top
-      confetti({ ...common, angle: 270, spread: 60, startVelocity: 32, origin: { x: 0.2, y: 0 } });  // top-left edge, falling
-      confetti({ ...common, angle: 270, spread: 60, startVelocity: 32, origin: { x: 0.8, y: 0 } });  // top-right edge, falling
+      // Mixed shapes: the built-in square plus a hand-rolled triangle.
+      const triangle = confetti.shapeFromPath({ path: 'M0 0 L10 0 L5 10 Z' });
+      const base = {
+        origin: { x: 0.5, y: 0.5 },
+        colors: CONFETTI_COLORS,
+        shapes: ['square' as const, triangle],
+        gravity: 1,   // particles arc up, then fall naturally under gravity
+        ticks: 300,   // linger ~2.5–3s (fuller & slower than a quick pop)
+      };
 
-      // Bottom
-      confetti({ ...common, angle: 45, origin: { x: 0, y: 1 } }); // bottom-left
-      confetti({ ...common, angle: 135, origin: { x: 1, y: 1 } }); // bottom-right
+      // GitHub-2FA-style celebratory pop: a focused burst that fans out wide and rains
+      // down. Two layers vary particle size + speed; a small delayed pop adds a 2nd beat.
+      confetti({ ...base, particleCount: 90, spread: 100, startVelocity: 55, scalar: 1.1 });
+      confetti({ ...base, particleCount: 70, spread: 130, startVelocity: 45, scalar: 0.85 });
+      setTimeout(() => {
+        confetti({ ...base, particleCount: 50, spread: 120, startVelocity: 50, scalar: 1.0, origin: { x: 0.5, y: 0.45 } });
+      }, 220);
     });
   }, [hasWinners]);
 
   if (!gameOver) return <div className="page"><p>Loading…</p></div>;
 
   const { winners, finalScores, playerNames } = gameOver;
-  const hostLeft = winners.length === 0;
   const isWinner = winners.includes(playerId ?? '');
 
   // Sort by score descending (handles all-negative scores correctly)
@@ -72,8 +79,8 @@ export function WinnerPage() {
   const handleLeave = () => {
     sendMsg({ type: 'leaveRoom' }); // release our seat server-side before leaving
     storage.clearSession();
-    sessionStorage.removeItem('pendingRoomId');
-    sessionStorage.removeItem('pendingHost');
+    sessionStorage.removeItem(STORAGE_KEYS.pendingRoomId);
+    sessionStorage.removeItem(STORAGE_KEYS.pendingHost);
     navigate('/', { replace: true });
     reset();
   };
@@ -84,27 +91,18 @@ export function WinnerPage() {
 
         {/* Trophy / icon */}
         <div style={{ fontSize: '4rem', lineHeight: 1 }}>
-          {hostLeft ? '🚪' : isWinner ? '🏆' : '🎉'}
+          {isWinner ? '🏆' : '🎉'}
         </div>
 
         {/* Headline */}
-        {hostLeft ? (
-          <>
-            <h1 className="card-title card-title--md">Host Left</h1>
-            <p className="hint">Game ended early. Current standings:</p>
-          </>
-        ) : (
-          <>
-            <h1 className="card-title card-title--lg">
-              {isWinner
-                ? 'You win!'
-                : `${winnerNames.join(' & ')} win${winners.length > 1 ? '!' : 's!'}`}
-            </h1>
-          </>
-        )}
+        <h1 className="card-title card-title--lg">
+          {isWinner
+            ? 'You win!'
+            : `${winnerNames.join(' & ')} win${winners.length > 1 ? '!' : 's!'}`}
+        </h1>
 
         {/* Full standings table */}
-        <StandingsTable>
+        <StandingsTable variant="lr">
           <thead>
             <tr>
               <th>Player</th>
@@ -141,18 +139,17 @@ export function WinnerPage() {
               Back to Home
             </Button>
           </>
-        ) : hostLeft ? (
-          <Button variant="secondary" block onClick={handleLeave}>
-            Leave
-          </Button>
         ) : isHost ? (
           <>
-            <Button variant="primary" block onClick={handleRematch}>
-              Play Again
-            </Button>
+            {hostChanged && (
+              <p className="hint">The previous host left — you're the host now.</p>
+            )}
             {secsLeft != null && (
               <p className="tag-faint" style={{ margin: 0 }}>Room closes in {secsLeft}s</p>
             )}
+            <Button variant="primary" block onClick={handleRematch}>
+              Play Again
+            </Button>
             <Button variant="secondary" block onClick={handleLeave}>
               Leave
             </Button>

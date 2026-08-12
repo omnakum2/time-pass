@@ -36,7 +36,7 @@ export function Scoreboard({ gameState }: { gameState: GameState }) {
     <StandingsTable variant="matrix">
       <thead>
         <tr>
-          <th>#</th>
+          <th>R</th>
           {players.map(p => (
             <th key={p.id}>{p.name}</th>
           ))}
@@ -48,10 +48,9 @@ export function Scoreboard({ gameState }: { gameState: GameState }) {
             <td>R{roundLabel(i)}</td>
             {players.map(p => {
               const row = scoreboard[p.id]?.[i];
-              if (!row) return <td key={p.id}>-</td>;
               return (
                 <td key={p.id}>
-                  <Delta value={row.delta} />
+                  {row ? <Delta value={row.delta} /> : '-'}
                 </td>
               );
             })}

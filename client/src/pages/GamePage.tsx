@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Suit, Player } from 'shared';
-import { legalMoves, SUIT_ORDER, RANK_ORDER } from 'shared';
+import { legalMoves, SUIT_ORDER, RANK_ORDER, isHandHiddenForBid } from 'shared';
 import { useGameStore } from '../store/gameStore';
 import { sendMsg } from '../net/socket';
 import { getTotal } from '../lib/helpers';
@@ -13,6 +13,7 @@ import { PlayerChip } from '../components/PlayerChip';
 import { Popup } from '../components/Popup';
 import { RoundResultOverlay } from '../components/RoundResultOverlay';
 import { QuickMessages } from '../components/QuickMessages';
+import { URGENT_LEAD_MS } from '../constants';
 
 // ─── GamePage ─────────────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ export function GamePage() {
   useEffect(() => {
     setUrgent(false);
     if (timerRunning && (phase === 'BIDDING' || phase === 'PLAYING' || phase === 'TRUMP_SELECT') && currentTurn) {
-      const lead = Math.max(0, turnRemainingMs - 6000);
+      const lead = Math.max(0, turnRemainingMs - URGENT_LEAD_MS);
       const id = setTimeout(() => setUrgent(true), lead);
       return () => clearTimeout(id);
     }
@@ -114,7 +115,7 @@ export function GamePage() {
     totalScore: getTotal(scoreboard, p.id),
   });
 
-  const blindHidden = mode === 'blind' && (phase === 'BIDDING' || phase === 'DEALING');
+  const blindHidden = isHandHiddenForBid(mode, gameState.phase);
 
   const activeName = currentTurn ? (players.find(p => p.id === currentTurn)?.name ?? '') : '';
   const statusText = phase === 'TRUMP_SELECT'

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { RING_TICK_MS } from '../constants';
 
 interface Countdown {
   elapsed: number;   // ms since (re)start
@@ -21,7 +22,7 @@ export function useCountdown(remainingMs: number, fullMs: number, startKey: stri
     setElapsed(0);
     if (!running) return;
     const start = Date.now();
-    const id = setInterval(() => setElapsed(Date.now() - start), 100);
+    const id = setInterval(() => setElapsed(Date.now() - start), RING_TICK_MS);
     return () => clearInterval(id);
   }, [startKey, running]);
 

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
+import { STORAGE_KEYS, COPY_FEEDBACK_MS } from '../constants';
+import { useSecondsRemaining } from '../hooks/useSecondsRemaining';
 import { Surface } from '../components/Surface';
 import { Icon } from '../components/Icon';
 import { GAME_MODES } from 'shared';
@@ -11,7 +13,6 @@ export function LobbyPage() {
   const { gameState, playerId, roomId, connected, reconnectFailed } = useGameStore();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
   // If someone navigates directly to /room/:id without being in a room,
   // show a join prompt via the home page logic
@@ -24,27 +25,14 @@ export function LobbyPage() {
     if (mineForThisRoom && !reconnectFailed) return;
     // Genuine newcomer (or the reconnect failed): go home with the code (and host) pre-filled.
     const host = new URLSearchParams(window.location.search).get('host');
-    sessionStorage.setItem('pendingRoomId', urlRoomId);
-    if (host) sessionStorage.setItem('pendingHost', host);
+    sessionStorage.setItem(STORAGE_KEYS.pendingRoomId, urlRoomId);
+    if (host) sessionStorage.setItem(STORAGE_KEYS.pendingHost, host);
     navigate('/', { replace: true });
   }, [roomId, urlRoomId, connected, reconnectFailed, navigate]);
 
   // Locally tick down the countdown coming from the server.
   const countdownMs = gameState?.countdownMs ?? null;
-  useEffect(() => {
-    if (countdownMs == null) {
-      setSecondsLeft(null);
-      return;
-    }
-    setSecondsLeft(Math.ceil(countdownMs / 1000));
-    const id = setInterval(() => {
-      setSecondsLeft(prev => {
-        if (prev == null) return null;
-        return prev > 0 ? prev - 1 : 0;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [countdownMs]);
+  const secondsLeft = useSecondsRemaining(countdownMs);
 
   if (!gameState || !playerId) {
     const s = storage.getSession();
@@ -67,7 +55,7 @@ export function LobbyPage() {
 
   const markCopied = () => {
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
   };
 
   const copyUrl = async () => {
@@ -110,15 +98,7 @@ export function LobbyPage() {
             const modeLabel = GAME_MODES.find(m => m.id === gameState.mode)?.label ?? '';
             return modeLabel ? (
               <div style={{ marginTop: 6 }}>
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center',
-                  padding: '4px 12px', borderRadius: 20,
-                  background: 'rgba(233,184,74,0.14)', color: 'var(--gold)',
-                  border: '1px solid var(--gold-border)',
-                  fontWeight: 700, fontSize: '0.8rem',
-                }}>
-                  {modeLabel}
-                </span>
+                <span className="mode-badge">{modeLabel}</span>
               </div>
             ) : null;
           })()}

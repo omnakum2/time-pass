@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config(); // load .env into process.env before anything reads it
 
-import { createServer } from 'http';
+import { createServer, IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Room } from './room';
 import { ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES } from 'shared';
@@ -11,6 +11,19 @@ import { sendMessage, sendError, sanitizeName, clampPlayers, validateMessage, ra
 // ─── Environment-specific settings (from process.env) ──────────────────────
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '').split(',').map(s => s.trim()).filter(Boolean);
+const TRUST_PROXY = process.env.TRUST_PROXY === 'true'; // trust X-Forwarded-For only behind a known reverse proxy (e.g. Render)
+
+// Resolve the real client IP for per-IP limits. Behind a trusted proxy the
+// socket address is the proxy's, so read the leftmost X-Forwarded-For entry;
+// otherwise trusting that header would let clients spoof their IP.
+function clientIp(req: IncomingMessage): string {
+  if (TRUST_PROXY) {
+    const xff = req.headers['x-forwarded-for'];
+    const first = (Array.isArray(xff) ? xff[0] : xff)?.split(',')[0].trim();
+    if (first) return first;
+  }
+  return req.socket.remoteAddress ?? 'unknown';
+}
 
 const rooms = new Map<string, Room>();
 let draining = false; // during shutdown drain: reject new rooms, let existing ones finish
@@ -67,7 +80,7 @@ const connByIp = new Map<string, number>();
 const rate = new WeakMap<WebSocket, { count: number; windowStart: number }>();
 
 wss.on('connection', (ws, req) => {
-  const ip = req.socket.remoteAddress ?? 'unknown';
+  const ip = clientIp(req);
   connByIp.set(ip, (connByIp.get(ip) ?? 0) + 1);
 
   ws.on('close', () => {

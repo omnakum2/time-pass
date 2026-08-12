@@ -26,9 +26,18 @@ export const GAME_MODES: GameModeInfo[] = [
   { id: 'revolvingTrump', label: 'Revolving Trump', short: 'Rev. Trump', desc: 'The first bidder picks the trump each round.' },
 ];
 
+/**
+ * Whether a player's own hand must stay hidden right now. Blind Bid mode hides the
+ * hand while dealing and bidding, revealing it only once play begins. Single source
+ * of truth for both the server (sends an empty hand) and the client (renders backs).
+ */
+export function isHandHiddenForBid(mode: GameMode, phase: GamePhase): boolean {
+  return mode === 'blind' && (phase === 'BIDDING' || phase === 'DEALING');
+}
+
 // ─── Trump options (Revolving Trump mode) ───────────────────────────────────
 
-export type TrumpKind = 'suit' | 'noTrump' | 'highCard' | 'lowCard' | 'ak47' | 'oneTrump' | 'kingQueen';
+export type TrumpKind = 'suit' | 'noTrump' | 'lowCard' | 'ak47' | 'oneTrump' | 'kingQueen';
 
 export interface TrumpConfig {
   kind: TrumpKind;
@@ -40,7 +49,6 @@ export interface TrumpConfig {
 export interface TrumpSpecial { kind: TrumpKind; label: string; }
 export const TRUMP_SPECIALS: TrumpSpecial[] = [
   { kind: 'noTrump',   label: 'No Trump' },
-  { kind: 'highCard',  label: 'High Card' },
   { kind: 'lowCard',   label: 'Low Card' },
   { kind: 'ak47',      label: 'AK47' },
   { kind: 'oneTrump',  label: 'One Trump' },
@@ -48,16 +56,12 @@ export const TRUMP_SPECIALS: TrumpSpecial[] = [
 ];
 
 // Short label for the trump chip (client maps 'suit' to its symbol + name itself).
+// Static special labels come from TRUMP_SPECIALS (single source of truth); only
+// 'suit' and 'oneTrump' (which annotates the picked rank) need special handling.
 export function trumpLabel(cfg: TrumpConfig): string {
-  switch (cfg.kind) {
-    case 'suit':      return cfg.suit ?? '';
-    case 'noTrump':   return 'No Trump';
-    case 'highCard':  return 'High Card';
-    case 'lowCard':   return 'Low Card';
-    case 'ak47':      return 'AK47';
-    case 'oneTrump':  return `One Trump (${cfg.rank ?? '?'})`;
-    case 'kingQueen': return 'King-Queen';
-  }
+  if (cfg.kind === 'suit') return cfg.suit ?? '';
+  if (cfg.kind === 'oneTrump') return `One Trump (${cfg.rank ?? '?'})`;
+  return TRUMP_SPECIALS.find(s => s.kind === cfg.kind)?.label ?? '';
 }
 
 // One-liner rule shown in the trump chip's info (ⓘ) tooltip.
@@ -65,8 +69,7 @@ export function trumpInfo(cfg: TrumpConfig): string {
   switch (cfg.kind) {
     case 'suit':      return 'This suit beats every other suit.';
     case 'noTrump':   return 'No trump — the highest card of the led suit wins.';
-    case 'highCard':  return 'No trump — the highest card played wins, any suit.';
-    case 'lowCard':   return 'No trump — the lowest card played wins, any suit.';
+    case 'lowCard':   return 'No trump — the lowest card of the led suit wins.';
     case 'ak47':      return 'Every A, K, 4 and 7 is a trump.';
     case 'oneTrump':  return `Every ${cfg.rank ?? '?'} is a trump.`;
     case 'kingQueen': return 'Every King and Queen is a trump.';
@@ -79,8 +82,7 @@ export interface Player {
   id: string;
   name: string;
   seatIndex: number;
-  connected: boolean;               // convenience: connected === (status === 'online')
-  status: 'online' | 'reconnecting' | 'offline';
+  status: 'online' | 'reconnecting' | 'offline'; // 'online' = live socket; 'reconnecting' = in grace window; 'offline' = gone
 }
 
 // ─── Trick card entry ─────────────────────────────────────────────────────────

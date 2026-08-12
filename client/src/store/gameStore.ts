@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { GameState, MsgGameOver, MsgRoundResult } from 'shared';
+import { BUBBLE_MS } from '../constants';
 
 interface ErrorState { code: string; message: string }
 
@@ -29,7 +30,6 @@ interface GameStore {
 }
 
 let bubbleKey = 0;
-const BUBBLE_MS = 3500;
 
 export const useGameStore = create<GameStore>((set) => ({
   connected: false,

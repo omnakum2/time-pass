@@ -4,12 +4,12 @@ import {
   Card, GameMode, GamePhase, GameState, Player, RoundScore,
   Suit, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, MsgGameOver, ErrorCode, QUICK_MESSAGES,
   roundsForMode, deal, pickTrump, firstBidderSeat,
-  legalMoves, trickWinner, scoreRound, latestTotal, ROUNDS, SUITS, RANK_ORDER
+  legalMoves, trickWinner, scoreRound, latestTotal, isHandHiddenForBid, ROUNDS, SUITS, RANK_ORDER
 } from 'shared';
 import {
   BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS,
   GAME_OVER_TTL_MS, COUNTDOWN_MS, DISCONNECTED_AUTO_MOVE_MS, TRICK_DISPLAY_MS, ROUND_END_DELAY_MS,
-  LOBBY_RECONNECT_WINDOW_MS,
+  LOBBY_RECONNECT_WINDOW_MS, QUICK_MSG_THROTTLE_MS,
 } from './constants';
 import { sendMessage, clampPlayers } from './helpers';
 
@@ -104,7 +104,7 @@ export class Room {
   // Hand the host role to the first still-connected player (used when the host's
   // in-game reconnect window fully expires).
   private reassignHostToConnected(): void {
-    const next = this.seats.find(s => s.player.connected);
+    const next = this.seats.find(s => s.player.status === 'online');
     if (next && next.player.id !== this.hostId) {
       this.hostId = next.player.id;
       this.broadcastState();
@@ -124,7 +124,6 @@ export class Room {
         id: playerId,
         name,
         seatIndex: this.seats.length,
-        connected: true,
         status: 'online',
       },
       token,
@@ -147,7 +146,6 @@ export class Room {
     // FIX 9: one active connection per seat — close any older, different socket.
     if (seat.ws && seat.ws !== ws) { try { seat.ws.close(1000, 'replaced'); } catch { /* ignore */ } }
     seat.ws = ws;
-    seat.player.connected = true;
     seat.player.status = 'online';
     this.cancelEmptyRoomTimer();
 
@@ -172,14 +170,13 @@ export class Room {
     if (closingWs !== undefined && seat.ws !== closingWs) return;
 
     seat.ws = null;
-    seat.player.connected = false;
     seat.player.status = 'reconnecting'; // they might come back within the window
 
     if (this.phase === 'LOBBY') {
       // FIX 4: don't drop the seat on a refresh; give a short window to reconnect.
       seat.reconnectTimer = setTimeout(() => {
         seat.reconnectTimer = null;
-        if (!seat.player.connected) {
+        if (seat.player.status !== 'online') {
           this.removeSeat(playerId);
           this.broadcastState();
           if (this.isEmpty) this.startEmptyRoomTimer();
@@ -190,12 +187,19 @@ export class Room {
       // player is still gone, mark them offline and hand off host if needed.
       seat.reconnectTimer = setTimeout(() => {
         seat.reconnectTimer = null;
-        if (!seat.player.connected) {
+        if (seat.player.status !== 'online') {
           seat.player.status = 'offline';
           if (playerId === this.hostId) this.reassignHostToConnected();
           this.broadcastState();
         }
       }, RECONNECT_WINDOW_MS);
+
+      // A finished room is destroyed on its short GAME_OVER TTL, which elapses well
+      // before the 60s reconnect window — so if the host drops here, hand off now so a
+      // remaining player can still start a rematch.
+      if (this.phase === 'GAME_OVER' && playerId === this.hostId) {
+        this.reassignHostToConnected();
+      }
 
       // NB: we deliberately DON'T touch the turn timer here. A turn's deadline is fixed
       // when it begins, so one player dropping never shortens or resets another player's
@@ -312,7 +316,7 @@ export class Room {
     const { hands } = deal(this.currentRound, this.seats.length);
     this.seats.forEach((seat, i) => { seat.hand = hands[i]; });
 
-    const firstSeat = firstBidderSeat(this.currentRound, this.seats.length);
+    const firstSeat = firstBidderSeat(this.roundIndex, this.seats.length);
     this.bidderSeatIndex = firstSeat;
     this.trickLeaderSeatIndex = firstSeat;
     this.currentTurnSeatIndex = firstSeat;
@@ -349,7 +353,7 @@ export class Room {
         return (suit === 'D' || suit === 'C' || suit === 'H' || suit === 'S') ? { kind: 'suit', suit } : null;
       case 'oneTrump':
         return { kind: 'oneTrump', rank: RANK_ORDER[Math.floor(Math.random() * RANK_ORDER.length)] };
-      case 'noTrump': case 'highCard': case 'lowCard': case 'ak47': case 'kingQueen':
+      case 'noTrump': case 'lowCard': case 'ak47': case 'kingQueen':
         return { kind };
       default:
         return null;
@@ -522,9 +526,9 @@ export class Room {
   private finishGame(winners: string[], finalScores: Record<string, number>, playerNames: Record<string, string>): void {
     this.phase = 'GAME_OVER';
     this.lastGameOver = { type: 'gameOver', winners, finalScores, playerNames };
+    this.startGameOverTimer(); // set gameOverExpiresAt FIRST so the state carries roomExpiresInMs (drives the "Room closes in Xs" countdown)
     this.broadcast(this.lastGameOver);
     this.broadcastState();
-    this.startGameOverTimer();
   }
 
   private endGame(): void {
@@ -642,7 +646,7 @@ export class Room {
       round: this.currentRound,
       trump: this.trump,
       trumpConfig: this.trumpConfig,
-      yourHand: (this.mode === 'blind' && (this.phase === 'BIDDING' || this.phase === 'DEALING')) ? [] : (seat?.hand ?? []),
+      yourHand: isHandHiddenForBid(this.mode, this.phase) ? [] : (seat?.hand ?? []),
       handCounts,
       bids: bidsObj,
       currentTurn: this.currentTurnPlayerId() || null,
@@ -701,7 +705,7 @@ export class Room {
     const item = QUICK_MESSAGES.find(m => m.id === id);
     if (!item) return;
     const now = Date.now();
-    if (seat.lastQuickMsgAt && now - seat.lastQuickMsgAt < 1500) return; // rate-limit
+    if (seat.lastQuickMsgAt && now - seat.lastQuickMsgAt < QUICK_MSG_THROTTLE_MS) return; // rate-limit
     seat.lastQuickMsgAt = now;
     this.broadcast({ type: 'quickMessage', senderId: playerId, text: item.text });
   }
