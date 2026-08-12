@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Surface } from '../components/Surface';
+import { Button } from '../components/Button';
 
 type Lang = 'en' | 'gu';
 
@@ -24,6 +26,10 @@ const SECTIONS: Record<Lang, Section[]> = {
             Each round you predict how many tricks you will win, and you score by matching
             that prediction exactly · being close is not enough.
           </p>
+          <p>
+            The rules below describe <strong>Classic</strong> mode. Other game modes each
+            change just one thing · see <em>Game Modes</em> below.
+          </p>
         </>
       ),
     },
@@ -38,6 +44,10 @@ const SECTIONS: Record<Lang, Section[]> = {
             4 → 3 → 2 → 1.
           </p>
           <p>Every round begins with a fresh shuffle of the full deck.</p>
+          <p>
+            (In <strong>Up &amp; Down</strong> mode the rounds instead climb 1 → 7 and then
+            back down to 1 · see <em>Game Modes</em>.)
+          </p>
         </>
       ),
     },
@@ -64,6 +74,10 @@ const SECTIONS: Record<Lang, Section[]> = {
           <p>
             In a No-Trump round there is no trump suit, so the highest card of the led suit
             always wins the trick.
+          </p>
+          <p>
+            (In <strong>Revolving Trump</strong> mode the first bidder chooses the trump
+            instead · see <em>Game Modes</em>.)
           </p>
         </>
       ),
@@ -116,6 +130,36 @@ const SECTIONS: Record<Lang, Section[]> = {
       ),
     },
     {
+      id: 'modes',
+      title: 'Game Modes',
+      body: (
+        <>
+          <p>
+            The host picks a mode when creating the room. <strong>Classic</strong> is the
+            default; each other mode changes just one thing.
+          </p>
+          <ul>
+            <li><strong>Classic</strong> · the original game: 7 rounds counting down 7 → 1, with a random trump each round.</li>
+            <li><strong>Up &amp; Down</strong> · 13 rounds instead of 7: the deal climbs 1 → 7 and then back down to 1. Everything else is like Classic.</li>
+            <li><strong>Blind Bid</strong> · you place your bid before seeing your cards; your hand is revealed only once play begins.</li>
+            <li><strong>Revolving Trump</strong> · instead of a random trump, the first bidder chooses the round's trump before bidding. Since the first bidder rotates each round, the choice "revolves". They can pick a suit, No-Trump, or one of the specials below.</li>
+          </ul>
+          <p>Revolving Trump specials:</p>
+          <ul>
+            <li><strong>Low Card</strong> · no trump; the <em>lowest</em> card of the led suit wins.</li>
+            <li><strong>AK47</strong> · every Ace, King, 4 and 7 (all suits) is a trump.</li>
+            <li><strong>One Trump</strong> · one random rank, chosen at the round's start, is trump in all four suits.</li>
+            <li><strong>King-Queen</strong> · every King and Queen (all suits) is a trump.</li>
+          </ul>
+          <p>
+            In every mode you still must follow the led suit. Among trumps the natural rank
+            order applies (Ace high); if two trumps tie on rank, the trump in the led suit wins,
+            otherwise the card played first wins.
+          </p>
+        </>
+      ),
+    },
+    {
       id: 'winning',
       title: 'Winning',
       body: (
@@ -145,6 +189,10 @@ const SECTIONS: Record<Lang, Section[]> = {
             Dar round ma tame andaajo lagaavo cho ke tame ketla haath jitso, ane
             point tyare j made jyare tamaro andaajo sachho hoy.
           </p>
+          <p>
+            Niche na rules <strong>Classic</strong> mode na che. Baaki na modes ek-ek vaar
+            badle che · niche <em>Game Modes</em> juo.
+          </p>
         </>
       ),
     },
@@ -159,6 +207,10 @@ const SECTIONS: Record<Lang, Section[]> = {
             7 → 6 → 5 → 4 → 3 → 2 → 1.
           </p>
           <p>Dar round ni shruaat ma 52 patta ne farithi shuffle karvama aave che.</p>
+          <p>
+            (<strong>Up &amp; Down</strong> mode ma round 1 → 7 sudhi vadhe ane pachha 1
+            sudhi ghate · <em>Game Modes</em> juo.)
+          </p>
         </>
       ),
     },
@@ -186,6 +238,10 @@ const SECTIONS: Record<Lang, Section[]> = {
           <p>
             Jyare round ma koi Sar nathi hoto, etle chaal thayeli color no
             sauthi motu pattu hamesha haath jiti le che.
+          </p>
+          <p>
+            (<strong>Revolving Trump</strong> mode ma pehlo bidder Sar pasand kare che ·
+            <em>Game Modes</em> juo.)
           </p>
         </>
       ),
@@ -241,6 +297,36 @@ const SECTIONS: Record<Lang, Section[]> = {
       ),
     },
     {
+      id: 'modes',
+      title: 'Ramat Na Prakaar',
+      body: (
+        <>
+          <p>
+            Room banaavti vakhte host ek mode pasand kare che. <strong>Classic</strong>
+            default che; baaki na dareky mode fakt ek vaar badle che.
+          </p>
+          <ul>
+            <li><strong>Classic</strong> · aslo game: 7 round, 7 → 1 ghatta, ane dar round ma kram vagar no Sar.</li>
+            <li><strong>Up &amp; Down</strong> · 7 na badle 13 round: patta 1 → 7 sudhi vadhe ane pachha 1 sudhi ghate. Baaki badhu Classic jevu j.</li>
+            <li><strong>Blind Bid</strong> · tame tamara patta joya pehla j bid lagaavo cho; tamaro haath fakt ramat shuru thaay tyare dekhaay che.</li>
+            <li><strong>Revolving Trump</strong> · kram vagar na Sar na badle, pehli bid lagaavnaar khiladi bidding pehla round no Sar pasand kare che. Pehlo bidder dar round ma badle che, etle aa pasandgi "farti" rahe che. Te ek color, No-Trump, athva niche na special ma thi ek pasand kari shake.</li>
+          </ul>
+          <p>Revolving Trump na special:</p>
+          <ul>
+            <li><strong>Low Card</strong> · koi Sar nahi; chaal thayeli color (jo pehli chali) na patta ma sauthi <em>nanu</em> pattu jite.</li>
+            <li><strong>AK47</strong> · dareky Ace, King, 4 ane 7 (badhi color) Sar che.</li>
+            <li><strong>One Trump</strong> · ek kram vagar ni rank, round ni shruaat ma pasand thay, te charey color ma Sar bane che.</li>
+            <li><strong>King-Queen</strong> · dareky King ane Queen (badhi color) Sar che.</li>
+          </ul>
+          <p>
+            Dareky mode ma tame chaal thayeli color follow karvi j pade. Sar vachche natural
+            rank kram lage che (Ace sauthi motu); be Sar ni rank sarkhi hoy to chaal thayeli
+            color no Sar jite, nahi to pehlu chalayel pattu jite.
+          </p>
+        </>
+      ),
+    },
+    {
       id: 'winning',
       title: 'Jeet',
       body: (
@@ -270,7 +356,7 @@ export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean 
 
   return (
     <>
-      <h1>{PAGE_TITLE[lang]}</h1>
+      <h1 className="guide-title">{PAGE_TITLE[lang]}</h1>
       <div className="guide-lang">
         <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>
           English
@@ -294,7 +380,7 @@ export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean 
             </li>
           ))}
         </ol>
-        <article className="guide-content">
+        <Surface as="article" className="guide-content">
           {sections.map(({ id, title, body }) => (
             <section id={id} key={id} className="guide-section">
               <h2>{title}</h2>
@@ -316,7 +402,7 @@ export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean 
               )}
             </p>
           )}
-        </article>
+        </Surface>
       </div>
     </>
   );
@@ -327,12 +413,14 @@ export function GuidePage() {
 
   return (
     <div className="guide-page">
-      <button
-        className="btn btn--secondary btn--sm guide-back"
+      <Button
+        variant="secondary"
+        size="sm"
+        className="guide-back"
         onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
       >
         Go Back
-      </button>
+      </Button>
       <GuideContent showHomeLink />
     </div>
   );

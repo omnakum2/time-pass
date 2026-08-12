@@ -14,7 +14,7 @@
   /* Dark-wine cards */
   --card-1: #4A1F2B;
   --card-2: #2E1720;
-  --gold-border: rgba(233,184,74,0.38);
+  --gold-border: rgba(var(--gold-rgb),0.38);
 
   /* Text */
   --cream:       #F3ECDD;
@@ -24,9 +24,14 @@
 
   /* Accents */
   --gold:      #E9B84A;
+  --gold-rgb:  233, 184, 74; /* --gold as R,G,B for rgba() gold tints */
   --gold-deep: #C08A2E;
   --hud-brown: #A9701C;
-  --red:       #C0392B;
+
+  /* Semantic status — one set used everywhere (deltas, timer ring, urgency) */
+  --success: #5FD07A;
+  --warning: #FFB300;
+  --danger:  #F0736C;
 
   --card-w:  clamp(46px, 9vw, 72px);
   --card-h:  calc(var(--card-w) * 1.45);
@@ -48,7 +53,7 @@ body {
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--card-2); }
 ::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(233,184,74,0.8); }
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--gold-rgb),0.8); }
 
 /* ─── App shell (header + main) ───────────────────────────────────────────── */
 .app-shell { display: flex; flex-direction: column; min-height: 100dvh; }
@@ -79,7 +84,7 @@ body {
   transition: background 0.15s, color 0.15s;
   text-decoration: none;
 }
-.app-header__link:hover { background: rgba(233,184,74,0.14); color: var(--gold); }
+.app-header__link:hover { background: rgba(var(--gold-rgb),0.14); color: var(--gold); }
 
 /* ─── Utility ─────────────────────────────────────────────────────────────── */
 .flex-center { display: flex; align-items: center; justify-content: center; }
@@ -118,6 +123,14 @@ body {
 .card--disabled { opacity: 0.45; cursor: default; pointer-events: none; }
 .card--selected { outline: 3px solid var(--gold); transform: translateY(-12px); }
 .card--played   { cursor: default; }
+
+/* ─── Face-down card back (Blind mode hand) ───────────────────────────────── */
+.card--back {
+  background: repeating-linear-gradient(45deg, #5a2734 0 8px, #3a1d28 8px 16px);
+  border: 1px solid var(--gold-border);
+  box-shadow: inset 0 0 0 3px rgba(var(--gold-rgb),0.14), 0 2px 8px rgba(0,0,0,0.45);
+  pointer-events: none;
+}
 
 /* ─── Buttons — chunky game-HUD style + shine/pop hover ───────────────────── */
 .btn {
@@ -178,18 +191,22 @@ body {
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.input:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(233,184,74,0.25); }
-.input::placeholder { color: rgba(233,184,74,0.45); }
+.input:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(var(--gold-rgb),0.25); }
+.input::placeholder { color: rgba(var(--gold-rgb),0.45); }
 
-/* ─── Card / panel (dark-wine) ────────────────────────────────────────────── */
-.panel {
+/* ─── Game-mode picker (Create screen) ────────────────────────────────────── */
+.mode-picker { display: flex; flex-direction: column; gap: 8px; }
+.mode-option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  width: 100%; text-align: left; cursor: pointer;
+  padding: 10px 14px; border-radius: 12px;
   background: linear-gradient(150deg, var(--card-1), var(--card-2));
-  border: 1px solid var(--gold-border);
-  border-radius: 16px;
-  padding: 24px;
-  color: var(--cream);
-  box-shadow: 0 16px 44px rgba(0,0,0,0.5);
+  border: 1px solid var(--gold-border); color: var(--cream);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
+.mode-option--active { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+.mode-option__label { font-weight: 800; color: var(--gold); font-size: 1rem; }
+.mode-option__desc  { font-size: 0.8rem; color: var(--cream-muted); line-height: 1.35; }
 
 /* ─── Trump suit glyph colors (on dark chip: black suits render light) ─────── */
 .suit-red   { color: #EF6E5F; }
@@ -204,17 +221,17 @@ body {
   width: 100%;
   max-width: 460px;
 }
-.jhatpat-title {
+.brand-title {
   font-size: clamp(3.4rem, 13vw, 5.5rem);
   font-weight: 800;
   letter-spacing: 1.5px;
   line-height: 1;
   text-align: center;
   color: var(--gold);
-  text-shadow: 0 4px 0 rgba(0,0,0,0.45), 0 0 34px rgba(233,184,74,0.4);
+  text-shadow: 0 4px 0 rgba(0,0,0,0.45), 0 0 34px rgba(var(--gold-rgb),0.4);
 }
 /* Compact variant for the Create/Join cards — keeps the title on one line */
-.jhatpat-title--card {
+.brand-title--card {
   font-size: clamp(1.8rem, 6vw, 2.2rem);
   white-space: nowrap;
 }
@@ -225,7 +242,7 @@ body {
 /* ─── Homepage SEO blurb ──────────────────────────────────────────────────── */
 .home-seo { max-width: 540px; margin: 20px auto 0; text-align: center; color: var(--cream-muted); font-size: 0.95rem; line-height: 1.65; }
 .home-seo__link { color: var(--gold); font-weight: 700; text-decoration: none; }
-.guide-home-cta { margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(233,184,74,0.18); line-height: 1.7; color: var(--cream); }
+.guide-home-cta { margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(var(--gold-rgb),0.18); line-height: 1.7; color: var(--cream); }
 .home-seo__link:hover { color: #f0c96a; }
 
 /* ─── Icon button (copy) ──────────────────────────────────────────────────── */
@@ -239,18 +256,42 @@ body {
   cursor: pointer;
   transition: background 0.15s, color 0.15s, transform 0.1s;
 }
-.icon-btn:hover  { background: rgba(233,184,74,0.18); color: var(--gold); }
+.icon-btn:hover  { background: rgba(var(--gold-rgb),0.18); color: var(--gold); }
 .icon-btn:active { transform: scale(0.92); }
 
 /* ─── Error toast (status colors) ─────────────────────────────────────────── */
 .error-toast {
   position: fixed; bottom: 24px; left: 50%;
   transform: translateX(-50%) translateY(20px);
-  background: #c0392b; color: #fff; padding: 12px 24px; border-radius: 12px;
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(var(--card-1), var(--card-2));
+  color: var(--text);
+  border: 1px solid var(--gold-border);
+  border-left: 3px solid var(--danger); /* danger accent — still reads as an error, on-theme */
+  padding: 12px 14px 12px 18px; border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
   font-weight: 600; opacity: 0; pointer-events: none;
-  transition: opacity 0.3s, transform 0.3s; z-index: 1000; max-width: 90vw; text-align: center;
+  transition: opacity 0.3s, transform 0.3s; z-index: 1000; max-width: 90vw; text-align: left;
 }
 .error-toast--visible { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+.error-toast__msg { flex: 1; }
+.error-toast__close {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0;
+  background: none; border: none; cursor: pointer; border-radius: 6px;
+  color: var(--cream-muted);
+  transition: color 0.15s, background 0.15s;
+}
+.error-toast__close:hover { color: var(--gold); background: rgba(var(--gold-rgb), 0.14); }
+
+/* Gold pill for the lobby's game-mode label */
+.mode-badge {
+  display: inline-flex; align-items: center;
+  padding: 4px 12px; border-radius: 20px;
+  background: rgba(var(--gold-rgb), 0.14); color: var(--gold);
+  border: 1px solid var(--gold-border);
+  font-weight: 700; font-size: 0.8rem;
+}
 
 /* ─── Guide page + in-game overlay ────────────────────────────────────────── */
 .guide-page {
@@ -258,7 +299,8 @@ body {
   display: flex; flex-direction: column; align-items: center;
   padding: 24px 16px 48px;
 }
-.guide-page h1 { color: var(--gold); text-align: center; font-size: 1.9rem; margin-bottom: 6px; }
+/* Class-based (not `.guide-page h1`) so the title is gold in the in-game <Modal> overlay too */
+.guide-title { color: var(--gold); text-align: center; font-size: 1.9rem; margin-bottom: 6px; }
 .guide-page > *, .guide-lang, .guide-layout { width: 100%; max-width: 900px; }
 .guide-lang { display: flex; gap: 10px; justify-content: center; margin: 10px 0 22px; }
 .guide-lang button {
@@ -284,41 +326,19 @@ body {
   background: transparent; border: none; cursor: pointer; padding: 0;
 }
 .guide-toc__link:hover { color: var(--gold); }
-.guide-content {
-  background: linear-gradient(150deg, var(--card-1), var(--card-2));
-  border: 1px solid var(--gold-border); border-radius: 16px;
-  padding: 26px 32px; color: var(--cream);
-  box-shadow: 0 16px 44px rgba(0,0,0,0.4);
-}
+/* .guide-content surface deltas live with the .surface base (Phase 3 primitives) */
 .guide-section { margin-bottom: 26px; scroll-margin-top: 16px; }
 .guide-section:last-child { margin-bottom: 0; }
 .guide-section h2 {
   color: var(--gold); font-size: 1.32rem; margin-bottom: 10px;
-  padding-bottom: 6px; border-bottom: 1px solid rgba(233,184,74,0.18);
+  padding-bottom: 6px; border-bottom: 1px solid rgba(var(--gold-rgb),0.18);
 }
 .guide-section p  { line-height: 1.72; margin-bottom: 10px; }
 .guide-section ul, .guide-section ol { margin: 8px 0 12px 24px; line-height: 1.72; }
 .guide-section li { margin: 5px 0; }
 .guide-section ol li::marker, .guide-section ul li::marker { color: var(--gold); }
 
-.guide-overlay {
-  position: fixed; inset: 0; z-index: 1200;
-  background: rgba(0,0,0,0.62);
-  display: flex; align-items: center; justify-content: center; padding: 16px;
-}
-.guide-overlay__panel {
-  position: relative;
-  background: linear-gradient(160deg, var(--grad-1), var(--grad-2));
-  border: 1px solid var(--gold-border); border-radius: 18px;
-  max-width: 920px; width: 100%; max-height: 88vh; overflow: auto;
-  padding: 22px 20px; box-shadow: 0 24px 70px rgba(0,0,0,0.7);
-}
-.guide-overlay__close {
-  position: absolute; top: 12px; right: 14px; z-index: 2;
-  width: 32px; height: 32px; border-radius: 8px;
-  border: 1px solid var(--gold-border); background: rgba(0,0,0,0.35);
-  color: var(--gold); font-size: 1rem; cursor: pointer;
-}
+/* Guide is rendered inside <Modal>; only the intro note is bespoke. */
 .guide-overlay__note { text-align: center; color: var(--cream-muted); font-size: 0.8rem; margin-bottom: 8px; }
 
 /* ─── Active-player timer border (tri-color, gold-border thickness, no pulse) ─ */
@@ -329,7 +349,7 @@ body {
   padding: 2px;
   background: conic-gradient(
     from -90deg,
-    var(--turn-color, #43A047) 0 var(--turn-rp, 100%),
+    var(--turn-color, var(--success)) 0 var(--turn-rp, 100%),
     rgba(255,255,255,0.14) var(--turn-rp, 100%) 100%
   );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -352,16 +372,20 @@ body {
   top: 12px; left: 50%; transform: translateX(-50%);
   z-index: 2;
   display: flex; align-items: center; gap: 10px;
-  max-width: 92%; flex-wrap: wrap; justify-content: center;
+  /* Single row, never wrapping — Round + Trump must stay side by side so the
+     trump is always visible (incl. behind the mobile bid popup). The mode label
+     rides inside the round chip (.round-chip__mode), so there's no third slot. */
+  max-width: 92%; flex-wrap: nowrap; justify-content: center;
 }
 
 /* ─── Round chip (inside the felt-badges row) ─────────────────────────────── */
 .round-chip {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   white-space: nowrap; flex-shrink: 0;
+  min-height: 32px; box-sizing: border-box;
   background: rgba(0,0,0,0.4);
   color: var(--gold);
-  border: 1px solid rgba(233,184,74,0.55);
+  border: 1px solid rgba(var(--gold-rgb),0.55);
   border-radius: 22px;
   padding: 5px 16px;
   font-weight: 800; font-size: 1rem;
@@ -370,11 +394,12 @@ body {
 
 /* ─── Trump chip (beside the round chip) ──────────────────────────────────── */
 .trump-chip {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   white-space: nowrap; flex-shrink: 0;
+  min-height: 32px; box-sizing: border-box;
   background: rgba(0,0,0,0.4);
   color: var(--cream);
-  border: 1px solid rgba(233,184,74,0.4);
+  border: 1px solid rgba(var(--gold-rgb),0.4);
   border-radius: 22px;
   padding: 5px 14px;
   font-weight: 700; font-size: 0.9rem;
@@ -382,6 +407,38 @@ body {
 }
 .trump-chip__label { opacity: 0.7; font-size: 0.82em; }
 .trump-chip__suit  { font-size: 1.15em; }
+
+/* ─── Info tooltip (the ⓘ button inside the trump chip) ───────────────────── */
+.info-tip { position: relative; display: inline-flex; align-items: center; margin-left: 6px; }
+.info-tip__btn {
+  width: 16px; height: 16px; border-radius: 50%; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; font-weight: 800; font-style: italic; line-height: 1;
+  background: rgba(var(--gold-rgb),0.16); color: var(--gold);
+  border: 1px solid var(--gold-border);
+}
+.info-tip__btn:hover { background: rgba(var(--gold-rgb),0.28); }
+/* Opens DOWNWARD (into the felt) — the chip sits at the felt's top edge and the
+   felt clips overflow, so an upward bubble was hidden behind the top rail. It's
+   absolutely positioned, so it overlays the trick cards without shifting them. */
+.info-tip__bubble {
+  position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  z-index: 20; width: max-content; max-width: 220px; white-space: normal; text-align: center;
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  color: var(--cream); font-size: 0.75rem; font-weight: 600; line-height: 1.4;
+  padding: 7px 10px; border-radius: 10px; border: 1px solid var(--gold-border);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+}
+.info-tip__bubble::after {
+  content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-bottom-color: var(--card-1);
+}
+
+/* ─── Mode label (rides inside the round chip) ────────────────────────────── */
+.round-chip__mode { font-weight: 700; color: var(--cream); }
+.round-chip__mode::before { content: '·'; margin: 0 6px; opacity: 0.55; }
+/* The mobile ⓘ tooltip variant of the mode is hidden on desktop (name shows). */
+.round-chip__mode-tip { display: none; align-items: center; }
 
 /* ─── Turn status text (bottom-center of the trick table, plain text) ─────── */
 .trick-status {
@@ -393,7 +450,7 @@ body {
   text-align: center; white-space: nowrap;
   text-shadow: 0 1px 3px rgba(0,0,0,0.55);
 }
-@keyframes statusTick { 0%, 49.9% { color: #FF5A4E; } 50%, 100% { color: #fff; } }
+@keyframes statusTick { 0%, 49.9% { color: var(--danger); } 50%, 100% { color: var(--text); } }
 .trick-status--urgent { animation: statusTick 2s steps(1) infinite; text-shadow: 0 1px 4px rgba(0,0,0,0.65); }
 
 /* ─── Player chip (dark-wine card) ────────────────────────────────────────── */
@@ -420,25 +477,6 @@ body {
 .player-chip__total { font-size: 0.68rem; color: var(--cream-muted); text-align: center; }
 .player-chip__disconnected { font-size: 0.65rem; color: #E9A94A; }
 
-/* ─── Popup / modal (dark-wine) ───────────────────────────────────────────── */
-.popup-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 800;
-}
-.popup {
-  background: linear-gradient(150deg, var(--card-1), var(--card-2));
-  border: 2px solid var(--gold-border);
-  border-radius: 18px;
-  padding: 24px 28px;
-  min-width: 280px; max-width: 90vw;
-  display: flex; flex-direction: column; align-items: center; gap: 16px;
-  color: var(--cream);
-  box-shadow: 0 18px 55px rgba(0,0,0,0.6);
-}
-.popup-title { font-size: 1.1rem; font-weight: 700; color: var(--gold); text-align: center; }
-
 /* ─── Bid buttons ─────────────────────────────────────────────────────────── */
 .bid-buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .bid-btn {
@@ -452,6 +490,32 @@ body {
 .bid-btn:hover  { background: var(--gold); color: #3A1B10; }
 .bid-btn:active { transform: scale(0.93); }
 
+/* ─── Trump picker (inside the trump-select popup) ────────────────────────── */
+.trump-picker { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.trump-picker__suits { display: flex; gap: 10px; justify-content: center; }
+.trump-picker__suit {
+  width: 52px; height: 52px; border-radius: 12px; cursor: pointer;
+  font-size: 1.8rem; line-height: 1; font-weight: 800;
+  background: #fff; border: 2px solid var(--gold-border);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.35);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.trump-picker__suit:hover  { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,0.45); }
+.trump-picker__suit:active { transform: scale(0.94); }
+/* These glyphs sit on a WHITE box, so use real card colours — the felt chip's
+   light-on-dark .suit-black (var(--cream)) would vanish on white. */
+.trump-picker__suit.suit-red   { color: #C0392B; }
+.trump-picker__suit.suit-black { color: #1A1A1A; }
+.trump-picker__specials { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; width: 100%; max-width: 300px; }
+.trump-picker__special {
+  padding: 10px 12px; border-radius: 12px; cursor: pointer; font-weight: 800; font-size: 0.9rem;
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  color: var(--gold); border: 1px solid var(--gold-border);
+  transition: border-color 0.15s, transform 0.1s;
+}
+.trump-picker__special:hover  { border-color: var(--gold); }
+.trump-picker__special:active { transform: scale(0.96); }
+
 /* ─── Game area (full-width, relative container for HUD overlay) ──────────── */
 .game-area {
   position: relative;
@@ -461,76 +525,53 @@ body {
   overflow: hidden;
 }
 
-/* ─── Scoreboard modal overlay ────────────────────────────────────────────── */
-.scoreboard-overlay {
-  position: fixed; inset: 0; z-index: 1200;
-  background: rgba(0,0,0,0.35);
-  display: flex; align-items: center; justify-content: center; padding: 16px;
-}
-.scoreboard-overlay__panel {
-  position: relative;
-  background: linear-gradient(160deg, var(--card-1), var(--card-2));
-  border: 1px solid var(--gold-border);
-  border-radius: 20px;
-  width: fit-content; min-width: 360px; max-width: 92vw; max-height: 80vh; overflow: auto;
-  padding: 24px 28px 22px;
-  box-shadow: 0 24px 70px rgba(0,0,0,0.7), inset 0 1px 0 rgba(233,184,74,0.12);
-  display: flex; flex-direction: column; gap: 4px;
-}
-.scoreboard-overlay__close {
-  position: absolute; top: 12px; right: 14px; z-index: 2;
-  width: 30px; height: 30px; border-radius: 8px;
-  border: 1px solid rgba(233,184,74,0.3);
-  background: rgba(0,0,0,0.25);
-  color: var(--gold); font-size: 0.9rem; cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.scoreboard-overlay__close:hover {
-  background: rgba(233,184,74,0.15);
-  border-color: rgba(233,184,74,0.6);
-}
-.scoreboard-overlay__title {
-  color: var(--gold); font-size: 1.2rem; font-weight: 800;
-  letter-spacing: 1px; text-transform: uppercase;
-  text-shadow: 0 0 18px rgba(233,184,74,0.35);
-  margin-bottom: 2px;
-}
+/* ─── Scoreboard (rendered inside <Modal>) ────────────────────────────────── */
 .scoreboard-overlay__note {
   color: rgba(243,236,221,0.45); font-size: 0.75rem; margin-bottom: 14px;
 }
-.scoreboard-scroll { overflow: auto; flex: 1; }
+.scoreboard-scroll { overflow: auto; flex: 1; width: 100%; } /* fill the card/modal width, not shrink to content */
 
 .scoreboard {
   width: 100%; border-collapse: collapse;
-  font-size: clamp(12px, 1.8vw, 14px); white-space: nowrap;
+  font-size: clamp(12px, 1.8vw, 14px);
   color: var(--cream);
 }
+/* Clean row-based look: horizontal rules only, generous padding so long names
+   never crowd the score. Center-aligned by default (Scorecard + Round Over). */
 .scoreboard th, .scoreboard td {
-  border: 1px solid rgba(255,255,255,0.08);
-  padding: 7px 14px; text-align: center;
+  padding: 10px 14px; text-align: center;
+  border-bottom: 1px solid var(--gold-border);
 }
 .scoreboard th {
-  background: rgba(0,0,0,0.28); font-weight: 700;
-  font-size: 0.85rem;
-  color: var(--cream);
+  font-weight: 700; font-size: 0.85rem;
+  color: var(--cream-muted);
+  border-bottom: 1px solid rgba(255,255,255,0.14); /* subtle, not gold — keeps the gold line off the Rank-1 row's top */
 }
-.scoreboard th:first-child, .scoreboard td:first-child {
+/* 2-column standings (Winner): player names left, scores right. */
+.scoreboard--lr th:first-child, .scoreboard--lr td:first-child { text-align: left; }
+.scoreboard--lr th:last-child,  .scoreboard--lr td:last-child  { text-align: right; }
+/* Total-score emphasis — shared by every table's total (row or column). */
+.scoreboard .total-cell { font-weight: 800; color: var(--gold); }
+/* Matrix-only chrome: sticky round-label column + highlighted Total row.
+   Scoped so the plain Winner standings list (no `--matrix`) doesn't inherit it. */
+.scoreboard--matrix { white-space: nowrap; } /* wide matrix scrolls horizontally rather than wrapping */
+.scoreboard--matrix th:first-child, .scoreboard--matrix td:first-child {
   position: sticky; left: 0;
   background: #2E171E; z-index: 2;
   font-weight: 700; border-right: 2px solid rgba(255,255,255,0.14);
 }
-.scoreboard th:first-child { background: #3A1B26; }
-.scoreboard tbody tr:not(:last-child):hover td { background: rgba(255,255,255,0.04); }
-.scoreboard tbody tr:not(:last-child):hover td:first-child { background: rgba(15,6,10,0.55); }
-.scoreboard tr:last-child td {
+.scoreboard--matrix th:first-child { background: #3A1B26; }
+.scoreboard--matrix tbody tr:not(:last-child):hover td { background: rgba(255,255,255,0.04); }
+.scoreboard--matrix tbody tr:not(:last-child):hover td:first-child { background: rgba(15,6,10,0.55); }
+.scoreboard--matrix tr:last-child td {
   font-weight: 800; font-size: 1.05em;
-  background: rgba(233,184,74,0.1);
-  border-top: 1px solid rgba(233,184,74,0.3);
+  background: rgba(var(--gold-rgb),0.1);
+  border-top: 1px solid rgba(var(--gold-rgb),0.3);
   color: var(--gold);
 }
-.scoreboard tr:last-child td:first-child { background: rgba(233,184,74,0.16); }
-.delta--pos { color: #5FD07A; font-weight: 600; }
-.delta--neg { color: #F0736C; font-weight: 600; }
+.scoreboard--matrix tr:last-child td:first-child { background: rgba(var(--gold-rgb),0.16); }
+.delta--pos { color: var(--success); font-weight: 600; }
+.delta--neg { color: var(--danger); font-weight: 600; }
 
 /* ─── Game panel (full width, centered) ───────────────────────────────────── */
 .game-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 8px; gap: 6px; }
@@ -541,7 +582,7 @@ body {
   display: flex; justify-content: center; align-items: flex-end;
   gap: 14px; flex-wrap: wrap; padding: 6px 8px; flex-shrink: 0;
 }
-.table-middle-row { display: flex; align-items: stretch; justify-content: center; flex: 1; min-height: 0; padding: 8px; }
+.table-middle-row { display: flex; align-items: center; justify-content: center; flex: 1; min-height: 0; padding: 8px; }
 
 /* ─── Trick table — green felt inside an ornate golden rail (Teen Patti) ───── */
 .trick-area {
@@ -549,6 +590,12 @@ body {
   flex: 1;
   max-width: 875px;
   min-height: 190px;
+  /* Don't fill the full height — the table is vertically centered by
+     .table-middle-row, leaving ~34px slack above & below so chat bubbles
+     (opponents below their card, You above) clear the header and the gold
+     rail on desktop. (68px total → ~34px each side. Mobile overrides this
+     with a 42vh cap.) */
+  height: calc(100% - 68px);
   padding: 14px;                              /* the ~14px gold rail */
   border-radius: 82px;
   background: linear-gradient(180deg, #F7DE97 0%, #E4B24A 22%, #A9701C 50%, #E4B24A 78%, #7A4E12 100%);
@@ -570,7 +617,7 @@ body {
   box-shadow:
     inset 0 0 72px rgba(0,0,0,0.28),           /* softer felt vignette */
     inset 0 2px 8px rgba(0,0,0,0.26),          /* gentle shade under the rail */
-    inset 0 0 0 3px rgba(233,184,74,0.18);      /* faint gold inner line */
+    inset 0 0 0 3px rgba(var(--gold-rgb),0.18);      /* faint gold inner line */
   color: #e8f1ea;
   overflow: hidden;
 }
@@ -602,6 +649,74 @@ body {
   gap: 16px; font-size: 0.85rem; flex-shrink: 0; padding: 2px 0; flex-wrap: wrap;
 }
 
+/* ─── Quick messages (in-game chat) — wine bg + gold text (Guide theme) ────── */
+.quick-messages { position: relative; display: inline-flex; }
+.quick-messages__btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; padding: 0; font-size: 1.15rem; line-height: 1;
+  border-radius: 10px; cursor: pointer;
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  color: var(--gold); border: 1px solid var(--gold-border);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+  transition: background 0.15s, transform 0.1s;
+}
+.quick-messages__btn:hover  { background: linear-gradient(150deg, #5a2734, #3a1d28); }
+.quick-messages__btn:active { transform: scale(0.94); }
+.quick-messages__backdrop { position: fixed; inset: 0; z-index: 60; }
+.quick-messages__menu {
+  position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+  z-index: 61; width: max-content; max-width: min(240px, 78vw); max-height: 52vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  border: 1px solid var(--gold-border); border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+}
+.quick-messages__item {
+  background: transparent; border: none; cursor: pointer;
+  color: var(--gold); font-weight: 700; font-size: 0.9rem;
+  text-align: left; padding: 8px 12px; border-radius: 8px; white-space: nowrap;
+}
+.quick-messages__item:hover { background: rgba(var(--gold-rgb),0.14); }
+
+/* Speech bubble above a player's chip */
+.chat-bubble {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  z-index: 5; white-space: nowrap; max-width: min(62vw, 180px);
+  text-overflow: ellipsis;
+  /* NB: no `overflow: hidden` here — it would clip the ::after tail (a positioned
+     child of this bubble) and the pointer would vanish. Quick messages are short
+     fixed presets, so the width cap above is enough without clipping. */
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  color: var(--gold); font-weight: 700; font-size: 0.8rem;
+  padding: 6px 12px; border-radius: 14px; border: 1px solid var(--gold-border);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.45);
+  animation: bubblePop 0.18s ease-out;
+}
+/* Tail: matches the bubble's bottom edge colour (--card-2) — this bubble sits
+   ABOVE the chip (used for "You"), so the tail points down. */
+.chat-bubble::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 7px solid transparent; border-top-color: var(--card-2);
+}
+/* Opponents sit under the header, so their bubble renders BELOW the chip (tail up).
+   The tail points at the chip from the bubble's TOP edge, so colour it --card-1. */
+.chat-bubble--below {
+  bottom: auto; top: calc(100% + 8px);
+  animation: bubblePopDown 0.18s ease-out;
+}
+.chat-bubble--below::after {
+  top: auto; bottom: 100%;
+  border-top-color: transparent; border-bottom-color: var(--card-1);
+}
+@keyframes bubblePop {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px) scale(0.92); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+@keyframes bubblePopDown {
+  from { opacity: 0; transform: translateX(-50%) translateY(-4px) scale(0.92); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
 /* ─── Lobby ───────────────────────────────────────────────────────────────── */
 .lobby { max-width: 480px; width: 100%; }
 .player-list { list-style: none; }
@@ -618,22 +733,79 @@ body {
   padding: 2px 8px; border-radius: 20px; font-weight: 700;
 }
 
-/* ─── Winner page (dark-wine card, consistent with all cards) ─────────────── */
+/* ─── Winner page ─────────────────────────────────────────────────────────── */
 .winner-page-wrap {
   flex: 1; min-height: 0; overflow: auto;
   display: flex; align-items: center; justify-content: center;
   padding: 16px; position: relative;
 }
-.winner-card {
+
+/* ─── Phase 3 primitives (Surface, Button block, Field, Modal, utilities) ───── */
+.surface {
   background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  border: 1px solid var(--gold-border);
+  border-radius: 16px;
+  padding: 24px;
   color: var(--cream);
+  box-shadow: 0 16px 44px rgba(0,0,0,0.5);
+}
+/* Surface modifiers — base `.surface` + these deltas (must follow `.surface`) */
+.winner-card {
   border: 2px solid var(--gold-border);
   border-radius: 24px;
   padding: 32px 40px; text-align: center;
   max-width: 500px; width: 100%;
   display: flex; flex-direction: column; align-items: center; gap: 20px;
-  box-shadow: 0 22px 60px rgba(0,0,0,0.6), 0 0 44px rgba(233,184,74,0.14);
+  box-shadow: 0 22px 60px rgba(0,0,0,0.6), 0 0 44px rgba(var(--gold-rgb),0.14);
   position: relative; z-index: 1;
+}
+.guide-content { padding: 26px 32px; box-shadow: 0 16px 44px rgba(0,0,0,0.4); }
+.btn--block { width: 100%; }
+
+.text-center { text-align: center; }
+.muted { opacity: 0.7; }
+.field-label { font-size: 0.85rem; opacity: 0.7; }
+.field-hint  { font-size: 0.75rem; opacity: 0.5; }
+/* ── Shared text & layout utilities ─────────────────────────────────────────── */
+.card-title { margin: 0; text-align: center; color: var(--gold); font-weight: 700; }
+.card-title--lg { font-size: 1.8rem; }
+.card-title--md { font-size: 1.5rem; }
+.card-title--sm { font-size: 1.1rem; }
+.tag-faint { opacity: 0.5; font-size: 0.75rem; }
+.hint { opacity: 0.7; font-size: 0.9rem; }
+.row-highlight { background: rgba(var(--gold-rgb), 0.12); } /* Rank-1 / winner row */
+.row-highlight td { border-bottom: 1px solid var(--gold-border); } /* gold accent on the BOTTOM only */
+.row-highlight td:first-child { font-weight: 700; }
+.cell-me { font-weight: 700; }
+
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 900;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal-panel {
+  position: relative;
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  border: 2px solid var(--gold-border);
+  border-radius: 18px;
+  padding: 24px 28px;
+  min-width: 280px; max-width: 92vw; max-height: 88vh; overflow: auto;
+  display: flex; flex-direction: column; gap: 16px;
+  color: var(--cream);
+  box-shadow: 0 18px 55px rgba(0,0,0,0.6);
+}
+.modal-close {
+  position: absolute; top: 12px; right: 14px;
+  width: 32px; height: 32px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--gold-border); background: rgba(0,0,0,0.35);
+  color: var(--gold); cursor: pointer;
+}
+.modal-close:hover { background: rgba(var(--gold-rgb),0.15); }
+.modal-title {
+  margin: 0; text-align: center;
+  color: var(--gold); font-size: 1.15rem; font-weight: 800;
+  letter-spacing: 0.5px; text-shadow: 0 0 18px rgba(var(--gold-rgb),0.3);
 }
 
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
@@ -642,7 +814,6 @@ body {
   .guide-toc { position: static; }
 }
 @media (max-width: 600px) {
-  .scoreboard-overlay__panel { padding: 18px 14px 16px; }
   :root { --card-w: 72px; }
 
   /* Header: scale down so brand + nav fit narrow screens on one row */
@@ -670,9 +841,17 @@ body {
   .trick-card-slot .card { width: 46px; height: 67px; }
   .trick-felt { gap: 6px; }
 
-  /* Round + Trump: one line, natural size (no wrap), wide-enough container */
-  .felt-badges { flex-wrap: nowrap; gap: 8px; max-width: none; }
-  .round-chip, .trump-chip { font-size: 0.85rem; padding: 5px 12px; }
+  /* Round + Trump stay on ONE row (no wrap) so the trump is always visible.
+     The mode name would overflow this row on phones, so swap it for a compact
+     ⓘ tooltip (like the trump ⓘ) that reveals the mode name on tap. */
+  .felt-badges { flex-wrap: nowrap; gap: 6px; max-width: none; }
+  .round-chip, .trump-chip { font-size: 0.76rem; padding: 4px 9px; min-height: 28px; }
+  .round-chip__mode { display: none; }
+  .round-chip__mode-tip { display: inline-flex; }
+
+  /* Chat bubbles: cap to ~a chip's width and let them WRAP, so two opponents
+     messaging at once (esp. long text) no longer overlap into each other. */
+  .chat-bubble { white-space: normal; max-width: min(28vw, 92px); word-break: break-word; }
 
   /* Reclaim vertical space around the felt */
   .player-chip { min-width: 70px; padding: 5px 10px; }

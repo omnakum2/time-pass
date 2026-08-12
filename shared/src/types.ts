@@ -11,7 +11,70 @@ export interface Card {
 
 // ─── Game phases ─────────────────────────────────────────────────────────────
 
-export type GamePhase = 'LOBBY' | 'DEALING' | 'BIDDING' | 'PLAYING' | 'ROUND_SCORING' | 'GAME_OVER';
+export type GamePhase = 'LOBBY' | 'DEALING' | 'TRUMP_SELECT' | 'BIDDING' | 'PLAYING' | 'ROUND_SCORING' | 'GAME_OVER';
+
+// ─── Game modes ──────────────────────────────────────────────────────────────
+
+export type GameMode = 'classic' | 'upDown' | 'blind' | 'revolvingTrump';
+
+export interface GameModeInfo { id: GameMode; label: string; short: string; desc: string; }
+
+export const GAME_MODES: GameModeInfo[] = [
+  { id: 'classic', label: 'Classic',   short: 'Classic',   desc: 'Random trump each round — the original game.' },
+  { id: 'upDown',  label: 'Up & Down', short: 'Up & Down', desc: 'Rounds climb 1→7, then back down to 1 (13 rounds).' },
+  { id: 'blind',   label: 'Blind Bid', short: 'Blind',     desc: 'Bid before you see your cards.' },
+  { id: 'revolvingTrump', label: 'Revolving Trump', short: 'Rev. Trump', desc: 'The first bidder picks the trump each round.' },
+];
+
+/**
+ * Whether a player's own hand must stay hidden right now. Blind Bid mode hides the
+ * hand while dealing and bidding, revealing it only once play begins. Single source
+ * of truth for both the server (sends an empty hand) and the client (renders backs).
+ */
+export function isHandHiddenForBid(mode: GameMode, phase: GamePhase): boolean {
+  return mode === 'blind' && (phase === 'BIDDING' || phase === 'DEALING');
+}
+
+// ─── Trump options (Revolving Trump mode) ───────────────────────────────────
+
+export type TrumpKind = 'suit' | 'noTrump' | 'lowCard' | 'ak47' | 'oneTrump' | 'kingQueen';
+
+export interface TrumpConfig {
+  kind: TrumpKind;
+  suit?: Suit;  // when kind === 'suit'
+  rank?: Rank;  // when kind === 'oneTrump' (server picks the rank)
+}
+
+// Special (non-suit) options the first bidder can choose, in picker order.
+export interface TrumpSpecial { kind: TrumpKind; label: string; }
+export const TRUMP_SPECIALS: TrumpSpecial[] = [
+  { kind: 'noTrump',   label: 'No Trump' },
+  { kind: 'lowCard',   label: 'Low Card' },
+  { kind: 'ak47',      label: 'AK47' },
+  { kind: 'oneTrump',  label: 'One Trump' },
+  { kind: 'kingQueen', label: 'King-Queen' },
+];
+
+// Short label for the trump chip (client maps 'suit' to its symbol + name itself).
+// Static special labels come from TRUMP_SPECIALS (single source of truth); only
+// 'suit' and 'oneTrump' (which annotates the picked rank) need special handling.
+export function trumpLabel(cfg: TrumpConfig): string {
+  if (cfg.kind === 'suit') return cfg.suit ?? '';
+  if (cfg.kind === 'oneTrump') return `One Trump (${cfg.rank ?? '?'})`;
+  return TRUMP_SPECIALS.find(s => s.kind === cfg.kind)?.label ?? '';
+}
+
+// One-liner rule shown in the trump chip's info (ⓘ) tooltip.
+export function trumpInfo(cfg: TrumpConfig): string {
+  switch (cfg.kind) {
+    case 'suit':      return 'This suit beats every other suit.';
+    case 'noTrump':   return 'No trump — the highest card of the led suit wins.';
+    case 'lowCard':   return 'No trump — the lowest card of the led suit wins.';
+    case 'ak47':      return 'Every A, K, 4 and 7 is a trump.';
+    case 'oneTrump':  return `Every ${cfg.rank ?? '?'} is a trump.`;
+    case 'kingQueen': return 'Every King and Queen is a trump.';
+  }
+}
 
 // ─── Player ──────────────────────────────────────────────────────────────────
 
@@ -19,7 +82,7 @@ export interface Player {
   id: string;
   name: string;
   seatIndex: number;
-  connected: boolean;
+  status: 'online' | 'reconnecting' | 'offline'; // 'online' = live socket; 'reconnecting' = in grace window; 'offline' = gone
 }
 
 // ─── Trick card entry ─────────────────────────────────────────────────────────
@@ -53,6 +116,7 @@ export interface GameState {
   maxPlayers: number;
   round: number | null;        // current round number (7..1), null in LOBBY
   trump: Suit | null;
+  trumpConfig: TrumpConfig | null; // full trump rule for the round (Revolving Trump specials)
   yourHand: Card[];            // only the recipient's cards
   handCounts: Record<string, number>; // other players' card counts
   bids: Record<string, number | null>; // playerId → bid (null if not yet bid)
@@ -63,8 +127,11 @@ export interface GameState {
   firstBidder: string | null;
   tricksWon: Record<string, number>; // playerId → tricks won this round
   countdownMs: number | null; // ms left on the lobby auto-start countdown (null unless counting down)
-  turnTimeoutMs: number; // server-configured turn budget for the current phase (drives client timer rings)
+  turnTimeoutMs: number; // full turn budget for the current phase (ring denominator)
+  turnExpiresAt: number | null; // absolute epoch ms the current turn auto-resolves (null = no live turn / paused)
+  turnRemainingMs: number | null; // ms left on the current turn at broadcast (frozen value while paused)
   roomExpiresInMs: number | null; // ms until a finished room auto-closes (null unless in GAME_OVER)
+  mode: GameMode; // the room's game mode
 }
 
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
@@ -73,6 +140,7 @@ export interface MsgCreateRoom {
   type: 'createRoom';
   name: string;
   maxPlayers?: number; // 2–7, defaults to 7
+  mode?: GameMode; // defaults to 'classic'
 }
 
 export interface MsgJoinRoom {
@@ -109,6 +177,17 @@ export interface MsgLeaveRoom {
   type: 'leaveRoom';
 }
 
+export interface MsgQuickMessage {
+  type: 'quickMessage';
+  id: string; // one of QUICK_MESSAGES[].id
+}
+
+export interface MsgSelectTrump {
+  type: 'selectTrump';
+  kind: TrumpKind;
+  suit?: Suit; // required when kind === 'suit'
+}
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
@@ -117,7 +196,9 @@ export type ClientMessage =
   | MsgPlaceBid
   | MsgPlayCard
   | MsgRestartGame
-  | MsgLeaveRoom;
+  | MsgLeaveRoom
+  | MsgQuickMessage
+  | MsgSelectTrump;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 
@@ -153,14 +234,38 @@ export interface MsgGameOver {
   playerNames: Record<string, string>;
 }
 
+export type ErrorCode =
+  | 'INVALID_NAME'
+  | 'ROOM_NOT_FOUND'
+  | 'GAME_STARTED'
+  | 'ROOM_FULL'
+  | 'JOIN_FAILED'
+  | 'INVALID_TOKEN'
+  | 'NOT_IN_ROOM'
+  | 'BAD_MESSAGE'
+  | 'NOT_HOST'
+  | 'WRONG_PHASE'
+  | 'NOT_ENOUGH_PLAYERS'
+  | 'NOT_YOUR_TURN'
+  | 'INVALID_BID'
+  | 'CARD_NOT_IN_HAND'
+  | 'ILLEGAL_CARD'
+  | 'INVALID_TRUMP';
+
 export interface MsgError {
   type: 'error';
-  code: string;
+  code: ErrorCode;
   message: string;
 }
 
 export interface MsgRoomClosed {
   type: 'roomClosed'; // the finished room's TTL elapsed; it's being destroyed
+}
+
+export interface MsgQuickMessageBroadcast {
+  type: 'quickMessage';
+  senderId: string;
+  text: string;
 }
 
 export type ServerMessage =
@@ -169,4 +274,22 @@ export type ServerMessage =
   | MsgRoundResult
   | MsgGameOver
   | MsgError
-  | MsgRoomClosed;
+  | MsgRoomClosed
+  | MsgQuickMessageBroadcast;
+
+// ─── Quick chat messages (predefined, tap-to-send) ──────────────────────────
+
+export interface QuickMessage { id: string; text: string; }
+
+export const QUICK_MESSAGES: QuickMessage[] = [
+  { id: 'play-fast',   text: 'Play Fast' },
+  { id: 'nice-move',   text: 'Nice Move' },
+  { id: 'my-game',     text: 'My Game' },
+  { id: 'better-luck', text: 'Better Luck Next Time' },
+  { id: 'good-game',   text: 'Good Game' },
+  { id: 'hurry-up',    text: 'Hurry Up!' },
+  { id: 'oh-shit',     text: 'Oh Shit!' },
+  { id: 'thinking',    text: 'Thinking' },
+  { id: 'thank-you',   text: 'Thank You' },
+  { id: 'close-one',   text: 'Close One!' }
+];

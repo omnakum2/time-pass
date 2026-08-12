@@ -1,22 +1,25 @@
 import { useRef, useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Suit, Player } from 'shared';
-import { legalMoves } from 'shared';
+import { legalMoves, SUIT_ORDER, RANK_ORDER, isHandHiddenForBid } from 'shared';
 import { useGameStore } from '../store/gameStore';
 import { sendMsg } from '../net/socket';
+import { getTotal } from '../lib/helpers';
 import { CardView } from '../components/CardView';
 import { TrickArea } from '../components/TrickArea';
 import { BidPanel } from '../components/BidPanel';
+import { TrumpPicker } from '../components/TrumpPicker';
 import { PlayerChip } from '../components/PlayerChip';
 import { Popup } from '../components/Popup';
 import { RoundResultOverlay } from '../components/RoundResultOverlay';
+import { QuickMessages } from '../components/QuickMessages';
+import { URGENT_LEAD_MS } from '../constants';
 
 // ─── GamePage ─────────────────────────────────────────────────────────────────
 
 export function GamePage() {
   const { gameState, playerId, lastRoundResult } = useGameStore();
   const prevTurnRef = useRef<string>('');
-  const turnSeqRef = useRef(0);
   const prevTrickEmptyRef = useRef(true);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [urgent, setUrgent] = useState(false);
@@ -25,34 +28,39 @@ export function GamePage() {
   const phase = gameState?.phase ?? '';
   const currentTurn = gameState?.currentTurn ?? null;
   const turnTimeoutMs = gameState?.turnTimeoutMs ?? 0;
+  const turnRemainingMs = gameState?.turnRemainingMs ?? 0;
+  const turnExpiresAt = gameState?.turnExpiresAt ?? null;
+  // Timer key re-anchors the countdown only when the server's turn deadline changes
+  // (new turn / pause-resume) — never on a plain reconnect. Running = a live turn.
+  const timerKey = String(turnExpiresAt ?? 'none');
+  const timerRunning = turnExpiresAt != null;
   const currentTrick = gameState?.currentTrick ?? [];
 
-  // Turn key resets timer on every new turn (sequence-based)
+  // Reset the selected card whenever it becomes a new turn (new active player or a
+  // fresh trick lead). The turn TIMER is driven separately by the server deadline.
   const trickEmpty = currentTrick.length === 0;
   if (currentTurn && (currentTurn !== prevTurnRef.current || (trickEmpty && !prevTrickEmptyRef.current))) {
-    turnSeqRef.current += 1;
     prevTurnRef.current = currentTurn;
     setSelectedCard(null); // reset selection on turn change
   }
   prevTrickEmptyRef.current = trickEmpty;
-  const turnKey = String(turnSeqRef.current);
 
   useEffect(() => {
     setUrgent(false);
-    if ((phase === 'BIDDING' || phase === 'PLAYING') && currentTurn) {
-      const lead = Math.max(0, turnTimeoutMs - 6000);
+    if (timerRunning && (phase === 'BIDDING' || phase === 'PLAYING' || phase === 'TRUMP_SELECT') && currentTurn) {
+      const lead = Math.max(0, turnRemainingMs - URGENT_LEAD_MS);
       const id = setTimeout(() => setUrgent(true), lead);
       return () => clearTimeout(id);
     }
-  }, [turnKey, turnTimeoutMs, phase, currentTurn]);
+  }, [timerKey, timerRunning, turnRemainingMs, phase, currentTurn]);
 
   if (!gameState || !playerId) {
     return <div className="page"><p>Loading game…</p></div>;
   }
 
   const {
-    round, trump, yourHand, bids,
-    players, tricksWon, scoreboard,
+    round, trumpConfig, yourHand, bids,
+    players, tricksWon, scoreboard, mode,
   } = gameState;
 
   const isMyTurn = currentTurn === playerId;
@@ -66,8 +74,6 @@ export function GamePage() {
     : [];
 
   // Sort hand: by suit order then rank
-  const SUIT_ORDER = ['S', 'H', 'D', 'C'];
-  const RANK_ORDER = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
   const sortedHand = [...yourHand].sort((a, b) => {
     const si = SUIT_ORDER.indexOf(a.suit) - SUIT_ORDER.indexOf(b.suit);
     return si !== 0 ? si : RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
@@ -96,24 +102,25 @@ export function GamePage() {
     }
   }
 
-  const getTotal = (id: string) => {
-    const rows = scoreboard[id] ?? [];
-    return rows.length > 0 ? rows[rows.length - 1].total : 0;
-  };
-
   const chipProps = (p: Player) => ({
     player: p,
     bid: bids[p.id] ?? null,
     tricksWon: tricksWon[p.id] ?? 0,
     isActive: currentTurn === p.id,
     phase,
-    turnKey,
-    timerMs: turnTimeoutMs,
-    totalScore: getTotal(p.id),
+    remainingMs: turnRemainingMs,
+    fullMs: turnTimeoutMs,
+    startKey: timerKey,
+    running: timerRunning,
+    totalScore: getTotal(scoreboard, p.id),
   });
 
+  const blindHidden = isHandHiddenForBid(mode, gameState.phase);
+
   const activeName = currentTurn ? (players.find(p => p.id === currentTurn)?.name ?? '') : '';
-  const statusText = phase === 'BIDDING'
+  const statusText = phase === 'TRUMP_SELECT'
+    ? (isMyTurn ? 'Choose the trump' : (currentTurn ? `Waiting for ${activeName} to choose the trump…` : ''))
+    : phase === 'BIDDING'
     ? (isMyTurn ? 'Place your bid' : (currentTurn ? `Waiting for ${activeName} to bid…` : ''))
     : phase === 'PLAYING'
     ? (isMyTurn ? 'Your turn' : (currentTurn ? `Waiting for ${activeName}…` : ''))
@@ -129,7 +136,15 @@ export function GamePage() {
         visible={phase === 'BIDDING' && isMyTurn}
         title={`Round ${round} · How many tricks will you win?`}
       >
-        <BidPanel round={round!} turnKey={turnKey} durationMs={turnTimeoutMs} />
+        <BidPanel round={round!} remainingMs={turnRemainingMs} fullMs={turnTimeoutMs} startKey={timerKey} running={timerRunning} />
+      </Popup>
+
+      {/* Trump-select popup — shown when it's MY turn to pick the round's trump */}
+      <Popup
+        visible={phase === 'TRUMP_SELECT' && isMyTurn}
+        title="Choose this round's trump"
+      >
+        <TrumpPicker remainingMs={turnRemainingMs} fullMs={turnTimeoutMs} startKey={timerKey} running={timerRunning} />
       </Popup>
 
       <div className="game-area">
@@ -148,7 +163,7 @@ export function GamePage() {
 
             {/* Middle: trick area */}
             <div className="table-middle-row">
-              <TrickArea trick={currentTrick} players={players} round={round} status={statusText} trump={trump} urgent={urgent} />
+              <TrickArea trick={currentTrick} players={players} round={round} status={statusText} trumpConfig={trumpConfig} urgent={urgent} mode={mode} />
             </div>
           </div>
 
@@ -160,33 +175,42 @@ export function GamePage() {
               tricksWon={myWon}
               isActive={isMyTurn}
               phase={phase}
-              turnKey={turnKey}
-              timerMs={turnTimeoutMs}
-              totalScore={getTotal(playerId)}
+              remainingMs={turnRemainingMs}
+              fullMs={turnTimeoutMs}
+              startKey={timerKey}
+              running={timerRunning}
+              totalScore={getTotal(scoreboard, playerId)}
               isMe
             />
             {selectedCard && (
-              <span style={{ fontSize: '0.8rem', opacity: 0.75, marginLeft: 8 }}>
+              <span className="tag-faint" style={{ marginLeft: 8 }}>
                 Tap again to play
               </span>
             )}
+            <QuickMessages />
           </div>
 
           {/* ── My hand ─── */}
           <div className="hand-area">
             <div className="hand-cards">
-              <AnimatePresence>
-                {sortedHand.map(card => (
-                  <CardView
-                    key={card.id}
-                    card={card}
-                    layoutId={`card-${card.id}`}
-                    disabled={isMyTurn && phase === 'PLAYING' ? !legalIds.includes(card.id) : false}
-                    selected={selectedCard === card.id}
-                    onClick={() => handleCardClick(card.id)}
-                  />
-                ))}
-              </AnimatePresence>
+              {blindHidden ? (
+                Array.from({ length: round ?? 0 }).map((_, i) => (
+                  <div key={i} className="card card--back" aria-hidden="true" />
+                ))
+              ) : (
+                <AnimatePresence>
+                  {sortedHand.map(card => (
+                    <CardView
+                      key={card.id}
+                      card={card}
+                      layoutId={`card-${card.id}`}
+                      disabled={isMyTurn && phase === 'PLAYING' ? !legalIds.includes(card.id) : false}
+                      selected={selectedCard === card.id}
+                      onClick={() => handleCardClick(card.id)}
+                    />
+                  ))}
+                </AnimatePresence>
+              )}
             </div>
           </div>
         </div>

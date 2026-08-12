@@ -1,12 +1,13 @@
 import { ClientMessage, ServerMessage } from 'shared';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
+import { WS_DEFAULT_PORT, RECONNECT_BASE_MS, RECONNECT_MAX_MS, RECONNECT_EXP_CAP } from '../constants';
 
 // Environment-specific WS endpoint, from Vite's import.meta.env (see
 // .env.example). VITE_WS_URL wins when set; otherwise build
 // ws(s)://<page-host>:<VITE_WS_PORT> (protocol matches the page).
 const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-const WS_PORT = import.meta.env.VITE_WS_PORT || '3000';
+const WS_PORT = import.meta.env.VITE_WS_PORT || WS_DEFAULT_PORT;
 const WS_URL = import.meta.env.VITE_WS_URL || `${wsProto}://${window.location.hostname}:${WS_PORT}`;
 
 let ws: WebSocket | null = null;
@@ -21,6 +22,13 @@ export function sendMsg(msg: ClientMessage): void {
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(msg));
   }
+}
+
+// Ask the server to restore our seat. Used by the auto-reconnect on connect AND by the
+// "Join" screen when the user already holds a seat in the target room (e.g. tab closed).
+export function reconnectSession(roomId: string, token: string): void {
+  reconnecting = true;
+  sendMsg({ type: 'reconnect', roomId, token });
 }
 
 export function connect(): void {
@@ -39,10 +47,7 @@ export function connect(): void {
 
     // Try to reconnect to existing session
     const session = storage.getSession();
-    if (session) {
-      reconnecting = true;
-      sendMsg({ type: 'reconnect', roomId: session.roomId, token: session.token });
-    }
+    if (session) reconnectSession(session.roomId, session.token);
   };
 
   sock.onmessage = (ev) => {
@@ -61,7 +66,7 @@ export function connect(): void {
     // cold/slept backend and transient drops self-heal silently.
     if (!manualClose) {
       reconnectAttempts++;
-      const delay = Math.min(1000 * 2 ** Math.min(reconnectAttempts, 4), 10_000);
+      const delay = Math.min(RECONNECT_BASE_MS * 2 ** Math.min(reconnectAttempts, RECONNECT_EXP_CAP), RECONNECT_MAX_MS);
       setTimeout(() => connect(), delay);
     }
   };
@@ -95,6 +100,9 @@ function dispatch(msg: ServerMessage): void {
       storage.clearSession();
       store.setRoomClosed(true);
       break;
+    case 'quickMessage':
+      store.setBubble(msg.senderId, msg.text);
+      break;
     case 'error':
       // A failed auto-reconnect just means the stored session is stale (room
       // gone / server restarted). Drop it silently — don't nag the user with a
@@ -102,6 +110,7 @@ function dispatch(msg: ServerMessage): void {
       if (reconnecting && (msg.code === 'ROOM_NOT_FOUND' || msg.code === 'INVALID_TOKEN')) {
         reconnecting = false;
         storage.clearSession();
+        store.setReconnectFailed(true); // signal the UI to route to the join prompt / show "expired"
         break;
       }
       store.setError(msg.code, msg.message);

@@ -1,8 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
 import { sendMsg } from '../net/socket';
+import { StandingsTable } from '../components/StandingsTable';
+import { Delta } from '../components/Delta';
+import { Button } from '../components/Button';
+import { Surface } from '../components/Surface';
+import { STORAGE_KEYS, CONFETTI_COLORS } from '../constants';
+import { useSecondsRemaining } from '../hooks/useSecondsRemaining';
 
 export function WinnerPage() {
   const { gameOver, playerId, gameState, reset, roomClosed } = useGameStore();
@@ -10,49 +16,55 @@ export function WinnerPage() {
 
   const isHost = gameState?.hostId === playerId;
 
+  // Track the first real host we ever see on this screen. If the host leaves a
+  // finished game, the server promotes another player and broadcasts a new
+  // hostId — we compare against this to detect that mid-screen change.
+  const currentHostId = gameState?.hostId;
+  const initialHostIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (initialHostIdRef.current == null && currentHostId) {
+      initialHostIdRef.current = currentHostId;
+    }
+  }, [currentHostId]);
+  const initialHostId = initialHostIdRef.current;
+  const hostChanged = initialHostId != null && currentHostId !== initialHostId;
+
   const hasWinners = gameOver && gameOver.winners.length > 0;
 
-  // Host-only expiry countdown. Seeded from the server-broadcast value and
-  // ticked locally each second for display.
-  const [secsLeft, setSecsLeft] = useState<number | null>(null);
+  // Host-only expiry countdown — seeded from the server-broadcast value and ticked
+  // down locally each second for display. Hidden once the room has actually closed.
+  const secsLeft = useSecondsRemaining(roomClosed ? null : (gameState?.roomExpiresInMs ?? null));
 
-  useEffect(() => {
-    const expiresInMs = gameState?.roomExpiresInMs;
-    if (roomClosed || expiresInMs == null) {
-      setSecsLeft(null);
-      return;
-    }
-
-    setSecsLeft(Math.ceil(expiresInMs / 1000));
-    const interval = setInterval(() => {
-      setSecsLeft(prev => (prev == null ? prev : Math.max(0, prev - 1)));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [gameState?.roomExpiresInMs, roomClosed]);
-
+  // Winner celebration — an energetic, two-burst confetti pop for EVERYONE at game
+  // over (win or lose). Skipped for viewers who prefer reduced motion.
   useEffect(() => {
     if (!hasWinners) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-    // Party-popper: one blast from each top corner, then natural gravity fall.
-    // Both sides use the exact same color mix — no left/right color separation.
     import('canvas-confetti').then(({ default: confetti }) => {
-      const colors = ['#E9B84A', '#43A047', '#C0392B', '#FBF6E9'];
-      const common = { particleCount: 140, spread: 55, startVelocity: 60, gravity: 1, scalar: 1.1, ticks: 220, colors };
-      // Top
-      confetti({ ...common, angle: 270, spread: 60, startVelocity: 32, origin: { x: 0.2, y: 0 } });  // top-left edge, falling
-      confetti({ ...common, angle: 270, spread: 60, startVelocity: 32, origin: { x: 0.8, y: 0 } });  // top-right edge, falling
+      // Mixed shapes: the built-in square plus a hand-rolled triangle.
+      const triangle = confetti.shapeFromPath({ path: 'M0 0 L10 0 L5 10 Z' });
+      const base = {
+        origin: { x: 0.5, y: 0.5 },
+        colors: CONFETTI_COLORS,
+        shapes: ['square' as const, triangle],
+        gravity: 1,   // particles arc up, then fall naturally under gravity
+        ticks: 300,   // linger ~2.5–3s (fuller & slower than a quick pop)
+      };
 
-      // Bottom
-      confetti({ ...common, angle: 45, origin: { x: 0, y: 1 } }); // bottom-left
-      confetti({ ...common, angle: 135, origin: { x: 1, y: 1 } }); // bottom-right
+      // GitHub-2FA-style celebratory pop: a focused burst that fans out wide and rains
+      // down. Two layers vary particle size + speed; a small delayed pop adds a 2nd beat.
+      confetti({ ...base, particleCount: 90, spread: 100, startVelocity: 55, scalar: 1.1 });
+      confetti({ ...base, particleCount: 70, spread: 130, startVelocity: 45, scalar: 0.85 });
+      setTimeout(() => {
+        confetti({ ...base, particleCount: 50, spread: 120, startVelocity: 50, scalar: 1.0, origin: { x: 0.5, y: 0.45 } });
+      }, 220);
     });
   }, [hasWinners]);
 
   if (!gameOver) return <div className="page"><p>Loading…</p></div>;
 
   const { winners, finalScores, playerNames } = gameOver;
-  const hostLeft = winners.length === 0;
   const isWinner = winners.includes(playerId ?? '');
 
   // Sort by score descending (handles all-negative scores correctly)
@@ -67,100 +79,90 @@ export function WinnerPage() {
   const handleLeave = () => {
     sendMsg({ type: 'leaveRoom' }); // release our seat server-side before leaving
     storage.clearSession();
-    sessionStorage.removeItem('pendingRoomId');
-    sessionStorage.removeItem('pendingHost');
+    sessionStorage.removeItem(STORAGE_KEYS.pendingRoomId);
+    sessionStorage.removeItem(STORAGE_KEYS.pendingHost);
     navigate('/', { replace: true });
     reset();
   };
 
   return (
     <div className="winner-page-wrap">
-      <div className="winner-card">
+      <Surface className="winner-card">
 
         {/* Trophy / icon */}
         <div style={{ fontSize: '4rem', lineHeight: 1 }}>
-          {hostLeft ? '🚪' : isWinner ? '🏆' : '🎉'}
+          {isWinner ? '🏆' : '🎉'}
         </div>
 
         {/* Headline */}
-        {hostLeft ? (
-          <>
-            <h1 style={{ color: 'var(--gold)', fontSize: '1.6rem' }}>Host Left</h1>
-            <p style={{ opacity: 0.7, fontSize: '0.9rem' }}>Game ended early. Current standings:</p>
-          </>
-        ) : (
-          <>
-            <h1 style={{ color: 'var(--gold)', fontSize: '1.8rem' }}>
-              {isWinner
-                ? 'You win!'
-                : `${winnerNames.join(' & ')} win${winners.length > 1 ? '!' : 's!'}`}
-            </h1>
-          </>
-        )}
+        <h1 className="card-title card-title--lg">
+          {isWinner
+            ? 'You win!'
+            : `${winnerNames.join(' & ')} win${winners.length > 1 ? '!' : 's!'}`}
+        </h1>
 
         {/* Full standings table */}
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <StandingsTable variant="lr">
           <thead>
             <tr>
-              <th style={{ textAlign: 'left', padding: '6px 12px', opacity: 0.6, fontWeight: 600 }}>Player</th>
-              <th style={{ textAlign: 'right', padding: '6px 12px', opacity: 0.6, fontWeight: 600 }}>Score</th>
+              <th>Player</th>
+              <th>Score</th>
             </tr>
           </thead>
           <tbody>
             {sortedPlayers.map((p, i) => {
               const isTopPlayer = winners.includes(p.id);
               return (
-                <tr key={p.id} style={{ background: isTopPlayer ? 'rgba(212,175,55,0.12)' : 'transparent' }}>
-                  <td style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.08)', fontWeight: p.id === playerId ? 700 : 400 }}>
+                <tr key={p.id} className={isTopPlayer ? 'row-highlight' : undefined}>
+                  <td className={p.id === playerId ? 'cell-me' : undefined}>
                     {p.name}
                     {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''}
-                    {p.id === playerId && <span style={{ opacity: 0.45, marginLeft: 5, fontSize: '0.78rem' }}>(you)</span>}
+                    {p.id === playerId && <span className="tag-faint" style={{ marginLeft: 5 }}>(you)</span>}
                   </td>
-                  <td style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.08)', textAlign: 'right', fontWeight: 700, color: p.score >= 0 ? '#4caf50' : '#ef5350' }}>
-                    {p.score}
+                  <td>
+                    <Delta value={p.score} />
                   </td>
                 </tr>
               );
             })}
           </tbody>
-        </table>
+        </StandingsTable>
 
         {roomClosed ? (
           <>
-            <p style={{ opacity: 0.7, fontSize: '0.9rem' }}>This game has ended and the room has closed.</p>
-            <button
-              className="btn btn--primary"
-              style={{ width: '100%' }}
+            <p className="hint">This game has ended and the room has closed.</p>
+            <Button
+              variant="primary"
+              block
               onClick={() => { reset(); navigate('/', { replace: true }); }}
             >
               Back to Home
-            </button>
+            </Button>
           </>
-        ) : hostLeft ? (
-          <button className="btn btn--secondary" style={{ width: '100%' }} onClick={handleLeave}>
-            Leave
-          </button>
         ) : isHost ? (
           <>
-            <button className="btn btn--primary" style={{ width: '100%' }} onClick={handleRematch}>
-              Play Again
-            </button>
-            {secsLeft != null && (
-              <p style={{ opacity: 0.6, fontSize: '0.8rem', margin: 0 }}>Room closes in {secsLeft}s</p>
+            {hostChanged && (
+              <p className="hint">The previous host left — you're the host now.</p>
             )}
-            <button className="btn btn--secondary" style={{ width: '100%' }} onClick={handleLeave}>
+            {secsLeft != null && (
+              <p className="tag-faint" style={{ margin: 0 }}>Room closes in {secsLeft}s</p>
+            )}
+            <Button variant="primary" block onClick={handleRematch}>
+              Play Again
+            </Button>
+            <Button variant="secondary" block onClick={handleLeave}>
               Leave
-            </button>
+            </Button>
           </>
         ) : (
           <>
-            <p style={{ opacity: 0.7, fontSize: '0.9rem' }}>Waiting for the host to start a rematch…</p>
-            <button className="btn btn--secondary" style={{ width: '100%' }} onClick={handleLeave}>
+            <p className="hint">Waiting for the host to start a rematch…</p>
+            <Button variant="secondary" block onClick={handleLeave}>
               Leave
-            </button>
+            </Button>
           </>
         )}
-      </div>
+      </Surface>
     </div>
   );
 }

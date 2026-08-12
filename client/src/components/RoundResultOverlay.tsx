@@ -1,5 +1,7 @@
-import { motion, AnimatePresence } from 'framer-motion';
 import { MsgRoundResult } from 'shared';
+import { Modal } from './Modal';
+import { Delta } from './Delta';
+import { StandingsTable } from './StandingsTable';
 
 interface Props {
   result: MsgRoundResult | null;
@@ -7,37 +9,37 @@ interface Props {
 }
 
 export function RoundResultOverlay({ result, visible }: Props) {
+  // Rank by running total (leader first) so the Rank-1 row can be highlighted.
+  const rows = result ? [...result.perPlayer].sort((a, b) => b.total - a.total) : [];
+
   return (
-    <AnimatePresence>
-      {visible && result && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.9 }}
-          style={{
-            position: 'fixed', inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 500,
-          }}
-        >
-          <div className="panel flex-col gap-md" style={{ maxWidth: 360, width: '90%' }}>
-            <h2 style={{ textAlign: 'center', color: 'var(--gold)' }}>Round {result.round} Over</h2>
-            {result.perPlayer.map(p => (
-              <div key={p.playerId} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>{p.name}</span>
-                <span>
-                  bid {p.bid}, won {p.won} →{' '}
-                  <strong style={{ color: p.delta >= 0 ? '#4caf50' : '#ef5350' }}>
-                    {p.delta >= 0 ? `+${p.delta}` : p.delta}
-                  </strong>
-                  {' '}({p.total})
-                </span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <Modal
+      open={visible && !!result}
+      dismissable={false}
+      title={result ? `Round ${result.round} Over` : undefined}
+    >
+      <StandingsTable>
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Bid</th>
+            <th>Won</th>
+            <th>Points</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => (
+            <tr key={p.playerId}>
+              <td>{p.name}</td>
+              <td>{p.bid}</td>
+              <td>{p.won}</td>
+              <td><Delta value={p.delta} /></td>
+              <td className="total-cell">{p.total}</td>
+            </tr>
+          ))}
+        </tbody>
+      </StandingsTable>
+    </Modal>
   );
 }

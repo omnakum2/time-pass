@@ -1,32 +1,35 @@
 import { useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
-
-const FRIENDLY: Record<string, string> = {
-  ROOM_NOT_FOUND: 'That room has expired or no longer exists.',
-  GAME_STARTED: 'That game has already started.',
-  ROOM_FULL: 'Room is full (max 7 players).',
-  NOT_HOST: 'Only the host can do that.',
-  NOT_YOUR_TURN: 'It\'s not your turn.',
-  INVALID_BID: 'Invalid bid.',
-  ILLEGAL_CARD: 'You must follow the lead suit if you can.',
-  NOT_ENOUGH_PLAYERS: 'Need at least 2 players to start.',
-  INVALID_TOKEN: 'Your session expired. Please rejoin.',
-};
+import { TOAST_DISMISS_MS } from '../constants';
+import { Icon } from './Icon';
 
 export function ErrorToast() {
   const { error, clearError } = useGameStore();
 
   useEffect(() => {
     if (!error) return;
-    const t = setTimeout(clearError, 4000);
+    const t = setTimeout(clearError, TOAST_DISMISS_MS);
     return () => clearTimeout(t);
   }, [error, clearError]);
 
-  const msg = error ? (FRIENDLY[error.code] ?? error.message) : '';
+  const msg = error ? (error.message || 'Something went wrong.') : '';
 
   return (
-    <div className={`error-toast${error ? ' error-toast--visible' : ''}`} onClick={clearError}>
-      {msg}
+    <div
+      className={`error-toast${error ? ' error-toast--visible' : ''}`}
+      role="alert"
+      aria-live="assertive"
+      onClick={clearError}
+    >
+      <span className="error-toast__msg">{msg}</span>
+      <button
+        type="button"
+        className="error-toast__close"
+        aria-label="Dismiss"
+        onClick={(e) => { e.stopPropagation(); clearError(); }}
+      >
+        <Icon name="close" size={16} />
+      </button>
     </div>
   );
 }

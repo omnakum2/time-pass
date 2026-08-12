@@ -1,22 +1,25 @@
-import { Card, Rank, Suit, TrickCard } from './types';
+import { Card, Rank, Suit, TrickCard, RoundScore, GameMode, TrumpConfig } from './types';
+import { RANK_ORDER, SUITS } from './constants';
 
 // ─── Rank ordering (higher index = higher rank) ──────────────────────────────
-
-const RANK_ORDER: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
 export function rankValue(rank: Rank): number {
   return RANK_ORDER.indexOf(rank);
 }
 
-// ─── Deck ────────────────────────────────────────────────────────────────────
+// ─── Rounds per game mode ────────────────────────────────────────────────────
 
-const SUITS: Suit[] = ['D', 'C', 'H', 'S'];
-const RANKS: Rank[] = RANK_ORDER;
+export function roundsForMode(mode: GameMode): number[] {
+  if (mode === 'upDown') return [1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1];
+  return [7, 6, 5, 4, 3, 2, 1]; // classic + blind
+}
+
+// ─── Deck ────────────────────────────────────────────────────────────────────
 
 export function createDeck(): Card[] {
   const deck: Card[] = [];
   for (const suit of SUITS) {
-    for (const rank of RANKS) {
+    for (const rank of RANK_ORDER) {
       deck.push({ id: `${rank}${suit}`, rank, suit });
     }
   }
@@ -35,7 +38,9 @@ export function shuffle<T>(arr: T[]): T[] {
 // ─── Dealing ─────────────────────────────────────────────────────────────────
 
 /**
- * Returns a map: seatIndex → cards dealt.
+ * Deals the round from a freshly shuffled deck.
+ * Returns { hands }, an array of hands where the array index is the seat index
+ * (hands[0] is seat 0, hands[1] is seat 1, …). Each hand has `roundNumber` cards.
  * roundNumber = 7..1, playerCount ≤ 7.
  */
 export function deal(
@@ -64,11 +69,15 @@ export function pickTrump(prev: Suit | null | undefined): Suit | null {
 // ─── Bidding order ───────────────────────────────────────────────────────────
 
 /**
- * Returns the seat index of the first bidder for a given round.
- * Round 7 → seat 0, Round 6 → seat 1, etc. (wraps with playerCount)
+ * Returns the seat index of the first bidder for a given round, keyed off the
+ * round's 0-based sequence index (index 0 → seat 0, index 1 → seat 1, …; wraps
+ * with playerCount). Using the sequence index makes the opening bid advance
+ * exactly one seat per round in every game mode.
+ * For Classic/Blind/Revolving-Trump (rounds run 7→1) `roundIndex === 7 - round`,
+ * so this matches the old behaviour; only Up & Down changes.
  */
-export function firstBidderSeat(round: number, playerCount: number): number {
-  return (7 - round) % playerCount;
+export function firstBidderSeat(roundIndex: number, playerCount: number): number {
+  return roundIndex % playerCount;
 }
 
 // ─── Legal moves ─────────────────────────────────────────────────────────────
@@ -86,31 +95,55 @@ export function legalMoves(hand: Card[], leadSuit: Suit | null): Card[] {
 
 // ─── Trick winner ────────────────────────────────────────────────────────────
 
-/**
- * Determines the winner of a trick.
- * Returns the TrickCard that won.
- * Rules:
- *  - Highest trump played wins.
- *  - If no trump played, highest card of the leading suit wins.
- *  - Off-suit non-trump cards cannot win.
- */
-export function trickWinner(
-  trick: TrickCard[],
-  leadSuit: Suit,
-  trump: Suit | null
-): TrickCard {
-  if (trump !== null) {
-    const trumpCards = trick.filter(tc => tc.card.suit === trump);
-    if (trumpCards.length > 0) {
-      return trumpCards.reduce((best, tc) =>
-        rankValue(tc.card.rank) > rankValue(best.card.rank) ? tc : best
-      );
-    }
+const AK47_RANKS: Rank[] = ['A', 'K', '4', '7'];
+const KQ_RANKS: Rank[] = ['K', 'Q'];
+
+function isTrumpCard(card: Card, cfg: TrumpConfig): boolean {
+  switch (cfg.kind) {
+    case 'suit':      return card.suit === cfg.suit;
+    case 'ak47':      return AK47_RANKS.includes(card.rank);
+    case 'kingQueen': return KQ_RANKS.includes(card.rank);
+    case 'oneTrump':  return card.rank === cfg.rank;
+    default:          return false; // noTrump, lowCard have no trump cards
   }
-  const leadCards = trick.filter(tc => tc.card.suit === leadSuit);
-  return leadCards.reduce((best, tc) =>
-    rankValue(tc.card.rank) > rankValue(best.card.rank) ? tc : best
-  );
+}
+
+// Winner among `cards` (a subset of the trick, in play order). Highest rank wins;
+// on a rank tie (e.g. two Kings) the card played FIRST wins (reduce keeps `best`).
+function highestOf(cards: TrickCard[]): TrickCard {
+  return cards.reduce((best, tc) => rankValue(tc.card.rank) > rankValue(best.card.rank) ? tc : best);
+}
+function lowestOf(cards: TrickCard[]): TrickCard {
+  return cards.reduce((best, tc) => rankValue(tc.card.rank) < rankValue(best.card.rank) ? tc : best);
+}
+
+// Winner among the trump cards. Highest rank wins (natural order — e.g. AK47 is
+// A>K>7>4). If several trumps share that top rank (suit is ignored for trump
+// status, so ties happen — e.g. two Aces, or every card in One Trump), the one
+// matching the led suit wins; otherwise the earliest-played (ties keep first).
+function winningTrump(trumps: TrickCard[], leadSuit: Suit): TrickCard {
+  const top = Math.max(...trumps.map(tc => rankValue(tc.card.rank)));
+  const tied = trumps.filter(tc => rankValue(tc.card.rank) === top);
+  if (tied.length === 1) return tied[0];
+  return tied.find(tc => tc.card.suit === leadSuit) ?? tied[0];
+}
+
+/**
+ * Determines the winning TrickCard, generalized over all Revolving-Trump options.
+ *  - If any trump cards were played → highest-ranked trump; on a same-rank tie the
+ *    trump matching the led suit wins, else the card played first.
+ *  - Otherwise only the led suit is eligible → Low Card = lowest of the led suit,
+ *    No Trump / everything else = highest of the led suit.
+ * Follow-suit legality is unchanged (see legalMoves).
+ */
+export function trickWinner(trick: TrickCard[], leadSuit: Suit, cfg: TrumpConfig): TrickCard {
+  const trumps = trick.filter(tc => isTrumpCard(tc.card, cfg));
+  if (trumps.length > 0) return winningTrump(trumps, leadSuit);
+  // No trump played: only the led suit is eligible (a void player's off-suit card
+  // can't win). Low Card takes the lowest of the led suit; everything else the highest.
+  const led = trick.filter(tc => tc.card.suit === leadSuit);
+  const eligible = led.length ? led : trick;
+  return cfg.kind === 'lowCard' ? lowestOf(eligible) : highestOf(eligible);
 }
 
 // ─── Scoring ─────────────────────────────────────────────────────────────────
@@ -131,4 +164,9 @@ export function scoreRound(bid: number, won: number): number {
     return bid * 11;
   }
   return -(bid * 10);
+}
+
+/** Latest running total from a player's score rows (0 if none). */
+export function latestTotal(rows: RoundScore[]): number {
+  return rows.length > 0 ? rows[rows.length - 1].total : 0;
 }

@@ -1,24 +1,31 @@
 import { GameState } from 'shared';
-
-const ALL_ROUNDS = [7, 6, 5, 4, 3, 2, 1];
+import { StandingsTable } from './StandingsTable';
+import { Delta } from './Delta';
 
 export function Scoreboard({ gameState }: { gameState: GameState }) {
   const { players, scoreboard } = gameState;
 
-  const roundsPlayed = ALL_ROUNDS.filter(r =>
-    players.some(p => scoreboard[p.id]?.some(row => row.round === r))
-  );
+  // Rows are keyed by SEQUENCE INDEX (not round number). Modes that repeat a
+  // round number — e.g. Up & Down's 1..7..1 — need every played round shown,
+  // and round numbers alone would collide. Row count = longest per-player history.
+  const roundCount = players.reduce((max, p) => Math.max(max, scoreboard[p.id]?.length ?? 0), 0);
 
-  if (roundsPlayed.length === 0) {
+  if (roundCount === 0) {
     return (
-      <div style={{ padding: '12px', opacity: 0.5, fontSize: '0.8rem', textAlign: 'center' }}>
+      <div className="text-center tag-faint" style={{ padding: '12px' }}>
         Scores will appear here
       </div>
     );
   }
 
-  const getRow = (playerId: string, round: number) =>
-    scoreboard[playerId]?.find(r => r.round === round);
+  // Label for row i = the round number any player recorded at that index.
+  const roundLabel = (i: number) => {
+    for (const p of players) {
+      const row = scoreboard[p.id]?.[i];
+      if (row) return row.round;
+    }
+    return i + 1;
+  };
 
   const getTotal = (playerId: string) => {
     const rows = scoreboard[playerId] ?? [];
@@ -26,42 +33,36 @@ export function Scoreboard({ gameState }: { gameState: GameState }) {
   };
 
   return (
-    <div className="scoreboard-scroll">
-      <table className="scoreboard">
-        <thead>
-          <tr>
-            <th>#</th>
-            {players.map(p => (
-              <th key={p.id}>{p.name}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {roundsPlayed.map(r => (
-            <tr key={r}>
-              <td>R{r}</td>
-              {players.map(p => {
-                const row = getRow(p.id, r);
-                if (!row) return <td key={p.id}>-</td>;
-                const cls = row.delta >= 0 ? 'delta--pos' : 'delta--neg';
-                return (
-                  <td key={p.id}>
-                    <span className={cls}>
-                      {row.delta > 0 ? `+${row.delta}` : row.delta}
-                    </span>
-                  </td>
-                );
-              })}
-            </tr>
+    <StandingsTable variant="matrix">
+      <thead>
+        <tr>
+          <th>R</th>
+          {players.map(p => (
+            <th key={p.id}>{p.name}</th>
           ))}
-          <tr>
-            <td>Total</td>
-            {players.map(p => (
-              <td key={p.id}>{getTotal(p.id)}</td>
-            ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: roundCount }, (_, i) => (
+          <tr key={i}>
+            <td>R{roundLabel(i)}</td>
+            {players.map(p => {
+              const row = scoreboard[p.id]?.[i];
+              return (
+                <td key={p.id}>
+                  {row ? <Delta value={row.delta} /> : '-'}
+                </td>
+              );
+            })}
           </tr>
-        </tbody>
-      </table>
-    </div>
+        ))}
+        <tr>
+          <td>Total</td>
+          {players.map(p => (
+            <td key={p.id}>{getTotal(p.id)}</td>
+          ))}
+        </tr>
+      </tbody>
+    </StandingsTable>
   );
 }

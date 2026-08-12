@@ -2,6 +2,7 @@ import { useState, lazy, Suspense } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { Scoreboard } from './Scoreboard';
+import { Modal } from './Modal';
 
 // Lazy so the (bilingual) guide content isn't in the initial bundle — loaded
 // only when the in-game overlay opens. The /guide route lazy-loads it too.
@@ -18,6 +19,7 @@ export function Header() {
   const phase = gameState?.phase;
   const inGame =
     phase === 'DEALING' ||
+    phase === 'TRUMP_SELECT' ||
     phase === 'BIDDING' ||
     phase === 'PLAYING' ||
     phase === 'ROUND_SCORING';
@@ -67,41 +69,20 @@ export function Header() {
       </header>
 
       {/* ── Scoreboard overlay ─────────────────────────────────── */}
-      {scoreboardOpen && gameState && (
-        <div className="scoreboard-overlay" onClick={() => setScoreboardOpen(false)}>
-          <div className="scoreboard-overlay__panel" onClick={(e) => e.stopPropagation()}>
-            <button
-              className="scoreboard-overlay__close"
-              onClick={() => setScoreboardOpen(false)}
-              aria-label="Close"
-            >
-              ✕
-            </button>
-            <h2 className="scoreboard-overlay__title">Scoreboard</h2>
-            <p className="scoreboard-overlay__note">The game keeps running while you view scores.</p>
-            <Scoreboard gameState={gameState} />
-          </div>
-        </div>
+      {gameState && (
+        <Modal open={scoreboardOpen} onClose={() => setScoreboardOpen(false)} title="Scoreboard">
+          <p className="scoreboard-overlay__note">The game keeps running while you view scores.</p>
+          <Scoreboard gameState={gameState} />
+        </Modal>
       )}
 
       {/* ── Guide overlay ──────────────────────────────────────── */}
-      {guideOpen && (
-        <div className="guide-overlay" onClick={() => setGuideOpen(false)}>
-          <div className="guide-overlay__panel" onClick={(e) => e.stopPropagation()}>
-            <button
-              className="guide-overlay__close"
-              onClick={() => setGuideOpen(false)}
-              aria-label="Close"
-            >
-              ✕
-            </button>
-            <p className="guide-overlay__note">The game keeps running while you read.</p>
-            <Suspense fallback={<p className="guide-overlay__note">Loading…</p>}>
-              <GuideContent />
-            </Suspense>
-          </div>
-        </div>
-      )}
+      <Modal open={guideOpen} onClose={() => setGuideOpen(false)}>
+        <p className="guide-overlay__note">The game keeps running while you read.</p>
+        <Suspense fallback={<p className="guide-overlay__note">Loading…</p>}>
+          <GuideContent />
+        </Suspense>
+      </Modal>
     </>
   );
 }

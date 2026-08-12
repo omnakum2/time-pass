@@ -1,5 +1,7 @@
 import { Player } from 'shared';
 import { TurnBorder } from './TurnTimer';
+import { Delta } from './Delta';
+import { useGameStore } from '../store/gameStore';
 
 interface Props {
   player: Player;
@@ -7,22 +9,31 @@ interface Props {
   tricksWon: number;
   isActive: boolean;
   phase: string;
-  turnKey: string;
-  timerMs?: number;
+  remainingMs?: number;
+  fullMs?: number;
+  startKey?: string;
+  running?: boolean;
   isMe?: boolean;
   totalScore?: number;
 }
 
-export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, timerMs, isMe, totalScore }: Props) {
+export function PlayerChip({ player, bid, tricksWon, isActive, phase, remainingMs, fullMs, startKey, running, isMe, totalScore }: Props) {
+  const bubble = useGameStore(s => s.activeBubbles[player.id]);
   return (
     <div className={`player-chip${isActive ? ' player-chip--active' : ''}${isMe ? ' player-chip--me' : ''}`}>
-      {isActive && (phase === 'BIDDING' || phase === 'PLAYING') && timerMs !== undefined && (
-        <TurnBorder key={turnKey} durationMs={timerMs} />
+      {bubble && (
+        <div className={`chat-bubble${isMe ? '' : ' chat-bubble--below'}`} key={bubble.key}>
+          {bubble.text}
+        </div>
+      )}
+      {isActive && fullMs !== undefined &&
+        (phase === 'PLAYING' || ((phase === 'BIDDING' || phase === 'TRUMP_SELECT') && !isMe)) && (
+        <TurnBorder key={startKey} remainingMs={remainingMs ?? 0} fullMs={fullMs} startKey={startKey ?? ''} running={running} />
       )}
 
       <div className="player-chip__name">
         {player.name}
-        {isMe && <span style={{ opacity: 0.5, fontSize: '0.7em', marginLeft: 4 }}>(you)</span>}
+        {isMe && <span className="tag-faint" style={{ marginLeft: 4 }}>(you)</span>}
       </div>
 
       <div className="player-chip__stats">
@@ -32,12 +43,14 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, turnKey, t
 
       {totalScore !== undefined && (
         <div className="player-chip__total">
-          Score: <span className={totalScore >= 0 ? 'delta--pos' : 'delta--neg'}>{totalScore > 0 ? `+${totalScore}` : totalScore}</span>
+          Score: <Delta value={totalScore} />
         </div>
       )}
 
-      {!player.connected && (
-        <div className="player-chip__disconnected">disconnected</div>
+      {player.status !== 'online' && (
+        <div className="player-chip__disconnected">
+          {player.status === 'reconnecting' ? 'reconnecting…' : 'disconnected'}
+        </div>
       )}
     </div>
   );

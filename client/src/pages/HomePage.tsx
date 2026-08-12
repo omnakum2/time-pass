@@ -1,30 +1,37 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { sendMsg } from '../net/socket';
+import { NAME_MIN_LEN, NAME_MAX_LEN, GAME_MODES, GameMode } from 'shared';
+import { sendMsg, reconnectSession } from '../net/socket';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
+import { STORAGE_KEYS } from '../constants';
+import { Button } from '../components/Button';
+import { Field } from '../components/Field';
+import { Surface } from '../components/Surface';
 
 export function HomePage() {
   const [name, setName] = useState(storage.getPlayer()?.name ?? '');
   const [roomCode, setRoomCode] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(7);
   const [mode, setMode] = useState<'landing' | 'create' | 'join'>('landing');
+  const [gameMode, setGameMode] = useState<GameMode>('classic');
   const [pendingHost, setPendingHost] = useState('');
   const [pending, setPending] = useState<'create' | 'join' | null>(null);
-  const { connected, roomId, gameState } = useGameStore();
+  const { connected, roomId, gameState, reconnectFailed } = useGameStore();
+  const rejoinAttempt = useRef(false);
   const navigate = useNavigate();
 
   // If we arrived here via an invite link (redirected from the lobby), pick up
   // the pending room id + host name and drop straight into the join view.
   useEffect(() => {
-    const pendingRoomId = sessionStorage.getItem('pendingRoomId');
-    const host = sessionStorage.getItem('pendingHost');
+    const pendingRoomId = sessionStorage.getItem(STORAGE_KEYS.pendingRoomId);
+    const host = sessionStorage.getItem(STORAGE_KEYS.pendingHost);
     if (pendingRoomId) {
       setMode('join');
       setRoomCode(pendingRoomId.toUpperCase());
       setPendingHost(host ?? '');
-      sessionStorage.removeItem('pendingRoomId');
-      sessionStorage.removeItem('pendingHost');
+      sessionStorage.removeItem(STORAGE_KEYS.pendingRoomId);
+      sessionStorage.removeItem(STORAGE_KEYS.pendingHost);
     }
   }, []);
 
@@ -34,7 +41,7 @@ export function HomePage() {
   }
 
   const saveName = useCallback(() => {
-    const trimmed = name.trim().slice(0, 20);
+    const trimmed = name.trim().slice(0, NAME_MAX_LEN);
     if (!trimmed) return null;
     storage.setPlayer({ name: trimmed });
     return trimmed;
@@ -45,7 +52,7 @@ export function HomePage() {
   const fireCreate = useCallback(() => {
     const n = saveName();
     if (!n) return;
-    sendMsg({ type: 'createRoom', name: n, maxPlayers });
+    sendMsg({ type: 'createRoom', name: n, maxPlayers, mode: gameMode });
     // Navigate will happen when we receive 'joined' + 'state'
     const unsub = useGameStore.subscribe((s) => {
       if (s.roomId) {
@@ -53,13 +60,21 @@ export function HomePage() {
         unsub();
       }
     });
-  }, [saveName, maxPlayers, navigate]);
+  }, [saveName, maxPlayers, gameMode, navigate]);
 
   const fireJoin = useCallback(() => {
     const n = saveName();
     const code = roomCode.trim().toUpperCase();
     if (!n || !code) return;
-    sendMsg({ type: 'joinRoom', roomId: code, name: n });
+    const session = storage.getSession();
+    if (session && session.roomId.toUpperCase() === code) {
+      // We already hold a seat in this room (e.g. the tab was closed) → restore it rather
+      // than joining as a newcomer, which a running game would reject with GAME_STARTED.
+      rejoinAttempt.current = true;
+      reconnectSession(session.roomId, session.token);
+    } else {
+      sendMsg({ type: 'joinRoom', roomId: code, name: n });
+    }
     const unsub = useGameStore.subscribe((s) => {
       if (s.roomId) {
         navigate(`/room/${s.roomId}`);
@@ -72,14 +87,14 @@ export function HomePage() {
   // pending action. Extra clicks are ignored while something is pending.
   const handleCreate = () => {
     if (pending) return;
-    if (name.trim().length < 2) return;
+    if (name.trim().length < NAME_MIN_LEN) return;
     if (connected) fireCreate();
     else setPending('create');
   };
 
   const handleJoin = () => {
     if (pending) return;
-    if (name.trim().length < 2 || !roomCode.trim()) return;
+    if (name.trim().length < NAME_MIN_LEN || !roomCode.trim()) return;
     if (connected) fireJoin();
     else setPending('join');
   };
@@ -92,16 +107,28 @@ export function HomePage() {
     setPending(null);
   }, [connected, pending, fireCreate, fireJoin]);
 
+  // A rejoin that failed (room gone) — surface it instead of leaving the button spinning.
+  // Silent for a plain auto-reconnect miss on load (no rejoin was attempted here).
+  useEffect(() => {
+    if (!reconnectFailed) return;
+    if (rejoinAttempt.current) {
+      rejoinAttempt.current = false;
+      setPending(null);
+      useGameStore.getState().setError('ROOM_NOT_FOUND', 'That room is no longer available.');
+    }
+    useGameStore.getState().setReconnectFailed(false);
+  }, [reconnectFailed]);
+
   return (
     <div className="page">
       {mode === 'landing' ? (
         <div className="landing">
-          <div style={{ textAlign: 'center' }}>
-            <h1 className="jhatpat-title">Bid Club</h1>
+          <div className="text-center">
+            <h1 className="brand-title">Bid Club</h1>
           </div>
           <div className="home-actions">
-            <button className="btn btn--primary" onClick={() => setMode('create')}>Start</button>
-            <button className="btn btn--secondary" onClick={() => setMode('join')}>Join Room</button>
+            <Button variant="primary" onClick={() => setMode('create')}>Start</Button>
+            <Button variant="secondary" onClick={() => setMode('join')}>Join Room</Button>
           </div>
           <section className="home-seo">
             <p>
@@ -114,27 +141,25 @@ export function HomePage() {
           </section>
         </div>
       ) : (
-        <div className="panel flex-col gap-lg" style={{ maxWidth: 400, width: '100%' }}>
+        <Surface className="flex-col gap-lg" style={{ maxWidth: 400, width: '100%' }}>
           {mode === 'create' && (
             <>
-              <div style={{ textAlign: 'center' }}>
-                <h1 className="jhatpat-title jhatpat-title--card">Bid Club</h1>
+              <div className="text-center">
+                <h1 className="brand-title brand-title--card">Bid Club</h1>
               </div>
+              <Field
+                label="Your name"
+                hint={`${NAME_MIN_LEN}-${NAME_MAX_LEN} characters`}
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Enter your name"
+                minLength={NAME_MIN_LEN}
+                maxLength={NAME_MAX_LEN}
+                autoFocus
+                onKeyDown={e => e.key === 'Enter' ? handleCreate() : undefined}
+              />
               <div className="flex-col gap-sm">
-                <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Your name</label>
-                <input
-                  className="input"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Enter your name"
-                  minLength={2}
-                  maxLength={10}
-                  autoFocus
-                />
-                <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>2-10 characters</span>
-              </div>
-              <div className="flex-col gap-sm">
-                <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>
+                <label className="field-label">
                   Number of players (2-7)
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -154,75 +179,85 @@ export function HomePage() {
                 </div>
               </div>
               <div className="flex-col gap-sm">
-                <button
-                  className="btn btn--primary"
+                <label className="field-label">Game mode</label>
+                <div className="mode-picker">
+                  {GAME_MODES.map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      className={`mode-option${gameMode === m.id ? ' mode-option--active' : ''}`}
+                      onClick={() => setGameMode(m.id)}
+                    >
+                      <span className="mode-option__label">{m.label}</span>
+                      <span className="mode-option__desc">{m.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex-col gap-sm">
+                <Button
+                  variant="primary"
                   onClick={handleCreate}
-                  disabled={pending !== null || name.trim().length < 2}
+                  disabled={pending !== null || name.trim().length < NAME_MIN_LEN}
                 >
                   {pending === 'create' ? 'Starting…' : 'Create Room'}
-                </button>
-                <button
-                  className="btn btn--secondary"
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={() => setMode('landing')}
                 >
                   Back
-                </button>
+                </Button>
               </div>
             </>
           )}
 
           {mode === 'join' && (
             <>
-              <div style={{ textAlign: 'center' }}>
-                <h1 className="jhatpat-title jhatpat-title--card">Bid Club</h1>
+              <div className="text-center">
+                <h1 className="brand-title brand-title--card">Bid Club</h1>
               </div>
-              <div className="flex-col gap-sm">
-                <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Your name</label>
-                <input
-                  className="input"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Enter your name"
-                  minLength={2}
-                  maxLength={10}
-                  onKeyDown={e => e.key === 'Enter' ? handleJoin() : undefined}
-                  autoFocus
-                />
-                <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>2-10 characters</span>
-              </div>
+              <Field
+                label="Your name"
+                hint={`${NAME_MIN_LEN}-${NAME_MAX_LEN} characters`}
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Enter your name"
+                minLength={NAME_MIN_LEN}
+                maxLength={NAME_MAX_LEN}
+                onKeyDown={e => e.key === 'Enter' ? handleJoin() : undefined}
+                autoFocus
+              />
               {!pendingHost && (
-                <div className="flex-col gap-sm">
-                  <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Room code</label>
-                  <input
-                    className="input"
-                    value={roomCode}
-                    onChange={e => setRoomCode(e.target.value.toUpperCase())}
-                    placeholder="e.g. AB12CD"
-                    maxLength={6}
-                    onKeyDown={e => e.key === 'Enter' && handleJoin()}
-                  />
-                </div>
+                <Field
+                  label="Room code"
+                  value={roomCode}
+                  onChange={e => setRoomCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. AB12CD"
+                  maxLength={6}
+                  onKeyDown={e => e.key === 'Enter' && handleJoin()}
+                />
               )}
               <div className="flex-col gap-sm">
-                <button
-                  className="btn btn--primary"
+                <Button
+                  variant="primary"
                   onClick={handleJoin}
-                  disabled={pending !== null || name.trim().length < 2 || !roomCode.trim()}
+                  disabled={pending !== null || name.trim().length < NAME_MIN_LEN || !roomCode.trim()}
                 >
                   {pending === 'join'
                     ? 'Joining…'
                     : pendingHost ? `Join ${pendingHost}'s room` : 'Join'}
-                </button>
-                <button
-                  className="btn btn--secondary"
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={() => setMode('landing')}
                 >
                   Back
-                </button>
+                </Button>
               </div>
             </>
           )}
-        </div>
+        </Surface>
       )}
     </div>
   );
