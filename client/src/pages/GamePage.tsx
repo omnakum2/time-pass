@@ -13,6 +13,8 @@ import { PlayerChip } from '../components/PlayerChip';
 import { Popup } from '../components/Popup';
 import { RoundResultOverlay } from '../components/RoundResultOverlay';
 import { QuickMessages } from '../components/QuickMessages';
+import { Announcement } from '../components/Announcement';
+import { PushPanel } from '../components/PushPanel';
 import { URGENT_LEAD_MS } from '../constants';
 
 // ─── GamePage ─────────────────────────────────────────────────────────────────
@@ -53,6 +55,10 @@ export function GamePage() {
       return () => clearTimeout(id);
     }
   }, [timerKey, timerRunning, turnRemainingMs, phase, currentTurn]);
+
+  // Blind Bid: whether I've locked/pushed this round. Reset when the PUSH phase ends.
+  const [pushDecided, setPushDecided] = useState(false);
+  useEffect(() => { if (phase !== 'PUSH') setPushDecided(false); }, [phase]);
 
   if (!gameState || !playerId) {
     return <div className="page"><p>Loading game…</p></div>;
@@ -124,12 +130,30 @@ export function GamePage() {
     ? (isMyTurn ? 'Place your bid' : (currentTurn ? `Waiting for ${activeName} to bid…` : ''))
     : phase === 'PLAYING'
     ? (isMyTurn ? 'Your turn' : (currentTurn ? `Waiting for ${activeName}…` : ''))
+    : phase === 'PUSH'
+    ? (pushDecided ? 'Waiting for others…' : 'Lock or push your blind bid')
     : '';
 
   return (
     <>
+      {/* Round announcement banner (mode intro / Up & Down milestone) */}
+      <Announcement announcement={gameState.announcement} />
+
       {/* Round result popup */}
       <RoundResultOverlay result={lastRoundResult} visible={phase === 'ROUND_SCORING'} />
+
+      {/* Push popup — Blind Bid: lock (×2) or push (×3) after the hand is revealed */}
+      <Popup visible={phase === 'PUSH' && !pushDecided} title="Lock or Push?">
+        <PushPanel
+          bid={myBid ?? 0}
+          cards={round ?? 0}
+          remainingMs={turnRemainingMs}
+          fullMs={turnTimeoutMs}
+          startKey={timerKey}
+          running={timerRunning}
+          onDecide={(push) => { sendMsg({ type: 'pushBid', push }); setPushDecided(true); }}
+        />
+      </Popup>
 
       {/* Bid popup — shown when it's MY turn to bid */}
       <Popup
@@ -142,9 +166,15 @@ export function GamePage() {
       {/* Trump-select popup — shown when it's MY turn to pick the round's trump */}
       <Popup
         visible={phase === 'TRUMP_SELECT' && isMyTurn}
-        title="Choose this round's trump"
+        title={mode === 'upDown' && round === 1 ? '⚔️ Last Stand — call the trump' : "Choose this round's trump"}
       >
-        <TrumpPicker remainingMs={turnRemainingMs} fullMs={turnTimeoutMs} startKey={timerKey} running={timerRunning} />
+        <TrumpPicker
+          remainingMs={turnRemainingMs}
+          fullMs={turnTimeoutMs}
+          startKey={timerKey}
+          running={timerRunning}
+          lastStand={mode === 'upDown' && round === 1}
+        />
       </Popup>
 
       <div className="game-area">

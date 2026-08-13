@@ -293,6 +293,37 @@ body {
   font-weight: 700; font-size: 0.8rem;
 }
 
+/* ─── Round announcement banner (mode intros + Up & Down milestones) ───────── */
+.announce-overlay {
+  position: fixed; inset: 0; z-index: 900;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.45); pointer-events: none; padding: 16px;
+}
+.announce-banner {
+  width: 100%; max-width: 640px;
+  display: flex; align-items: center; justify-content: center; gap: 18px;
+  padding: 22px 30px; text-align: center;
+  background: linear-gradient(100deg, var(--card-2), var(--card-1) 55%, var(--card-2));
+  border-top: 2px solid var(--gold-border);
+  border-bottom: 2px solid var(--gold-border);
+  box-shadow: 0 0 60px rgba(var(--gold-rgb), 0.25), 0 20px 50px rgba(0,0,0,0.6);
+}
+.announce-banner__icon { color: var(--gold); display: flex; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5)); }
+.announce-banner__text { display: flex; flex-direction: column; gap: 3px; }
+.announce-banner__title {
+  font-size: clamp(1.5rem, 5vw, 2.1rem); font-weight: 800; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--gold); line-height: 1.1;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+.announce-banner__sub { font-size: 0.9rem; color: var(--cream-muted); letter-spacing: 0.3px; }
+.announce-banner--lastStand { border-color: rgba(240,115,108,0.4); }
+.announce-banner--lastStand .announce-banner__title,
+.announce-banner--lastStand .announce-banner__icon { color: var(--danger); }
+
+/* ─── Push panel (Blind Bid lock/push) ─────────────────────────────────────── */
+.push-panel__hint { text-align: center; font-size: 0.95rem; color: var(--cream); margin: 4px 0; }
+.push-panel__buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
 /* ─── Guide page + in-game overlay ────────────────────────────────────────── */
 .guide-page {
   flex: 1; min-height: 0; overflow: auto;

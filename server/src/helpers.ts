@@ -61,6 +61,8 @@ export function validateMessage(msg: ClientMessage): ErrorCode | null {
       return typeof msg.cardId === 'string' ? null : 'BAD_MESSAGE';
     case 'selectTrump':
       return typeof msg.kind === 'string' ? null : 'INVALID_TRUMP';
+    case 'pushBid':
+      return typeof msg.push === 'boolean' ? null : 'BAD_MESSAGE';
     case 'quickMessage':
       return typeof msg.id === 'string' ? null : 'BAD_MESSAGE';
     case 'startGame':

@@ -11,7 +11,16 @@ export interface Card {
 
 // ─── Game phases ─────────────────────────────────────────────────────────────
 
-export type GamePhase = 'LOBBY' | 'DEALING' | 'TRUMP_SELECT' | 'BIDDING' | 'PLAYING' | 'ROUND_SCORING' | 'GAME_OVER';
+export type GamePhase = 'LOBBY' | 'DEALING' | 'TRUMP_SELECT' | 'BIDDING' | 'PUSH' | 'PLAYING' | 'ROUND_SCORING' | 'GAME_OVER';
+
+// ─── Round announcement banner (mode intros + Up & Down milestones) ──────────
+
+export interface Announcement {
+  title: string;
+  subtitle?: string;
+  icon?: 'crown' | 'swords' | 'flame'; // client Icon key (intros show no icon)
+  variant?: 'intro' | 'stakes' | 'summit' | 'lastStand';
+}
 
 // ─── Game modes ──────────────────────────────────────────────────────────────
 
@@ -21,8 +30,8 @@ export interface GameModeInfo { id: GameMode; label: string; short: string; desc
 
 export const GAME_MODES: GameModeInfo[] = [
   { id: 'classic', label: 'Classic',   short: 'Classic',   desc: 'Random trump each round — the original game.' },
-  { id: 'upDown',  label: 'Up & Down', short: 'Up & Down', desc: 'Rounds climb 1→7, then back down to 1 (13 rounds).' },
-  { id: 'blind',   label: 'Blind Bid', short: 'Blind',     desc: 'Bid before you see your cards.' },
+  { id: 'upDown',  label: 'Up & Down', short: 'Up & Down', desc: 'Climb 1→7→1 with rising stakes, a ×3 Summit, and a ×10 Last Stand.' },
+  { id: 'blind',   label: 'Blind Bid', short: 'Blind',     desc: 'Bid blind, then lock (×2) or push (×3).' },
   { id: 'revolvingTrump', label: 'Revolving Trump', short: 'Rev. Trump', desc: 'The first bidder picks the trump each round.' },
 ];
 
@@ -132,6 +141,7 @@ export interface GameState {
   turnRemainingMs: number | null; // ms left on the current turn at broadcast (frozen value while paused)
   roomExpiresInMs: number | null; // ms until a finished room auto-closes (null unless in GAME_OVER)
   mode: GameMode; // the room's game mode
+  announcement: Announcement | null; // banner to show during the DEALING window (mode intro / Up & Down milestone)
 }
 
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
@@ -188,6 +198,11 @@ export interface MsgSelectTrump {
   suit?: Suit; // required when kind === 'suit'
 }
 
+export interface MsgPushBid {
+  type: 'pushBid';
+  push: boolean; // true = raise blind bid by 1 (×3), false = lock it (×2)
+}
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
@@ -198,7 +213,8 @@ export type ClientMessage =
   | MsgRestartGame
   | MsgLeaveRoom
   | MsgQuickMessage
-  | MsgSelectTrump;
+  | MsgSelectTrump
+  | MsgPushBid;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 
