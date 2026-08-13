@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { Scoreboard } from './Scoreboard';
 import { Modal } from './Modal';
@@ -15,6 +15,7 @@ import logo from '../assets/logo.webp';
 
 export function Header() {
   const navigate = useNavigate();
+  const location = useLocation();
   const gameState = useGameStore((s) => s.gameState);
   const phase = gameState?.phase;
   const inGame =
@@ -27,6 +28,8 @@ export function Header() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
 
+  const isLoungeHome = location.pathname === '/';
+
   const handleLeave = () => {
     if (!window.confirm('Leave the game? You will return to the home screen.')) return;
     sendMsg({ type: 'leaveRoom' });
@@ -38,13 +41,13 @@ export function Header() {
   return (
     <>
       <header className="app-header">
-        <span className="app-header__brand">
+        <Link to="/" className="app-header__brand" title="Bid Club Lounge">
           <img src={logo} alt="Bid Club" className="app-header__logo" />
-        </span>
+        </Link>
         <nav className="app-header__nav">
-          {!inGame && (
+          {!inGame && !isLoungeHome && (
             <Link className="app-header__link" to="/">
-              Home
+              Lounge
             </Link>
           )}
           {inGame && (

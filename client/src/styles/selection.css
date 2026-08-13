@@ -1,0 +1,483 @@
+/* ─── Game Selection Lounge Menu — Medallion Cards ───────────────────────── */
+
+.game-selection-screen {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px 60px;
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(110, 30, 45, 0.4) 0%, transparent 70%),
+    linear-gradient(180deg, #0E0508 0%, #1A0A10 50%, #10060B 100%);
+  background-attachment: fixed;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle suit wallpaper overlay */
+.game-selection-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='5' y='20' fill='%23E9B84A' opacity='0.025' font-size='14'%3E♠%3C/text%3E%3Ctext x='35' y='20' fill='%23E9B84A' opacity='0.025' font-size='14'%3E♥%3C/text%3E%3Ctext x='20' y='50' fill='%23E9B84A' opacity='0.025' font-size='14'%3E♦%3C/text%3E%3Ctext x='45' y='50' fill='%23E9B84A' opacity='0.025' font-size='14'%3E♣%3C/text%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+.selection-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1080px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 36px;
+}
+
+/* ── Header Title section ────────────────────────────────────────────────── */
+.selection-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.selection-title {
+  margin: 0;
+  font-size: clamp(2rem, 4.5vw, 3rem);
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #FFF0BA 0%, #E9B84A 50%, #B8831A 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.7));
+}
+
+.selection-subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--cream);
+  opacity: 0.7;
+  letter-spacing: 1px;
+}
+
+.selection-divider {
+  width: 120px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  margin-top: 6px;
+  border-radius: 2px;
+}
+
+/* ── Cards Row ───────────────────────────────────────────────────────────── */
+.game-cards-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 44px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+/* ── Medallion Component ─────────────────────────────────────────────────── */
+.medallion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  padding-bottom: 10px;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.medallion:hover {
+  transform: translateY(-8px);
+}
+
+.medallion:active {
+  transform: translateY(-2px) scale(0.98);
+}
+
+/* ── Circular Gold Ring Frame ────────────────────────────────────────────── */
+.medallion__ring {
+  position: relative;
+  width: 210px;
+  height: 210px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    #9E6F13 0deg, #F3CF7A 45deg, #FFF5D0 90deg, #F3CF7A 135deg,
+    #9E6F13 180deg, #F3CF7A 225deg, #FFF5D0 270deg, #F3CF7A 315deg, #9E6F13 360deg
+  );
+  padding: 6px;
+  box-shadow:
+    0 14px 38px rgba(0, 0, 0, 0.85),
+    inset 0 2px 4px rgba(255, 255, 255, 0.6),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.7);
+  transition: transform 0.35s ease;
+  z-index: 1;
+}
+
+/* Donut Ring Shine Overlay (Masked strictly to the outer gold ring) */
+.medallion__ring-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 10;
+  overflow: hidden;
+  -webkit-mask-image: radial-gradient(circle, transparent 96px, #000 97px);
+  mask-image: radial-gradient(circle, transparent 96px, #000 97px);
+}
+
+.medallion__ring-shine::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -100%;
+  width: 50%;
+  height: 200%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 245, 215, 0.4) 40%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(255, 245, 215, 0.4) 60%,
+    transparent 100%
+  );
+  transform: rotate(25deg);
+  opacity: 0;
+}
+
+.medallion:hover .medallion__ring-shine::after {
+  opacity: 1;
+  animation: ring-sweep-shine 0.75s ease-in-out;
+}
+
+@keyframes ring-sweep-shine {
+  0% { left: -100%; }
+  100% { left: 140%; }
+}
+
+/* Inner felt circle */
+.medallion__inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.8);
+}
+
+.medallion__inner--wine {
+  background: radial-gradient(circle at 45% 35%, #5C1827 0%, #340A14 65%, #1D040A 100%);
+}
+
+.medallion__inner--green {
+  background: radial-gradient(circle at 45% 35%, #1B5831 0%, #0C361D 65%, #051F0F 100%);
+}
+
+.medallion__inner--blue {
+  background: radial-gradient(circle at 45% 35%, #183B61 0%, #0A223B 65%, #041221 100%);
+}
+
+/* ── Fanned Playing Cards Inside Medallion ───────────────────────────────── */
+.medallion__cards {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  top: -4px;
+}
+
+/* Mini playing card style - reusing .card & .card--back parameters */
+.mini-card {
+  position: absolute;
+  width: 52px;
+  height: 74px;
+  background: linear-gradient(160deg, #FFFDF7 0%, #EDE4D3 100%);
+  border-radius: 5px;
+  border: 1px solid rgba(160, 140, 100, 0.6);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 50% 120%;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+}
+
+.mini-card__rank {
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  position: absolute;
+  top: 4px;
+  left: 4px;
+}
+
+.mini-card__suit-corner {
+  font-size: 0.55rem;
+  line-height: 1;
+  position: absolute;
+  top: 15px;
+  left: 4.5px;
+}
+
+.mini-card__suit-center {
+  font-size: 1.45rem;
+  line-height: 1;
+  margin-top: 4px;
+}
+
+.mini-card--red { color: #C0392B; }
+.mini-card--black { color: #1A1A1A; }
+
+/* Reusing actual Blind Card Back pattern */
+.mini-card--back {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(233, 184, 74, 0.15), transparent 70%),
+    linear-gradient(135deg, #7A5510 0%, #B8831A 50%, #54390A 100%);
+  border: 1.5px solid #E9B84A;
+}
+
+.mini-card--back::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 1px dashed rgba(255, 240, 186, 0.5);
+  border-radius: 3px;
+}
+
+.mini-card--back::after {
+  content: "♠";
+  font-size: 1.2rem;
+  color: rgba(255, 240, 186, 0.75);
+}
+
+/* Fan positioning — 5-card fan */
+.fan-5 .mini-card:nth-child(1) { transform: rotate(-22deg) translateY(-8px); z-index: 1; }
+.fan-5 .mini-card:nth-child(2) { transform: rotate(-11deg) translateY(-14px); z-index: 2; }
+.fan-5 .mini-card:nth-child(3) { transform: rotate(0deg) translateY(-17px); z-index: 3; }
+.fan-5 .mini-card:nth-child(4) { transform: rotate(11deg) translateY(-14px); z-index: 4; }
+.fan-5 .mini-card:nth-child(5) { transform: rotate(22deg) translateY(-8px); z-index: 5; }
+
+.medallion:hover .fan-5 .mini-card:nth-child(1) { transform: rotate(-26deg) translateY(-12px); }
+.medallion:hover .fan-5 .mini-card:nth-child(2) { transform: rotate(-13deg) translateY(-18px); }
+.medallion:hover .fan-5 .mini-card:nth-child(3) { transform: rotate(0deg) translateY(-21px); }
+.medallion:hover .fan-5 .mini-card:nth-child(4) { transform: rotate(13deg) translateY(-18px); }
+.medallion:hover .fan-5 .mini-card:nth-child(5) { transform: rotate(26deg) translateY(-12px); }
+
+/* Fan positioning — 4-card fan */
+.fan-4 .mini-card:nth-child(1) { transform: rotate(-18deg) translateY(-10px); z-index: 1; }
+.fan-4 .mini-card:nth-child(2) { transform: rotate(-6deg) translateY(-15px); z-index: 2; }
+.fan-4 .mini-card:nth-child(3) { transform: rotate(6deg) translateY(-15px); z-index: 3; }
+.fan-4 .mini-card:nth-child(4) { transform: rotate(18deg) translateY(-10px); z-index: 4; }
+
+.medallion:hover .fan-4 .mini-card:nth-child(1) { transform: rotate(-22deg) translateY(-14px); }
+.medallion:hover .fan-4 .mini-card:nth-child(2) { transform: rotate(-7deg) translateY(-19px); }
+.medallion:hover .fan-4 .mini-card:nth-child(3) { transform: rotate(7deg) translateY(-19px); }
+.medallion:hover .fan-4 .mini-card:nth-child(4) { transform: rotate(22deg) translateY(-14px); }
+
+/* Gemstone Clasp at Bottom of Ring */
+.medallion__gemstone {
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #F3CF7A;
+  z-index: 10;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.7);
+}
+
+.medallion__gemstone--ruby {
+  background: radial-gradient(circle at 35% 35%, #FF5252 0%, #D32F2F 60%, #7B1FA2 100%);
+}
+.medallion__gemstone--emerald {
+  background: radial-gradient(circle at 35% 35%, #69F0AE 0%, #00C853 60%, #1B5E20 100%);
+}
+.medallion__gemstone--sapphire {
+  background: radial-gradient(circle at 35% 35%, #448AFF 0%, #2979FF 60%, #0D47A1 100%);
+}
+
+/* ── OVERLAPPING ANGLED NOTCHED TITLE RIBBON ─────────────────────────────── */
+.medallion__ribbon-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: -36px; /* Physical overlap with medallion bottom */
+  z-index: 5;
+  width: 100%;
+}
+
+.medallion__title-banner-wrapper {
+  filter:
+    drop-shadow(0px 2px 0px #F3CF7A)
+    drop-shadow(0px -2px 0px #F3CF7A)
+    drop-shadow(2px 0px 0px #F3CF7A)
+    drop-shadow(-2px 0px 0px #F3CF7A)
+    drop-shadow(0px 8px 16px rgba(0, 0, 0, 0.85));
+}
+
+.medallion__title-banner {
+  position: relative;
+  min-width: 210px;
+  padding: 8px 24px;
+  text-align: center;
+  clip-path: polygon(
+    14px 0%, calc(100% - 14px) 0%,
+    100% 50%,
+    calc(100% - 14px) 100%, 14px 100%,
+    0% 50%
+  );
+  overflow: hidden;
+  transition: transform 0.3s ease;
+}
+
+/* Ribbon Color Variants */
+.medallion__title-banner--wine {
+  background: linear-gradient(180deg, #7C1A2E 0%, #420A13 60%, #29040A 100%);
+}
+
+.medallion__title-banner--green {
+  background: linear-gradient(180deg, #1F6B3A 0%, #0E3D1F 60%, #062612 100%);
+}
+
+.medallion__title-banner--blue {
+  background: linear-gradient(180deg, #1B4E7A 0%, #0E2942 60%, #051626 100%);
+}
+
+/* Metallic Shine Sweep Effect on Title Banner Ribbon on Hover */
+.medallion__title-banner::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -75%;
+  width: 50%;
+  height: 200%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  transform: rotate(25deg);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.medallion:hover .medallion__title-banner::after {
+  opacity: 1;
+  animation: banner-shine-sweep 0.75s ease-in-out;
+}
+
+@keyframes banner-shine-sweep {
+  0% { left: -75%; }
+  100% { left: 125%; }
+}
+
+.medallion__title-text {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  background: linear-gradient(180deg, #FFF5D0 0%, #F3CF7A 50%, #B8831A 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+}
+
+/* ── ATTACHED PLAYER COUNT CHIP ─────────────────────────────────────────── */
+.medallion__player-chip {
+  margin-top: -3px; /* Connected directly under title banner */
+  padding: 4px 18px;
+  background: linear-gradient(180deg, #2A170A 0%, #140A04 100%);
+  border: 1.5px solid #D4A338;
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.medallion__player-text {
+  color: #F3CF7A;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.medallion__player-icon {
+  font-size: 0.7rem;
+  color: #E9B84A;
+}
+
+/* ── Responsive Scaling ──────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .game-cards-row {
+    gap: 28px;
+  }
+  .medallion__ring {
+    width: 175px;
+    height: 175px;
+  }
+  .mini-card {
+    width: 44px;
+    height: 62px;
+  }
+  .mini-card__rank { font-size: 0.62rem; }
+  .mini-card__suit-corner { font-size: 0.45rem; top: 12px; }
+  .mini-card__suit-center { font-size: 1.15rem; }
+  .medallion__title-banner { min-width: 170px; padding: 6px 18px; }
+  .medallion__title-text { font-size: 1.05rem; }
+}
+
+@media (max-width: 480px) {
+  .game-selection-screen {
+    padding: 24px 12px 40px;
+  }
+  .game-cards-row {
+    gap: 20px;
+  }
+  .medallion__ring {
+    width: 135px;
+    height: 135px;
+    padding: 5px;
+  }
+  .mini-card {
+    width: 35px;
+    height: 48px;
+    border-radius: 4px;
+  }
+  .mini-card__rank { font-size: 0.5rem; top: 2px; left: 3px; }
+  .mini-card__suit-corner { font-size: 0.38rem; top: 9px; left: 3px; }
+  .mini-card__suit-center { font-size: 0.9rem; }
+  .medallion__ribbon-stack { margin-top: -28px; }
+  .medallion__title-banner { min-width: 140px; padding: 5px 14px; }
+  .medallion__title-text { font-size: 0.88rem; letter-spacing: 1px; }
+  .medallion__player-chip { padding: 3px 12px; }
+  .medallion__player-text { font-size: 0.62rem; }
+}

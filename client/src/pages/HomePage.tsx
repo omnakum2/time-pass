@@ -37,7 +37,7 @@ export function HomePage() {
 
   // If already in a room, redirect
   if (roomId && gameState) {
-    navigate(`/room/${roomId}`, { replace: true });
+    navigate(`/bid-club/room/${roomId}`, { replace: true });
   }
 
   const saveName = useCallback(() => {
@@ -56,7 +56,7 @@ export function HomePage() {
     // Navigate will happen when we receive 'joined' + 'state'
     const unsub = useGameStore.subscribe((s) => {
       if (s.roomId) {
-        navigate(`/room/${s.roomId}`);
+        navigate(`/bid-club/room/${s.roomId}`);
         unsub();
       }
     });
