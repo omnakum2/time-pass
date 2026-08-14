@@ -119,6 +119,7 @@ export function GamePage() {
     startKey: timerKey,
     running: timerRunning,
     totalScore: getTotal(scoreboard, p.id),
+    pushChoice: gameState.pushStatus?.[p.id],
   });
 
   const blindHidden = isHandHiddenForBid(mode, gameState.phase);
@@ -166,7 +167,7 @@ export function GamePage() {
       {/* Trump-select popup — shown when it's MY turn to pick the round's trump */}
       <Popup
         visible={phase === 'TRUMP_SELECT' && isMyTurn}
-        title={mode === 'upDown' && round === 1 ? '⚔️ Last Stand — call the trump' : "Choose this round's trump"}
+        title={mode === 'upDown' && round === 1 ? '⚔️ Last Stand · call the trump' : "Choose this round's trump"}
       >
         <TrumpPicker
           remainingMs={turnRemainingMs}
@@ -210,6 +211,7 @@ export function GamePage() {
               startKey={timerKey}
               running={timerRunning}
               totalScore={getTotal(scoreboard, playerId)}
+              pushChoice={gameState.pushStatus?.[playerId]}
               isMe
             />
             {selectedCard && (

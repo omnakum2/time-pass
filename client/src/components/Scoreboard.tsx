@@ -50,7 +50,12 @@ export function Scoreboard({ gameState }: { gameState: GameState }) {
               const row = scoreboard[p.id]?.[i];
               return (
                 <td key={p.id}>
-                  {row ? <Delta value={row.delta} /> : '-'}
+                  {row ? (
+                    <>
+                      <Delta value={row.delta} />
+                      {row.multiplier > 1 && <span className="score-mult">×{row.multiplier}</span>}
+                    </>
+                  ) : '-'}
                 </td>
               );
             })}

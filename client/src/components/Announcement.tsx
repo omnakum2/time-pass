@@ -3,10 +3,15 @@ import type { Announcement as Ann } from 'shared';
 import { Icon } from './Icon';
 
 /**
- * Full-width center banner that sweeps in during the DEALING window (mode intros +
- * Up & Down milestones). Visibility is server-driven — the banner shows while
- * `announcement` is set and animates out when the server clears it (~4s later).
- * Deliberately a horizontal sweep so it reads differently from the Modal cards.
+ * Center announcement shown during the DEALING window (mode intros + Up & Down
+ * milestones). Visibility is server-driven — it shows while `announcement` is set
+ * and animates out when the server clears it (~4s later). Two layouts, chosen by
+ * variant:
+ *   • Ribbon (intro / stakesUp / stakesDown) — a full-width band that sweeps in
+ *     from the left, holds center, then exits to the right.
+ *   • Flash  (summit / lastStand)           — a dramatic scale-in card with a
+ *     giant ×N hero.
+ * The overlay keeps `pointer-events: none` so it never blocks play (no skip).
  */
 export function Announcement({ announcement }: { announcement: Ann | null }) {
   return (
@@ -19,23 +24,55 @@ export function Announcement({ announcement }: { announcement: Ann | null }) {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <motion.div
-            className={`announce-banner announce-banner--${announcement.variant ?? 'intro'}`}
-            initial={{ x: '-120%', opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: '120%', opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 120, damping: 18 }}
-          >
-            {announcement.icon && (
-              <span className="announce-banner__icon"><Icon name={announcement.icon} size={40} /></span>
-            )}
-            <span className="announce-banner__text">
-              <span className="announce-banner__title">{announcement.title}</span>
-              {announcement.subtitle && <span className="announce-banner__sub">{announcement.subtitle}</span>}
-            </span>
-          </motion.div>
+          {announcement.variant === 'summit' || announcement.variant === 'lastStand'
+            ? <Flash a={announcement} />
+            : <Ribbon a={announcement} />}
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+function Ribbon({ a }: { a: Ann }) {
+  return (
+    <motion.div
+      className={`announce-ribbon announce-ribbon--${a.variant}`}
+      initial={{ x: '-110%', opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: '110%', opacity: 0 }}
+      transition={{ type: 'spring', stiffness: 120, damping: 18 }}
+    >
+      {a.icon && (
+        <span className="announce-ribbon__icon"><Icon name={a.icon} size={34} /></span>
+      )}
+      <span className="announce-ribbon__text">
+        <span className="announce-ribbon__title">{a.title}</span>
+        {a.subtitle && <span className="announce-ribbon__sub">{a.subtitle}</span>}
+      </span>
+      {a.multiplier !== undefined && (
+        <span className="announce-ribbon__mult">×{a.multiplier}</span>
+      )}
+    </motion.div>
+  );
+}
+
+function Flash({ a }: { a: Ann }) {
+  return (
+    <motion.div
+      className={`announce-flash announce-flash--${a.variant}`}
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.8, opacity: 0 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+    >
+      <span className="announce-flash__title">
+        {a.icon && <Icon name={a.icon} size={28} />}
+        {a.title}
+      </span>
+      {a.multiplier !== undefined && (
+        <span className="announce-flash__mult">×{a.multiplier}</span>
+      )}
+      {a.subtitle && <span className="announce-flash__sub">{a.subtitle}</span>}
+    </motion.div>
   );
 }

@@ -4,7 +4,7 @@ import {
   Card, GameMode, GamePhase, GameState, Player, RoundScore,
   Suit, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, MsgGameOver, ErrorCode, QUICK_MESSAGES, Announcement,
   roundsForMode, deal, pickTrump, firstBidderSeat,
-  legalMoves, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, ROUNDS, SUITS, RANK_ORDER
+  legalMoves, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, isSummitRound, isLastStandRound, ROUNDS, SUITS, RANK_ORDER
 } from 'shared';
 import {
   BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS,
@@ -310,11 +310,6 @@ export class Room {
 
   // ─── Round lifecycle ──────────────────────────────────────────────────────
 
-  /** Up & Down's final round — the ×10 "Last Stand". */
-  private isLastStand(): boolean {
-    return this.mode === 'upDown' && this.roundIndex === this.rounds.length - 1;
-  }
-
   /**
    * Seat of the trailing (lowest-total) player — picks the trump at Last Stand.
    * Ties break by rotational seat order from this round's first bidder (deterministic,
@@ -352,7 +347,7 @@ export class Room {
 
     // A round may open with an announcement banner (mode intro / Up & Down milestone):
     // hold the DEALING phase for ANNOUNCE_MS, then begin play. Ordinary rounds start at once.
-    this.announcement = announcementFor(this.mode, this.roundIndex, this.currentRound, this.rounds.length);
+    this.announcement = announcementFor(this.mode, this.roundIndex, this.rounds);
     if (this.announcement) {
       this.cancelTurnTimer();
       this.turnExpiresAt = null;
@@ -369,8 +364,8 @@ export class Room {
 
     // Trump is player-chosen on: Revolving Trump (every round), and Up & Down's
     // Summit (7-card round) + Last Stand (final round).
-    const isSummit = this.mode === 'upDown' && this.currentRound === 7;
-    const lastStand = this.isLastStand();
+    const isSummit = isSummitRound(this.mode, this.currentRound!);
+    const lastStand = isLastStandRound(this.mode, this.roundIndex, this.rounds.length);
     if (this.mode === 'revolvingTrump' || isSummit || lastStand) {
       this.trump = null;
       this.trumpConfig = null;
@@ -395,7 +390,7 @@ export class Room {
     if (this.phase !== 'TRUMP_SELECT') return 'WRONG_PHASE';
     if (this.currentTurnPlayerId() !== playerId) return 'NOT_YOUR_TURN';
     // Last Stand offers only two choices: a trump suit or No Trump.
-    if (this.isLastStand() && kind !== 'suit' && kind !== 'noTrump') return 'INVALID_TRUMP';
+    if (isLastStandRound(this.mode, this.roundIndex, this.rounds.length) && kind !== 'suit' && kind !== 'noTrump') return 'INVALID_TRUMP';
     const cfg = this.buildTrumpConfig(kind, suit);
     if (!cfg) return 'INVALID_TRUMP';
     this.applyTrump(cfg);
@@ -579,14 +574,14 @@ export class Room {
       const bid = this.bids.get(pid) ?? 0;
       const won = this.tricksWon.get(pid) ?? 0;
       // Blind Bid: lock ×2 / push ×3 (per player). Up & Down: escalating round multiplier.
-      const mult = this.mode === 'blind'
+      const perPlayerMultiplier = this.mode === 'blind'
         ? (this.pushed.has(pid) ? 3 : 2)
         : roundMultiplier(this.mode, this.roundIndex, this.rounds.length, roundNum);
-      const delta = scoreRound(bid, won) * mult;
+      const delta = scoreRound(bid, won) * perPlayerMultiplier;
       const rows = this.scoreboard.get(pid) ?? [];
       const prevTotal = latestTotal(rows);
       const total = prevTotal + delta;
-      rows.push({ round: roundNum, bid, won, delta, total });
+      rows.push({ round: roundNum, bid, won, delta, total, multiplier: perPlayerMultiplier });
       this.scoreboard.set(pid, rows);
       perPlayer.push({ playerId: pid, name: seat.player.name, bid, won, delta, total });
     }
@@ -736,6 +731,9 @@ export class Room {
     // Use last trick briefly so clients can show the completed trick
     const trickToShow = lastTrick ?? this.currentTrick;
     const turnActive = this.phase === 'BIDDING' || this.phase === 'PLAYING' || this.phase === 'TRUMP_SELECT' || this.phase === 'PUSH';
+    const pushStatus: Record<string, 'locked' | 'pushed'> | null = this.phase === 'PUSH'
+      ? Object.fromEntries([...this.pushDecided].map(pid => [pid, this.pushed.has(pid) ? 'pushed' : 'locked']))
+      : null;
 
     return {
       phase: this.phase,
@@ -766,6 +764,7 @@ export class Room {
       roomExpiresInMs: this.gameOverExpiresAt ? Math.max(0, this.gameOverExpiresAt - Date.now()) : null,
       mode: this.mode,
       announcement: this.announcement,
+      pushStatus,
     };
   }
 

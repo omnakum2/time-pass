@@ -51,7 +51,7 @@ export function TrickArea({ trick, players, round, status, trumpConfig, urgent, 
                 <span className="trump-chip__suit">{SUIT_SYMBOL[trumpConfig.suit]}</span>&nbsp;{SUIT_NAME[trumpConfig.suit]}
               </span>
             ) : (
-              <span className="trump-chip__none">{trumpConfig ? trumpLabel(trumpConfig) : '—'}</span>
+              <span className="trump-chip__none">{trumpConfig ? trumpLabel(trumpConfig) : '·'}</span>
             )}
             {trumpConfig && <InfoTooltip text={trumpInfo(trumpConfig)} label="Trump info" />}
           </div>

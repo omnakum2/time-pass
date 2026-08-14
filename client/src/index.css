@@ -299,26 +299,64 @@ body {
   display: flex; align-items: center; justify-content: center;
   background: rgba(0,0,0,0.45); pointer-events: none; padding: 16px;
 }
-.announce-banner {
-  width: 100%; max-width: 640px;
-  display: flex; align-items: center; justify-content: center; gap: 18px;
-  padding: 22px 30px; text-align: center;
+/* Ribbon — full-width horizontal band that sweeps left→center→right (intros +
+   stakes changes). icon · centered text · big ×N on the right. */
+.announce-ribbon {
+  width: 100%; max-width: 720px;
+  display: flex; align-items: center; gap: clamp(12px, 3vw, 22px);
+  padding: clamp(16px, 3vw, 22px) clamp(18px, 4vw, 34px);
   background: linear-gradient(100deg, var(--card-2), var(--card-1) 55%, var(--card-2));
   border-top: 2px solid var(--gold-border);
   border-bottom: 2px solid var(--gold-border);
   box-shadow: 0 0 60px rgba(var(--gold-rgb), 0.25), 0 20px 50px rgba(0,0,0,0.6);
 }
-.announce-banner__icon { color: var(--gold); display: flex; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5)); }
-.announce-banner__text { display: flex; flex-direction: column; gap: 3px; }
-.announce-banner__title {
-  font-size: clamp(1.5rem, 5vw, 2.1rem); font-weight: 800; letter-spacing: 2px;
+.announce-ribbon__icon { color: var(--gold); display: flex; flex: 0 0 auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5)); }
+.announce-ribbon__text {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-direction: column; gap: 3px;
+  align-items: center; text-align: center;
+}
+.announce-ribbon__title {
+  font-size: clamp(1.2rem, 4.5vw, 2rem); font-weight: 800; letter-spacing: 1.5px;
   text-transform: uppercase; color: var(--gold); line-height: 1.1;
   text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  max-width: 100%; overflow-wrap: anywhere;
 }
-.announce-banner__sub { font-size: 0.9rem; color: var(--cream-muted); letter-spacing: 0.3px; }
-.announce-banner--lastStand { border-color: rgba(240,115,108,0.4); }
-.announce-banner--lastStand .announce-banner__title,
-.announce-banner--lastStand .announce-banner__icon { color: var(--danger); }
+.announce-ribbon__sub { font-size: clamp(0.78rem, 2.6vw, 0.95rem); color: var(--cream-muted); letter-spacing: 0.3px; }
+.announce-ribbon__mult {
+  flex: 0 0 auto;
+  font-size: clamp(1.6rem, 6vw, 2.6rem); font-weight: 800; line-height: 1;
+  color: var(--gold); text-shadow: 0 2px 12px rgba(var(--gold-rgb), 0.4);
+}
+/* Cooler tint when stakes ease. */
+.announce-ribbon--stakesDown { border-color: rgba(120,170,200,0.4); }
+.announce-ribbon--stakesDown .announce-ribbon__icon,
+.announce-ribbon--stakesDown .announce-ribbon__mult { color: #8fc3e0; }
+
+/* Flash — dramatic centered card with a giant ×N hero (summit / lastStand). */
+.announce-flash {
+  width: 100%; max-width: min(420px, 90vw);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: clamp(22px, 6vw, 40px) clamp(20px, 5vw, 36px); text-align: center;
+  background: radial-gradient(circle at 50% 40%, var(--card-1), var(--card-2));
+  border: 2px solid var(--gold-border); border-radius: 20px;
+  box-shadow: 0 0 70px rgba(var(--gold-rgb), 0.3), 0 24px 60px rgba(0,0,0,0.65);
+}
+.announce-flash__title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: clamp(1.1rem, 4.5vw, 1.6rem); font-weight: 800; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--gold); line-height: 1.1;
+}
+.announce-flash__mult {
+  font-size: clamp(3.4rem, 18vw, 6rem); font-weight: 900; line-height: 1;
+  color: var(--gold); text-shadow: 0 4px 24px rgba(var(--gold-rgb), 0.45);
+}
+.announce-flash__sub { font-size: clamp(0.85rem, 3vw, 1rem); color: var(--cream-muted); letter-spacing: 0.3px; }
+.announce-flash--lastStand { border-color: rgba(240,115,108,0.5); }
+.announce-flash--lastStand .announce-flash__title,
+.announce-flash--lastStand .announce-flash__mult {
+  color: var(--danger); text-shadow: 0 4px 24px rgba(240,115,108,0.45);
+}
 
 /* ─── Push panel (Blind Bid lock/push) ─────────────────────────────────────── */
 .push-panel__hint { text-align: center; font-size: 0.95rem; color: var(--cream); margin: 4px 0; }
@@ -505,6 +543,11 @@ body {
 }
 .player-chip--me .player-chip__name { max-width: none; }
 .player-chip__stats { color: var(--cream-muted); font-size: 0.72rem; text-align: center; }
+/* Blind Bid PUSH indicator — icon-only, fixed slot so it never shifts the row. */
+.player-chip__push {
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--gold); vertical-align: -2px;
+}
 .player-chip__total { font-size: 0.68rem; color: var(--cream-muted); text-align: center; }
 .player-chip__disconnected { font-size: 0.65rem; color: #E9A94A; }
 
@@ -601,6 +644,11 @@ body {
   color: var(--gold);
 }
 .scoreboard--matrix tr:last-child td:first-child { background: rgba(var(--gold-rgb),0.16); }
+/* Per-round stakes badge (Up & Down / Blind Bid) — muted-gold, superscript-ish. */
+.score-mult {
+  margin-left: 3px; font-size: 0.62em; font-weight: 700; vertical-align: super;
+  color: var(--gold); opacity: 0.75;
+}
 .delta--pos { color: var(--success); font-weight: 600; }
 .delta--neg { color: var(--danger); font-weight: 600; }
 
@@ -790,6 +838,15 @@ body {
   box-shadow: 0 22px 60px rgba(0,0,0,0.6), 0 0 44px rgba(var(--gold-rgb),0.14);
   position: relative; z-index: 1;
 }
+/* Winner screen — link-style button to open the full per-round scoreboard. */
+.winner-board-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: none; cursor: pointer; padding: 2px;
+  color: var(--gold); font-weight: 700; font-size: 0.9rem;
+  transition: color 0.15s;
+}
+.winner-board-btn:hover { color: #f0c96a; }
+
 .guide-content { padding: 26px 32px; box-shadow: 0 16px 44px rgba(0,0,0,0.4); }
 .btn--block { width: 100%; }
 
