@@ -140,8 +140,8 @@ const SECTIONS: Record<Lang, Section[]> = {
           </p>
           <ul>
             <li><strong>Classic</strong> · the original game: 7 rounds counting down 7 → 1, with a random trump each round.</li>
-            <li><strong>Up &amp; Down</strong> · 13 rounds instead of 7: the deal climbs 1 → 7 and then back down to 1. Everything else is like Classic.</li>
-            <li><strong>Blind Bid</strong> · you place your bid before seeing your cards; your hand is revealed only once play begins.</li>
+            <li><strong>Up &amp; Down</strong> · 13 rounds climbing 1 → 7 then back to 1, with rising stakes: <strong>1×</strong> (1–3 cards), <strong>2×</strong> (4–6 cards), <strong>3×</strong> at the 7-card <em>Summit</em> (where the first bidder calls the trump), and a <strong>×10 Last Stand</strong> on the final 1-card round (where the lowest-scoring player calls the trump: a suit or No&nbsp;Trump). Multipliers apply to wins <em>and</em> losses.</li>
+            <li><strong>Blind Bid</strong> · bid before you see your hand. Once everyone has bid, your cards are revealed and you choose: <strong>Lock</strong> your bid (scores <strong>×2</strong>) or <strong>Push</strong> it up by one (scores <strong>×3</strong>): bigger reward, bigger risk. You can't push past your hand size.</li>
             <li><strong>Revolving Trump</strong> · instead of a random trump, the first bidder chooses the round's trump before bidding. Since the first bidder rotates each round, the choice "revolves". They can pick a suit, No-Trump, or one of the specials below.</li>
           </ul>
           <p>Revolving Trump specials:</p>
@@ -307,8 +307,8 @@ const SECTIONS: Record<Lang, Section[]> = {
           </p>
           <ul>
             <li><strong>Classic</strong> · aslo game: 7 round, 7 → 1 ghatta, ane dar round ma kram vagar no Sar.</li>
-            <li><strong>Up &amp; Down</strong> · 7 na badle 13 round: patta 1 → 7 sudhi vadhe ane pachha 1 sudhi ghate. Baaki badhu Classic jevu j.</li>
-            <li><strong>Blind Bid</strong> · tame tamara patta joya pehla j bid lagaavo cho; tamaro haath fakt ramat shuru thaay tyare dekhaay che.</li>
+            <li><strong>Up &amp; Down</strong> · 13 round, 1 → 7 vadhe ane pachha 1 sudhi ghate, vadhta daav sathe: <strong>1×</strong> (1–3 patta), <strong>2×</strong> (4–6 patta), 7-patta na <em>Summit</em> par <strong>3×</strong> (jyaan pehlo bidder Sar pasand kare), ane chhelli 1-patta round par <strong>×10 Last Stand</strong> (jyaan sauthi ochha score vado Sar pasand kare: ek color ke No&nbsp;Trump). Multiplier jeet <em>ane</em> haar banne par lage.</li>
+            <li><strong>Blind Bid</strong> · patta joya pehla bid lagaavo. Badha bid kari le pachhi tamara patta dekhaay ane tame nakki karo: bid <strong>Lock</strong> karo (<strong>×2</strong>) ke ek vadhaaro <strong>Push</strong> karo (<strong>×3</strong>): moto fayado, moto risk. Haath na size thi vadhu push na thay.</li>
             <li><strong>Revolving Trump</strong> · kram vagar na Sar na badle, pehli bid lagaavnaar khiladi bidding pehla round no Sar pasand kare che. Pehlo bidder dar round ma badle che, etle aa pasandgi "farti" rahe che. Te ek color, No-Trump, athva niche na special ma thi ek pasand kari shake.</li>
           </ul>
           <p>Revolving Trump na special:</p>

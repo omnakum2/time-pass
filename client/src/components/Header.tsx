@@ -21,6 +21,7 @@ export function Header() {
     phase === 'DEALING' ||
     phase === 'TRUMP_SELECT' ||
     phase === 'BIDDING' ||
+    phase === 'PUSH' ||
     phase === 'PLAYING' ||
     phase === 'ROUND_SCORING';
   const [guideOpen, setGuideOpen] = useState(false);

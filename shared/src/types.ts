@@ -11,7 +11,17 @@ export interface Card {
 
 // ─── Game phases ─────────────────────────────────────────────────────────────
 
-export type GamePhase = 'LOBBY' | 'DEALING' | 'TRUMP_SELECT' | 'BIDDING' | 'PLAYING' | 'ROUND_SCORING' | 'GAME_OVER';
+export type GamePhase = 'LOBBY' | 'DEALING' | 'TRUMP_SELECT' | 'BIDDING' | 'PUSH' | 'PLAYING' | 'ROUND_SCORING' | 'GAME_OVER';
+
+// ─── Round announcement banner (mode intros + Up & Down milestones) ──────────
+
+export interface Announcement {
+  title: string;
+  subtitle?: string;
+  multiplier?: number; // shown as ×N (stakes change / Summit / Last Stand); absent for mode intros
+  icon?: 'crown' | 'swords' | 'trendingUp' | 'trendingDown'; // client Icon key (intros show no icon)
+  variant: 'intro' | 'stakesUp' | 'stakesDown' | 'summit' | 'lastStand';
+}
 
 // ─── Game modes ──────────────────────────────────────────────────────────────
 
@@ -20,9 +30,9 @@ export type GameMode = 'classic' | 'upDown' | 'blind' | 'revolvingTrump';
 export interface GameModeInfo { id: GameMode; label: string; short: string; desc: string; }
 
 export const GAME_MODES: GameModeInfo[] = [
-  { id: 'classic', label: 'Classic',   short: 'Classic',   desc: 'Random trump each round — the original game.' },
-  { id: 'upDown',  label: 'Up & Down', short: 'Up & Down', desc: 'Rounds climb 1→7, then back down to 1 (13 rounds).' },
-  { id: 'blind',   label: 'Blind Bid', short: 'Blind',     desc: 'Bid before you see your cards.' },
+  { id: 'classic', label: 'Classic',   short: 'Classic',   desc: 'The original game, with a random trump each round.' },
+  { id: 'upDown',  label: 'Up & Down', short: 'Up & Down', desc: 'Climb 1→7→1 with rising stakes, a ×3 Summit, and a ×10 Last Stand.' },
+  { id: 'blind',   label: 'Blind Bid', short: 'Blind',     desc: 'Bid blind, then lock (×2) or push (×3).' },
   { id: 'revolvingTrump', label: 'Revolving Trump', short: 'Rev. Trump', desc: 'The first bidder picks the trump each round.' },
 ];
 
@@ -68,8 +78,8 @@ export function trumpLabel(cfg: TrumpConfig): string {
 export function trumpInfo(cfg: TrumpConfig): string {
   switch (cfg.kind) {
     case 'suit':      return 'This suit beats every other suit.';
-    case 'noTrump':   return 'No trump — the highest card of the led suit wins.';
-    case 'lowCard':   return 'No trump — the lowest card of the led suit wins.';
+    case 'noTrump':   return 'No trump: the highest card of the led suit wins.';
+    case 'lowCard':   return 'No trump: the lowest card of the led suit wins.';
     case 'ak47':      return 'Every A, K, 4 and 7 is a trump.';
     case 'oneTrump':  return `Every ${cfg.rank ?? '?'} is a trump.`;
     case 'kingQueen': return 'Every King and Queen is a trump.';
@@ -100,6 +110,7 @@ export interface RoundScore {
   won: number;
   delta: number;
   total: number;
+  multiplier: number; // score multiplier applied this round for this player (Up & Down tier, or Blind lock ×2 / push ×3)
 }
 
 // ─── Scoreboard ──────────────────────────────────────────────────────────────
@@ -132,6 +143,8 @@ export interface GameState {
   turnRemainingMs: number | null; // ms left on the current turn at broadcast (frozen value while paused)
   roomExpiresInMs: number | null; // ms until a finished room auto-closes (null unless in GAME_OVER)
   mode: GameMode; // the room's game mode
+  announcement: Announcement | null; // banner to show during the DEALING window (mode intro / Up & Down milestone)
+  pushStatus: Record<string, 'locked' | 'pushed'> | null; // Blind Bid PUSH phase: each decided player's choice (null otherwise)
 }
 
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
@@ -188,6 +201,11 @@ export interface MsgSelectTrump {
   suit?: Suit; // required when kind === 'suit'
 }
 
+export interface MsgPushBid {
+  type: 'pushBid';
+  push: boolean; // true = raise blind bid by 1 (×3), false = lock it (×2)
+}
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
@@ -198,7 +216,8 @@ export type ClientMessage =
   | MsgRestartGame
   | MsgLeaveRoom
   | MsgQuickMessage
-  | MsgSelectTrump;
+  | MsgSelectTrump
+  | MsgPushBid;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 

@@ -20,6 +20,8 @@ export const ROUND_END_DELAY_MS = 3_000;      // pause after round scoring befor
 export const LOBBY_RECONNECT_WINDOW_MS = 15_000; // grace for a lobby player to return after a refresh
 export const DRAIN_MAX_MS = 60_000;              // max wait for active rooms to empty during shutdown drain
 export const QUICK_MSG_THROTTLE_MS = 1_500;      // min gap between a seat's quick-chat messages
+export const ANNOUNCE_MS = 5_000;                // how long a round-start announcement banner holds before play
+export const PUSH_TIMEOUT_MS = 30_000;           // Blind Bid: time to lock/push before auto-lock
 
 // ─── 2. Error messages ───────────────────────────────────────────────────────
 export const ERROR_MESSAGES: Record<ErrorCode, string> = {

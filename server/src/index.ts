@@ -205,6 +205,14 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       break;
     }
 
+    case 'pushBid': {
+      const r = getRoom(ws);
+      if (!r) return;
+      const err = r.room.pushBid(r.playerId, msg.push);
+      if (err) sendError(ws, err);
+      break;
+    }
+
     case 'restartGame': {
       const r = getRoom(ws);
       if (!r) return;

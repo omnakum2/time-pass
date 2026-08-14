@@ -1,4 +1,4 @@
-import { Card, Rank, Suit, TrickCard, RoundScore, GameMode, TrumpConfig } from './types';
+import { Card, Rank, Suit, TrickCard, RoundScore, GameMode, TrumpConfig, Announcement } from './types';
 import { RANK_ORDER, SUITS } from './constants';
 
 // ─── Rank ordering (higher index = higher rank) ──────────────────────────────
@@ -164,6 +164,70 @@ export function scoreRound(bid: number, won: number): number {
     return bid * 11;
   }
   return -(bid * 10);
+}
+
+/** Up & Down's peak: the 7-card Summit round (×3, first bidder calls the trump). */
+export function isSummitRound(mode: GameMode, cards: number): boolean {
+  return mode === 'upDown' && cards === 7;
+}
+
+/** Up & Down's final round: the ×10 Last Stand (lowest score calls the trump). */
+export function isLastStandRound(mode: GameMode, seqIndex: number, totalRounds: number): boolean {
+  return mode === 'upDown' && seqIndex === totalRounds - 1;
+}
+
+/**
+ * Score multiplier for a round. Up & Down escalates stakes by hand size: 1× normal
+ * (1–3 cards), 2× high-stakes (4–6), 3× at the 7-card Summit, and ×10 on the final
+ * Last Stand. Every other mode is a flat ×1.
+ * (Blind Bid's LOCK ×2 / PUSH ×3 are applied separately, per-player, at score time.)
+ */
+export function roundMultiplier(mode: GameMode, seqIndex: number, totalRounds: number, cards: number): number {
+  if (mode !== 'upDown') return 1;
+  if (isLastStandRound(mode, seqIndex, totalRounds)) return 10;
+  if (isSummitRound(mode, cards)) return 3;
+  if (cards >= 4) return 2; // High Stakes (4–6 cards)
+  return 1;                 // Normal (1–3 cards)
+}
+
+// ─── Round announcements ─────────────────────────────────────────────────────
+
+const MODE_INTRO: Record<GameMode, Announcement> = {
+  classic:        { title: 'Classic', subtitle: 'Predict your tricks · random trump each round', variant: 'intro' },
+  revolvingTrump: { title: 'Revolving Trump', subtitle: 'The first bidder calls the trump', variant: 'intro' },
+  blind:          { title: 'Blind Bid', subtitle: 'Bid blind, then lock or push your luck', variant: 'intro' },
+  upDown:         { title: 'Up & Down', subtitle: '13 rounds · rise and fall · survive', variant: 'intro' },
+};
+
+/**
+ * The banner to show at the start of a round, or null for an ordinary round.
+ * Round 1 of every mode shows its intro. In Up & Down we announce EVERY stakes
+ * change (rise or fall) — plus the Summit and Last Stand with their own copy.
+ */
+export function announcementFor(mode: GameMode, seqIndex: number, rounds: number[]): Announcement | null {
+  if (seqIndex === 0) return MODE_INTRO[mode];
+  if (mode !== 'upDown') return null;
+
+  const totalRounds = rounds.length;
+  const cards = rounds[seqIndex];
+  const multiplier = roundMultiplier(mode, seqIndex, totalRounds, cards);
+  const previousMultiplier = roundMultiplier(mode, seqIndex - 1, totalRounds, rounds[seqIndex - 1]);
+  if (multiplier === previousMultiplier) return null; // stakes unchanged — no banner
+
+  if (isLastStandRound(mode, seqIndex, totalRounds)) {
+    return { title: 'Last Stand', subtitle: 'For last place · they call the trump', multiplier, icon: 'swords', variant: 'lastStand' };
+  }
+  if (isSummitRound(mode, cards)) {
+    return { title: 'Summit', subtitle: 'Highest stakes · wins & losses', multiplier, icon: 'crown', variant: 'summit' };
+  }
+  if (multiplier > previousMultiplier) {
+    return { title: 'Stakes Rising', subtitle: 'Wins & losses grow', multiplier, icon: 'trendingUp', variant: 'stakesUp' };
+  }
+  return {
+    title: multiplier === 1 ? 'Back to Normal' : 'Stakes Easing',
+    subtitle: 'Wins & losses shrink',
+    multiplier, icon: 'trendingDown', variant: 'stakesDown',
+  };
 }
 
 /** Latest running total from a player's score rows (0 if none). */
