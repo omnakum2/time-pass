@@ -41,20 +41,20 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, remainingM
       <div className="player-chip__stats">
         {bid !== null ? `Bid ${bid}` : (phase === 'BIDDING' ? 'bidding…' : 'no bid')}
         {' · '}Won {tricksWon}
-        {phase === 'PUSH' && (
-          <span
-            className="player-chip__push"
-            title={pushChoice === 'locked' ? 'Locked' : pushChoice === 'pushed' ? 'Pushed' : 'Deciding'}
-          >
-            {' · '}
-            <Icon name={pushChoice === 'locked' ? 'lock' : pushChoice === 'pushed' ? 'pushed' : 'deciding'} size={13} />
-          </span>
-        )}
       </div>
 
       {totalScore !== undefined && (
         <div className="player-chip__total">
           Score: <Delta value={totalScore} />
+          {(phase === 'PUSH' || pushChoice) && (
+            <span
+              className="player-chip__push"
+              title={pushChoice === 'locked' ? 'Locked' : pushChoice === 'pushed' ? 'Pushed' : 'Deciding'}
+            >
+              {' · '}
+              <Icon name={pushChoice === 'locked' ? 'lock' : pushChoice === 'pushed' ? 'pushed' : 'deciding'} size={13} />
+            </span>
+          )}
         </div>
       )}
 

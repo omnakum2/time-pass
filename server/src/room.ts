@@ -390,7 +390,8 @@ export class Room {
     if (this.phase !== 'TRUMP_SELECT') return 'WRONG_PHASE';
     if (this.currentTurnPlayerId() !== playerId) return 'NOT_YOUR_TURN';
     // Last Stand offers only two choices: a trump suit or No Trump.
-    if (isLastStandRound(this.mode, this.roundIndex, this.rounds.length) && kind !== 'suit' && kind !== 'noTrump') return 'INVALID_TRUMP';
+    // Up & Down's trump rounds (Summit + Last Stand) offer only a suit or No Trump — no specials.
+    if (this.mode === 'upDown' && kind !== 'suit' && kind !== 'noTrump') return 'INVALID_TRUMP';
     const cfg = this.buildTrumpConfig(kind, suit);
     if (!cfg) return 'INVALID_TRUMP';
     this.applyTrump(cfg);
@@ -569,17 +570,25 @@ export class Room {
 
     // Compute deltas
     const perPlayer: MsgRoundResult['perPlayer'] = [];
+    // Last Stand's ×10 is a comeback: only the trailing (lowest-total) player(s) earn it.
+    const lastStand = isLastStandRound(this.mode, this.roundIndex, this.rounds.length);
+    const minTotal = lastStand
+      ? Math.min(...this.seats.map(s => latestTotal(this.scoreboard.get(s.player.id) ?? [])))
+      : 0;
     for (const seat of this.seats) {
       const pid = seat.player.id;
       const bid = this.bids.get(pid) ?? 0;
       const won = this.tricksWon.get(pid) ?? 0;
-      // Blind Bid: lock ×2 / push ×3 (per player). Up & Down: escalating round multiplier.
-      const perPlayerMultiplier = this.mode === 'blind'
-        ? (this.pushed.has(pid) ? 3 : 2)
-        : roundMultiplier(this.mode, this.roundIndex, this.rounds.length, roundNum);
-      const delta = scoreRound(bid, won) * perPlayerMultiplier;
       const rows = this.scoreboard.get(pid) ?? [];
       const prevTotal = latestTotal(rows);
+      // Blind Bid: lock ×2 / push ×3 per player. Last Stand: ×10 only for the trailing
+      // player(s); everyone else ×1. Otherwise the Up & Down round multiplier.
+      const perPlayerMultiplier = this.mode === 'blind'
+        ? (this.pushed.has(pid) ? 3 : 2)
+        : lastStand
+        ? (prevTotal === minTotal ? 10 : 1)
+        : roundMultiplier(this.mode, this.roundIndex, this.rounds.length, roundNum);
+      const delta = scoreRound(bid, won) * perPlayerMultiplier;
       const total = prevTotal + delta;
       rows.push({ round: roundNum, bid, won, delta, total, multiplier: perPlayerMultiplier });
       this.scoreboard.set(pid, rows);
@@ -731,9 +740,11 @@ export class Room {
     // Use last trick briefly so clients can show the completed trick
     const trickToShow = lastTrick ?? this.currentTrick;
     const turnActive = this.phase === 'BIDDING' || this.phase === 'PLAYING' || this.phase === 'TRUMP_SELECT' || this.phase === 'PUSH';
-    const pushStatus: Record<string, 'locked' | 'pushed'> | null = this.phase === 'PUSH'
-      ? Object.fromEntries([...this.pushDecided].map(pid => [pid, this.pushed.has(pid) ? 'pushed' : 'locked']))
-      : null;
+    // Blind decisions stay visible through PLAYING too (they define the round's ×2/×3).
+    const pushStatus: Record<string, 'locked' | 'pushed'> | null =
+      (this.phase === 'PUSH' || (this.phase === 'PLAYING' && this.mode === 'blind'))
+        ? Object.fromEntries([...this.pushDecided].map(pid => [pid, this.pushed.has(pid) ? 'pushed' : 'locked']))
+        : null;
 
     return {
       phase: this.phase,

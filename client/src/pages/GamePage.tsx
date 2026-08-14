@@ -167,14 +167,18 @@ export function GamePage() {
       {/* Trump-select popup — shown when it's MY turn to pick the round's trump */}
       <Popup
         visible={phase === 'TRUMP_SELECT' && isMyTurn}
-        title={mode === 'upDown' && round === 1 ? '⚔️ Last Stand · call the trump' : "Choose this round's trump"}
+        title={
+          mode === 'upDown' && round === 1 ? '⚔️ Last Stand · call the trump'
+          : mode === 'upDown' && round === 7 ? '👑 Summit · call the trump'
+          : "Choose this round's trump"
+        }
       >
         <TrumpPicker
           remainingMs={turnRemainingMs}
           fullMs={turnTimeoutMs}
           startKey={timerKey}
           running={timerRunning}
-          lastStand={mode === 'upDown' && round === 1}
+          limited={mode === 'upDown'}
         />
       </Popup>
 

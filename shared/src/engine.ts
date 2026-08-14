@@ -215,7 +215,7 @@ export function announcementFor(mode: GameMode, seqIndex: number, rounds: number
   if (multiplier === previousMultiplier) return null; // stakes unchanged — no banner
 
   if (isLastStandRound(mode, seqIndex, totalRounds)) {
-    return { title: 'Last Stand', subtitle: 'Lowest score calls the trump', multiplier, icon: 'swords', variant: 'lastStand' };
+    return { title: 'Last Stand', subtitle: 'For last place · they call the trump', multiplier, icon: 'swords', variant: 'lastStand' };
   }
   if (isSummitRound(mode, cards)) {
     return { title: 'Summit', subtitle: 'Highest stakes · wins & losses', multiplier, icon: 'crown', variant: 'summit' };

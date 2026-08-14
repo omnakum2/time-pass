@@ -2,11 +2,11 @@ import { TRUMP_SPECIALS, SUIT_SYMBOL, SUIT_ORDER, isRedSuit } from 'shared';
 import { sendMsg } from '../net/socket';
 import { CountdownRing } from './CountdownRing';
 
-interface Props { remainingMs: number; fullMs: number; startKey: string; running?: boolean; lastStand?: boolean; }
+interface Props { remainingMs: number; fullMs: number; startKey: string; running?: boolean; limited?: boolean; }
 
-export function TrumpPicker({ remainingMs, fullMs, startKey, running, lastStand }: Props) {
-  // Last Stand offers only two choices: a trump suit or No Trump.
-  const specials = lastStand ? TRUMP_SPECIALS.filter(o => o.kind === 'noTrump') : TRUMP_SPECIALS;
+export function TrumpPicker({ remainingMs, fullMs, startKey, running, limited }: Props) {
+  // Up & Down (Summit + Last Stand) offers only a trump suit or No Trump — no specials.
+  const specials = limited ? TRUMP_SPECIALS.filter(o => o.kind === 'noTrump') : TRUMP_SPECIALS;
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
