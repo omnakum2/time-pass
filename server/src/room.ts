@@ -4,7 +4,7 @@ import {
   Card, GameMode, GamePhase, GameState, Player, RoundScore,
   Suit, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, MsgGameOver, ErrorCode, QUICK_MESSAGES, Announcement,
   roundsForMode, deal, pickTrump, firstBidderSeat,
-  legalMoves, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, isSummitRound, isLastStandRound, ROUNDS, SUITS, RANK_ORDER
+  legalMoves, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, isSummitRound, isLastStandRound, ROUNDS, SUITS, RANK_ORDER, GAME_MODES
 } from 'shared';
 import {
   BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS,
@@ -24,7 +24,7 @@ export interface Seat {
 
 export class Room {
   readonly id: string;
-  readonly maxPlayers: number;
+  maxPlayers: number;
   private seats: Seat[] = [];
   private hostId: string | null = null;
   private phase: GamePhase = 'LOBBY';
@@ -263,12 +263,45 @@ export class Room {
     return null;
   }
 
+  // Host-only lobby settings edit: change capacity and/or mode before a match starts.
+  updateRoomSettings(requesterId: string, maxPlayers?: number, mode?: GameMode): ErrorCode | null {
+    if (requesterId !== this.hostId) return 'NOT_HOST';
+    if (this.phase !== 'LOBBY') return 'WRONG_PHASE';
+    if (maxPlayers !== undefined) {
+      if (!Number.isFinite(maxPlayers)) return 'INVALID_SETTINGS';
+      const clamped = clampPlayers(maxPlayers);           // clamps to [2,7]
+      if (clamped < this.seats.length) return 'INVALID_SETTINGS'; // can't drop below seated players
+      this.maxPlayers = clamped;
+    }
+    if (mode !== undefined) {
+      if (!GAME_MODES.some(m => m.id === mode)) return 'INVALID_SETTINGS';
+      this.mode = mode;
+      this.rounds = roundsForMode(mode);
+    }
+    // A host settings edit always cancels a pending auto-start countdown — the host is
+    // actively configuring; they'll press Start manually, or a fresh join re-arms the
+    // normal full-room countdown.
+    this.cancelCountdown();
+    this.broadcastState();
+    return null;
+  }
+
+  // "Play Again" returns everyone to the LOBBY (rather than dealing at once) so the
+  // host can adjust settings before starting the next match. The host presses Start
+  // manually, or a fresh join re-triggers the normal full-room countdown.
   restartGame(requesterId: string): ErrorCode | null {
     if (requesterId !== this.hostId) return 'NOT_HOST';
     if (this.phase !== 'GAME_OVER') return 'WRONG_PHASE';
 
     // A rematch cancels the pending game-over cleanup
     this.cancelGameOverTimer();
+
+    // Prune ghost seats: a player who dropped mid-game and won't return ('offline')
+    // would otherwise linger as a phantom lobby player counting toward capacity/Start.
+    // Keep 'online' and 'reconnecting' seats. removeSeat mutates this.seats (host
+    // reassign + reindex + scoreboard delete), so collect the ids first.
+    const gone = this.seats.filter(s => s.player.status === 'offline').map(s => s.player.id);
+    gone.forEach(id => this.removeSeat(id));
 
     // reset per-match state
     this.previousTrump = undefined;
@@ -278,7 +311,22 @@ export class Room {
     this.tricksWon = new Map();
     this.currentTrick = [];
     this.leadSuit = null;
-    this.startRound();
+    // clear each surviving seat's hand + null out the finished game's stale round state
+    this.seats.forEach(s => { s.hand = []; });
+    this.trump = null;
+    this.trumpConfig = null;
+    this.currentRound = null;
+    this.lastRoundResult = null;
+    // clear the round announcement + blind-push tracking
+    this.announcement = null;
+    this.pushed.clear();
+    this.pushDecided.clear();
+    // clear the stored game-over so a reconnect won't re-show the winner screen
+    this.lastGameOver = null;
+
+    // Return to the lobby; do NOT deal or start the countdown here.
+    this.phase = 'LOBBY';
+    this.broadcastState();
     return null;
   }
 

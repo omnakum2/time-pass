@@ -206,6 +206,12 @@ export interface MsgPushBid {
   push: boolean; // true = raise blind bid by 1 (×3), false = lock it (×2)
 }
 
+export interface MsgUpdateRoomSettings {
+  type: 'updateRoomSettings';
+  maxPlayers?: number; // 2–7; server clamps and blocks below seated count
+  mode?: GameMode;
+}
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
@@ -217,7 +223,8 @@ export type ClientMessage =
   | MsgLeaveRoom
   | MsgQuickMessage
   | MsgSelectTrump
-  | MsgPushBid;
+  | MsgPushBid
+  | MsgUpdateRoomSettings;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 
@@ -269,7 +276,8 @@ export type ErrorCode =
   | 'INVALID_BID'
   | 'CARD_NOT_IN_HAND'
   | 'ILLEGAL_CARD'
-  | 'INVALID_TRUMP';
+  | 'INVALID_TRUMP'
+  | 'INVALID_SETTINGS';
 
 export interface MsgError {
   type: 'error';
@@ -298,17 +306,27 @@ export type ServerMessage =
 
 // ─── Quick chat messages (predefined, tap-to-send) ──────────────────────────
 
-export interface QuickMessage { id: string; text: string; }
+export interface QuickMessage { id: string; text: string; tab: 'default' | 'meme'; }
 
 export const QUICK_MESSAGES: QuickMessage[] = [
-  { id: 'play-fast',   text: 'Play Fast' },
-  { id: 'nice-move',   text: 'Nice Move' },
-  { id: 'my-game',     text: 'My Game' },
-  { id: 'better-luck', text: 'Better Luck Next Time' },
-  { id: 'good-game',   text: 'Good Game' },
-  { id: 'hurry-up',    text: 'Hurry Up!' },
-  { id: 'oh-shit',     text: 'Oh Shit!' },
-  { id: 'thinking',    text: 'Thinking' },
-  { id: 'thank-you',   text: 'Thank You' },
-  { id: 'close-one',   text: 'Close One!' }
+  { id: 'play-fast',   text: 'Play Fast',       tab: 'default' },
+  { id: 'nice-move',   text: 'Nice Move',       tab: 'default' },
+  { id: 'my-game',     text: 'My Game',         tab: 'default' },
+  { id: 'better-luck', text: 'Better Luck',     tab: 'default' },
+  { id: 'good-game',   text: 'Good Game',       tab: 'default' },
+  { id: 'hurry-up',    text: 'Hurry Up!',       tab: 'default' },
+  { id: 'oh-shit',     text: 'Oh Shit!',        tab: 'default' },
+  { id: 'thinking',    text: 'Thinking',        tab: 'default' },
+  { id: 'thank-you',   text: 'Thank You',       tab: 'default' },
+  { id: 'close-one',   text: 'Close One!',      tab: 'default' },
+  { id: 'm-jaldi',     text: 'Jaldi jaldi',     tab: 'meme' },
+  { id: 'm-masti',     text: 'Masti nahi.',     tab: 'meme' },
+  { id: 'm-sahi',      text: 'Sahi baat hai.',  tab: 'meme' },
+  { id: 'm-shanti',    text: 'Shanti rakho!',   tab: 'meme' },
+  { id: 'm-mataji',    text: 'Hey Maa Mataji!', tab: 'meme' },
+  { id: 'm-babuchak',  text: 'A Babuchak.',     tab: 'meme' },
+  { id: 'm-sabass',    text: 'Sabass jethiya.', tab: 'meme' },
+  { id: 'm-band',      text: 'Aye, band kar!',  tab: 'meme' },
+  { id: 'm-kya',       text: 'Kya karu?',       tab: 'meme' },
+  { id: 'm-jethalal',  text: 'Ae Pagal Aurat!', tab: 'meme' }
 ];

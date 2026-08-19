@@ -1,7 +1,6 @@
 import { Player } from 'shared';
 import { TurnBorder } from './TurnTimer';
 import { Delta } from './Delta';
-import { Icon } from './Icon';
 import { useGameStore } from '../store/gameStore';
 
 interface Props {
@@ -47,13 +46,15 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, remainingM
         <div className="player-chip__total">
           Score: <Delta value={totalScore} />
           {(phase === 'PUSH' || pushChoice) && (
-            <span
-              className="player-chip__push"
-              title={pushChoice === 'locked' ? 'Locked' : pushChoice === 'pushed' ? 'Pushed' : 'Deciding'}
-            >
+            <>
               {' · '}
-              <Icon name={pushChoice === 'locked' ? 'lock' : pushChoice === 'pushed' ? 'pushed' : 'deciding'} size={13} />
-            </span>
+              <span
+                className={`player-chip__push${pushChoice ? '' : ' player-chip__push--deciding'}`}
+                title={pushChoice === 'locked' ? 'Locked ×2' : pushChoice === 'pushed' ? 'Pushed ×3' : 'Deciding'}
+              >
+                {pushChoice === 'locked' ? '×2' : pushChoice === 'pushed' ? '×3' : '?'}
+              </span>
+            </>
           )}
         </div>
       )}

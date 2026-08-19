@@ -302,13 +302,39 @@ body {
 /* Ribbon — full-width horizontal band that sweeps left→center→right (intros +
    stakes changes). icon · centered text · big ×N on the right. */
 .announce-ribbon {
+  position: relative; overflow: hidden;
   width: 100%; max-width: 720px;
   display: flex; align-items: center; gap: clamp(12px, 3vw, 22px);
   padding: clamp(16px, 3vw, 22px) clamp(18px, 4vw, 34px);
   background: linear-gradient(100deg, var(--card-2), var(--card-1) 55%, var(--card-2));
   border-top: 2px solid var(--gold-border);
   border-bottom: 2px solid var(--gold-border);
-  box-shadow: 0 0 60px rgba(var(--gold-rgb), 0.25), 0 20px 50px rgba(0,0,0,0.6);
+  --ribbon-shadow: 0 0 60px rgba(var(--gold-rgb), 0.25), 0 20px 50px rgba(0,0,0,0.6);
+  box-shadow: var(--ribbon-shadow);
+  animation: announceLand 0.6s ease 0.3s 1;
+}
+/* One-time specular gleam sweeping across the gold after it lands. Absolutely
+   positioned so it stays out of the flex flow; clipped by overflow: hidden. */
+.announce-ribbon::after {
+  content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.35) 50%, transparent 60%);
+  transform: translateX(-150%);
+  pointer-events: none;
+  animation: announceShine 2.4s ease 0.5s infinite;
+}
+@keyframes announceShine {
+  from { transform: translateX(-150%); }
+  to   { transform: translateX(150%); }
+}
+/* One-shot glow flash as the dropped ribbon lands — box-shadow only (no transform),
+   so it never fights the framer-motion drop; ends at the ribbon's resting shadow. */
+@keyframes announceLand {
+  0%   { box-shadow: var(--ribbon-shadow); }
+  35%  { box-shadow: 0 0 100px rgba(var(--gold-rgb), 0.60), 0 20px 50px rgba(0,0,0,0.6); }
+  100% { box-shadow: var(--ribbon-shadow); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .announce-ribbon, .announce-ribbon::after { animation: none; }
 }
 .announce-ribbon__icon { color: var(--gold); display: flex; flex: 0 0 auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5)); }
 .announce-ribbon__text {
@@ -333,7 +359,7 @@ body {
 .announce-ribbon--summit,
 .announce-ribbon--lastStand {
   border-color: var(--gold);
-  box-shadow: 0 0 90px rgba(var(--gold-rgb), 0.42), 0 20px 50px rgba(0,0,0,0.65);
+  --ribbon-shadow: 0 0 90px rgba(var(--gold-rgb), 0.42), 0 20px 50px rgba(0,0,0,0.65);
 }
 .announce-ribbon--summit .announce-ribbon__title,
 .announce-ribbon--lastStand .announce-ribbon__title { letter-spacing: 2px; }
@@ -528,10 +554,18 @@ body {
 }
 .player-chip--me .player-chip__name { max-width: none; }
 .player-chip__stats { color: var(--cream-muted); font-size: 0.72rem; text-align: center; }
-/* Blind Bid PUSH indicator — icon-only, fixed slot so it never shifts the row. */
+/* Blind Bid PUSH status indicator — inline on the Score line, plain gold. */
 .player-chip__push {
-  display: inline-flex; align-items: center; justify-content: center;
-  color: var(--gold); vertical-align: -2px;
+  color: var(--gold); font-weight: 700; white-space: nowrap;
+}
+/* Deciding (?) → muted, soft waiting pulse */
+.player-chip__push--deciding {
+  color: var(--cream-muted);
+  animation: pushPulse 1.6s ease-in-out infinite;
+}
+@keyframes pushPulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
 }
 .player-chip__total { font-size: 0.68rem; color: var(--cream-muted); text-align: center; }
 .player-chip__disconnected { font-size: 0.65rem; color: #E9A94A; }
@@ -741,11 +775,27 @@ body {
   text-align: left; padding: 8px 12px; border-radius: 8px; white-space: nowrap;
 }
 .quick-messages__item:hover { background: rgba(var(--gold-rgb),0.14); }
+/* Default / Meme segmented switcher pinned to the top of the popover */
+.quick-messages__tabs {
+  display: flex; gap: 3px; margin-bottom: 6px; padding: 3px;
+  background: rgba(0,0,0,0.25); border: 1px solid var(--gold-border); border-radius: 9px;
+}
+.quick-messages__tab {
+  flex: 1 1 0; cursor: pointer; border: none; background: transparent;
+  color: var(--cream-muted); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.3px;
+  padding: 5px 10px; border-radius: 7px; transition: background 0.15s, color 0.15s;
+}
+.quick-messages__tab:hover { color: var(--cream); }
+.quick-messages__tab--active {
+  color: var(--gold);
+  background: linear-gradient(150deg, rgba(var(--gold-rgb),0.22), rgba(var(--gold-rgb),0.10));
+  box-shadow: inset 0 0 0 1px var(--gold-border);
+}
 
 /* Speech bubble above a player's chip */
 .chat-bubble {
   position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-  z-index: 5; white-space: nowrap; max-width: min(62vw, 180px);
+  z-index: 30; white-space: nowrap; max-width: min(62vw, 180px);
   text-overflow: ellipsis;
   /* NB: no `overflow: hidden` here — it would clip the ::after tail (a positioned
      child of this bubble) and the pointer would vanish. Quick messages are short
@@ -924,7 +974,7 @@ body {
 
   /* Chat bubbles: cap to ~a chip's width and let them WRAP, so two opponents
      messaging at once (esp. long text) no longer overlap into each other. */
-  .chat-bubble { white-space: normal; max-width: min(28vw, 92px); word-break: break-word; }
+  .chat-bubble { white-space: normal; max-width: min(42vw, 120px); overflow-wrap: break-word; word-break: normal; text-align: center; z-index: 30; }
 
   /* Reclaim vertical space around the felt */
   .player-chip { min-width: 70px; padding: 5px 10px; }

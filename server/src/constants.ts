@@ -41,4 +41,5 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   CARD_NOT_IN_HAND: "You don't have that card.",
   ILLEGAL_CARD: 'You must follow the lead suit if you can.',
   INVALID_TRUMP: 'That trump choice is not allowed.',
+  INVALID_SETTINGS: 'Those room settings are not allowed.',
 };

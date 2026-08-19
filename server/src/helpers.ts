@@ -65,6 +65,10 @@ export function validateMessage(msg: ClientMessage): ErrorCode | null {
       return typeof msg.push === 'boolean' ? null : 'BAD_MESSAGE';
     case 'quickMessage':
       return typeof msg.id === 'string' ? null : 'BAD_MESSAGE';
+    case 'updateRoomSettings':
+      return (msg.maxPlayers === undefined || typeof msg.maxPlayers === 'number')
+        && (msg.mode === undefined || typeof msg.mode === 'string')
+        ? null : 'INVALID_SETTINGS';
     case 'startGame':
     case 'restartGame':
     case 'leaveRoom':
