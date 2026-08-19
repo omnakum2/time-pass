@@ -4,8 +4,11 @@ import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
 import { STORAGE_KEYS, COPY_FEEDBACK_MS } from '../constants';
 import { useSecondsRemaining } from '../hooks/useSecondsRemaining';
+import { sendMsg } from '../net/socket';
 import { Surface } from '../components/Surface';
+import { Button } from '../components/Button';
 import { Icon } from '../components/Icon';
+import { RoomSettings } from '../components/RoomSettings';
 import { GAME_MODES } from 'shared';
 
 export function LobbyPage() {
@@ -45,6 +48,7 @@ export function LobbyPage() {
   }
 
   const { players, hostId } = gameState;
+  const isHost = hostId === playerId;
   const hostName = players.find(p => p.id === hostId)?.name ?? '';
   const displayRoomId = roomId ?? urlRoomId ?? '';
   const joinUrl = `${window.location.origin}/room/${displayRoomId}?host=${encodeURIComponent(hostName)}`;
@@ -120,6 +124,20 @@ export function LobbyPage() {
           </p>
         </div>
 
+        {isHost ? (
+          <RoomSettings
+            maxPlayers={gameState.maxPlayers}
+            minPlayers={Math.max(2, players.length)}
+            mode={gameState.mode}
+            onCommitMaxPlayers={(n) => sendMsg({ type: 'updateRoomSettings', maxPlayers: n })}
+            onSelectMode={(m) => sendMsg({ type: 'updateRoomSettings', mode: m })}
+          />
+        ) : (
+          <p className="text-center muted">
+            {GAME_MODES.find(m => m.id === gameState.mode)?.label ?? ''} · Players: {players.length} / {gameState.maxPlayers}
+          </p>
+        )}
+
         <div className="flex-col gap-sm">
           <p className="hint">
             Players ({players.length}/{gameState.maxPlayers})
@@ -145,6 +163,17 @@ export function LobbyPage() {
           <p className="text-center muted">
             Waiting for players ({players.length}/{gameState.maxPlayers})
           </p>
+        )}
+
+        {isHost && (
+          <Button
+            variant="primary"
+            block
+            onClick={() => sendMsg({ type: 'startGame' })}
+            disabled={players.length < 2}
+          >
+            Start Game
+          </Button>
         )}
       </Surface>
     </div>

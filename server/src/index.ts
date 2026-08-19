@@ -221,6 +221,14 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       break;
     }
 
+    case 'updateRoomSettings': {
+      const r = getRoom(ws);
+      if (!r) return;
+      const err = r.room.updateRoomSettings(r.playerId, msg.maxPlayers, msg.mode);
+      if (err) sendError(ws, err);
+      break;
+    }
+
     case 'leaveRoom': {
       releaseOldSeat(ws);
       break;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { NAME_MIN_LEN, NAME_MAX_LEN, GAME_MODES, GameMode } from 'shared';
+import { NAME_MIN_LEN, NAME_MAX_LEN, GameMode } from 'shared';
 import { sendMsg, reconnectSession } from '../net/socket';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
@@ -8,6 +8,7 @@ import { STORAGE_KEYS } from '../constants';
 import { Button } from '../components/Button';
 import { Field } from '../components/Field';
 import { Surface } from '../components/Surface';
+import { RoomSettings } from '../components/RoomSettings';
 
 export function HomePage() {
   const [name, setName] = useState(storage.getPlayer()?.name ?? '');
@@ -158,42 +159,13 @@ export function HomePage() {
                 autoFocus
                 onKeyDown={e => e.key === 'Enter' ? handleCreate() : undefined}
               />
-              <div className="flex-col gap-sm">
-                <label className="field-label">
-                  Number of players (2-7)
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <input
-                    type="range"
-                    min={2} max={7} step={1}
-                    value={maxPlayers}
-                    onChange={e => setMaxPlayers(Number(e.target.value))}
-                    style={{ flex: 1, accentColor: 'var(--gold)' }}
-                  />
-                  <span style={{
-                    minWidth: 32, textAlign: 'center',
-                    fontWeight: 700, fontSize: '1.2rem', color: 'var(--gold)',
-                  }}>
-                    {maxPlayers}
-                  </span>
-                </div>
-              </div>
-              <div className="flex-col gap-sm">
-                <label className="field-label">Game mode</label>
-                <div className="mode-picker">
-                  {GAME_MODES.map(m => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      className={`mode-option${gameMode === m.id ? ' mode-option--active' : ''}`}
-                      onClick={() => setGameMode(m.id)}
-                    >
-                      <span className="mode-option__label">{m.label}</span>
-                      <span className="mode-option__desc">{m.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <RoomSettings
+                maxPlayers={maxPlayers}
+                minPlayers={2}
+                mode={gameMode}
+                onCommitMaxPlayers={setMaxPlayers}
+                onSelectMode={setGameMode}
+              />
               <div className="flex-col gap-sm">
                 <Button
                   variant="primary"
