@@ -146,7 +146,7 @@ async function handleMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
       room.onDestroy = () => { rooms.delete(roomId); };
       rooms.set(roomId, room);
 
-      const seat = room.addPlayer(ws, name, true);
+      const seat = room.addPlayer(ws, name, true, uid);
       if (!seat) { sendError(ws, 'JOIN_FAILED'); return; }
       wsContext.set(ws, { playerId: seat.player.id, roomId, uid, account });
       sendMessage(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
@@ -172,7 +172,7 @@ async function handleMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
       if (room.getPhase() !== 'LOBBY') { sendError(ws, 'GAME_STARTED'); return; }
       if (room.isFull) { sendError(ws, 'ROOM_FULL'); return; }
       releaseOldSeat(ws); // hopping rooms: drop any old seat first
-      const seat = room.addPlayer(ws, name);
+      const seat = room.addPlayer(ws, name, false, uid);
       if (!seat) { sendError(ws, 'JOIN_FAILED'); return; }
       wsContext.set(ws, { playerId: seat.player.id, roomId, uid, account });
       sendMessage(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
@@ -193,7 +193,7 @@ async function handleMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
       const roomId = msg.roomId.toUpperCase();
       const room = rooms.get(roomId);
       if (!room) { sendError(ws, 'ROOM_NOT_FOUND'); return; }
-      const seat = room.reconnect(ws, msg.token);
+      const seat = room.reconnect(ws, msg.token, uid);
       if (!seat) { sendError(ws, 'INVALID_TOKEN'); return; }
       wsContext.set(ws, { playerId: seat.player.id, roomId, uid, account });
       sendMessage(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });

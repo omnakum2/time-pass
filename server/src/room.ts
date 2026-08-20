@@ -16,6 +16,7 @@ import { sendMessage, clampPlayers } from './helpers';
 export interface Seat {
   player: Player;
   token: string;
+  uid?: string;              // V3: authenticated account uid (undefined = anonymous)
   ws: WebSocket | null;
   hand: Card[];
   reconnectTimer: ReturnType<typeof setTimeout> | null;
@@ -82,6 +83,11 @@ export class Room {
     return this.seats.find(s => s.token === token);
   }
 
+  // V3: match a seat by authenticated uid (identity-based reconnect).
+  private getSeatByUid(uid: string): Seat | undefined {
+    return this.seats.find(s => s.uid === uid);
+  }
+
   private currentTurnPlayerId(): string {
     return this.seats[this.currentTurnSeatIndex]?.player.id ?? '';
   }
@@ -119,7 +125,7 @@ export class Room {
 
   // ─── Join / Create ────────────────────────────────────────────────────────
 
-  addPlayer(ws: WebSocket, name: string, asHost = false): Seat | null {
+  addPlayer(ws: WebSocket, name: string, asHost = false, uid?: string): Seat | null {
     if (this.phase !== 'LOBBY') return null;
     if (this.isFull) return null;
 
@@ -133,6 +139,7 @@ export class Room {
         status: 'online',
       },
       token,
+      uid,
       ws,
       hand: [],
       reconnectTimer: null,
@@ -145,8 +152,10 @@ export class Room {
     return seat;
   }
 
-  reconnect(ws: WebSocket, token: string): Seat | null {
-    const seat = this.getSeatByToken(token);
+  reconnect(ws: WebSocket, token: string, uid?: string): Seat | null {
+    // V3: prefer identity (uid) so a signed-in player recovers their seat even if the
+    // local reconnect token was lost; fall back to the per-seat token (anonymous path).
+    const seat = (uid ? this.getSeatByUid(uid) : undefined) ?? this.getSeatByToken(token);
     if (!seat) return null;
     seat.reconnectTimer = this.clearTimer(seat.reconnectTimer);
     // FIX 9: one active connection per seat — close any older, different socket.
