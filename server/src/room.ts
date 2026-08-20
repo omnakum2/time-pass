@@ -106,13 +106,14 @@ export class Room {
     if (this.countdownTimer && this.seats.length < this.maxPlayers) this.cancelCountdown();
   }
 
-  // Hand the host role to the first still-connected player (used when the host's
-  // in-game reconnect window fully expires).
+  // Hand the host role to another present player — prefer an online seat, else a
+  // reconnecting one, so the host never sticks to a definitively-gone (offline) player.
+  // The caller broadcasts the resulting state.
   private reassignHostToConnected(): void {
-    const next = this.seats.find(s => s.player.status === 'online');
+    const next = this.seats.find(s => s.player.status === 'online')
+              ?? this.seats.find(s => s.player.status === 'reconnecting');
     if (next && next.player.id !== this.hostId) {
       this.hostId = next.player.id;
-      this.broadcastState();
     }
   }
 
@@ -152,6 +153,10 @@ export class Room {
     if (seat.ws && seat.ws !== ws) { try { seat.ws.close(1000, 'replaced'); } catch { /* ignore */ } }
     seat.ws = ws;
     seat.player.status = 'online';
+    // If the host left/went offline while we were away, take over so the room isn't left
+    // host-less (host-only actions: rematch, room settings). The caller broadcasts.
+    const host = this.hostId ? this.getSeat(this.hostId) : undefined;
+    if (!host || host.player.status === 'offline') this.hostId = seat.player.id;
     this.cancelEmptyRoomTimer();
 
     // Resume the turn timer WITHOUT extending the deadline. If the game was paused
@@ -167,28 +172,37 @@ export class Room {
     return seat;
   }
 
-  disconnect(playerId: string, closingWs?: WebSocket): void {
+  // `immediate` (opts) = an explicit in-game Leave: a real exit, so skip the reconnecting
+  // grace and go straight to 'offline'. A tab-close / refresh (the default) keeps the grace.
+  disconnect(playerId: string, closingWs?: WebSocket, opts?: { immediate?: boolean }): void {
     const seat = this.getSeat(playerId);
     if (!seat) return;
     // FIX 1: ignore a stale/late close from a socket that's no longer this seat's
     // (e.g. after a fresh reconnect replaced it). Internal callers pass no ws.
     if (closingWs !== undefined && seat.ws !== closingWs) return;
 
+    const immediate = opts?.immediate === true;
+    seat.reconnectTimer = this.clearTimer(seat.reconnectTimer);
     seat.ws = null;
-    seat.player.status = 'reconnecting'; // they might come back within the window
+    seat.player.status = immediate ? 'offline' : 'reconnecting';
 
     if (this.phase === 'LOBBY') {
       // FIX 4: don't drop the seat on a refresh; give a short window to reconnect.
-      seat.reconnectTimer = setTimeout(() => {
-        seat.reconnectTimer = null;
-        if (seat.player.status !== 'online') {
-          this.removeSeat(playerId);
-          this.broadcastState();
-          if (this.isEmpty) this.startEmptyRoomTimer();
-        }
-      }, LOBBY_RECONNECT_WINDOW_MS);
+      if (!immediate) {
+        seat.reconnectTimer = setTimeout(() => {
+          seat.reconnectTimer = null;
+          if (seat.player.status !== 'online') {
+            this.removeSeat(playerId);
+            this.broadcastState();
+            if (this.isEmpty) this.startEmptyRoomTimer();
+          }
+        }, LOBBY_RECONNECT_WINDOW_MS);
+      }
+    } else if (immediate) {
+      // Explicit in-game leave — hand off host now (no grace window).
+      if (playerId === this.hostId) this.reassignHostToConnected();
     } else {
-      // In-game: start reconnect window. When the grace fully expires and the
+      // In-game drop: start the reconnect window. When the grace fully expires and the
       // player is still gone, mark them offline and hand off host if needed.
       seat.reconnectTimer = setTimeout(() => {
         seat.reconnectTimer = null;
@@ -205,18 +219,22 @@ export class Room {
       if (this.phase === 'GAME_OVER' && playerId === this.hostId) {
         this.reassignHostToConnected();
       }
-
-      // NB: we deliberately DON'T touch the turn timer here. A turn's deadline is fixed
-      // when it begins, so one player dropping never shortens or resets another player's
-      // clock — and a refresh can't reset the dropped player's own clock either.
     }
 
-    // If the room just emptied mid-turn, freeze the remaining turn time so it doesn't
-    // tick away while nobody can act; reconnect() restores it on the first return.
+    // Turn timer: if the room just emptied mid-turn, freeze the remaining time so it
+    // doesn't tick away while nobody can act (reconnect() restores it). Otherwise, an
+    // explicit leave on the leaver's OWN turn resolves fast instead of waiting the full
+    // budget — matching how an already-offline seat is auto-moved. A normal drop leaves
+    // the turn's fixed deadline untouched.
     if (this.isEmpty && this.turnExpiresAt != null) {
       this.turnPausedRemainingMs = Math.max(0, this.turnExpiresAt - Date.now());
       this.turnExpiresAt = null;
       this.cancelTurnTimer();
+    } else if (immediate &&
+               this.currentTurnPlayerId() === playerId &&
+               (this.phase === 'BIDDING' || this.phase === 'PLAYING' || this.phase === 'TRUMP_SELECT')) {
+      this.turnExpiresAt = Date.now() + DISCONNECTED_AUTO_MOVE_MS;
+      this.armTurnTimer();
     }
 
     this.broadcastState();
@@ -231,11 +249,12 @@ export class Room {
     const seat = this.getSeat(playerId);
     if (!seat) return;
 
-    // In-game leave: treat as a permanent disconnect so seat/turn/bid indices stay
-    // intact (the seat auto-plays to the end; host leaving ends the game). Hard seat
-    // removal mid-round would corrupt game state.
+    // In-game leave: an explicit Leave is a real exit — reuse disconnect's teardown but
+    // skip the reconnecting grace (immediate: true → straight to 'offline'). Seat/turn/bid
+    // indices stay intact (hard removal mid-round would corrupt state); the seat auto-plays
+    // to the end and beginTurn fast-forwards its future turns because it's 'offline'.
     if (this.phase !== 'LOBBY' && this.phase !== 'GAME_OVER') {
-      this.disconnect(playerId);
+      this.disconnect(playerId, undefined, { immediate: true });
       return;
     }
 
@@ -381,6 +400,8 @@ export class Room {
     this.tricksWon = new Map(this.seats.map(s => [s.player.id, 0]));
     this.currentTrick = [];
     this.leadSuit = null;
+    this.trump = null;        // clear last round's trump so the DEALING/announcement window
+    this.trumpConfig = null;  // never shows a stale trump — beginRoundPlay sets the new one
     this.pushed = new Set();
     this.pushDecided = new Set();
     this.pushTimer = this.clearTimer(this.pushTimer);
