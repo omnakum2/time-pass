@@ -1,3 +1,6 @@
+import type { DailyReward } from './dailyLogin';
+import type { SpinPrize } from './spinWheel';
+
 // ─── Suits & Cards ───────────────────────────────────────────────────────────
 
 export type Suit = 'D' | 'C' | 'H' | 'S'; // Diamonds, Clubs, Hearts, Spades
@@ -224,6 +227,25 @@ export interface MsgUpdateRoomSettings {
   mode?: GameMode;
 }
 
+// ─── Reward protocol (V3: daily login + spin wheel) ─────────────────────────
+// Each carries an optional idToken (same pattern as MsgCreateRoom); the server
+// resolves the account from it, so an unauthenticated caller gets NOT_AUTHENTICATED.
+
+export interface MsgGetRewards {
+  type: 'getRewards';
+  idToken?: string;
+}
+
+export interface MsgClaimDaily {
+  type: 'claimDaily';
+  idToken?: string;
+}
+
+export interface MsgSpin {
+  type: 'spin';
+  idToken?: string;
+}
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
@@ -236,7 +258,10 @@ export type ClientMessage =
   | MsgQuickMessage
   | MsgSelectTrump
   | MsgPushBid
-  | MsgUpdateRoomSettings;
+  | MsgUpdateRoomSettings
+  | MsgGetRewards
+  | MsgClaimDaily
+  | MsgSpin;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 
@@ -290,7 +315,10 @@ export type ErrorCode =
   | 'ILLEGAL_CARD'
   | 'INVALID_TRUMP'
   | 'INVALID_SETTINGS'
-  | 'AUTH_FAILED';
+  | 'AUTH_FAILED'
+  | 'NOT_AUTHENTICATED'
+  | 'NO_SPINS_LEFT'
+  | 'INSUFFICIENT_COINS';
 
 export interface MsgError {
   type: 'error';
@@ -314,6 +342,34 @@ export interface MsgAccount {
   account: UserAccount;
 }
 
+// ─── Reward protocol (V3: server → client) ──────────────────────────────────
+
+export interface MsgRewardsStatus {
+  type: 'rewardsStatus';
+  canClaimDaily: boolean;
+  streak: number;
+  spinsUsedToday: number;
+  nextSpinCost: number | null;
+}
+
+export interface MsgDailyReward {
+  type: 'dailyReward';
+  claimed: boolean;
+  streak: number;
+  reward: DailyReward;
+  account: UserAccount;
+}
+
+export interface MsgSpinResult {
+  type: 'spinResult';
+  prize: SpinPrize;
+  segmentIndex: number;
+  cost: number;
+  usedToday: number;
+  nextCost: number | null;
+  account: UserAccount;
+}
+
 export type ServerMessage =
   | MsgJoined
   | MsgState
@@ -322,7 +378,10 @@ export type ServerMessage =
   | MsgError
   | MsgRoomClosed
   | MsgQuickMessageBroadcast
-  | MsgAccount;
+  | MsgAccount
+  | MsgRewardsStatus
+  | MsgDailyReward
+  | MsgSpinResult;
 
 // ─── Quick chat messages (predefined, tap-to-send) ──────────────────────────
 

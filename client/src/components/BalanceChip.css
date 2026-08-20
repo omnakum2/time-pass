@@ -1,0 +1,66 @@
+/* ─── BalanceChip ───────────────────────────────────────────────────────────
+   V3 currency wallet: gold-trimmed dark-wine pill showing coins + gems.
+   Coins render in gold, gems in jewel-green. All styling lives here so
+   index.css stays untouched. Theme tokens (--gold, --cream, --card-*, etc.)
+   are inherited from the global :root in index.css. */
+
+.balance-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--gold-border);
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--gold-rgb), 0.12),
+    0 1px 6px rgba(0, 0, 0, 0.4);
+  color: var(--cream);
+  font-weight: 800;
+  font-size: 0.85rem;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.balance-chip__seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.balance-chip__icon {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  /* Small drop shadow so the icon reads on the dark pill */
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+}
+
+.balance-chip__value {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+}
+
+.balance-chip__seg--coins .balance-chip__value {
+  color: var(--gold);
+  text-shadow: 0 0 10px rgba(var(--gold-rgb), 0.3);
+}
+
+.balance-chip__seg--gems .balance-chip__value {
+  color: var(--success);
+  text-shadow: 0 0 10px rgba(95, 208, 122, 0.3);
+}
+
+/* Thin gold hairline separating the two currencies */
+.balance-chip__divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 0;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(var(--gold-rgb), 0.45),
+    transparent
+  );
+}

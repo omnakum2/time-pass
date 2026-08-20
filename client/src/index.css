@@ -1005,3 +1005,185 @@ body {
   /* Even smaller played cards so all 7 fit on the narrowest phones */
   .trick-card-slot .card { width: 42px; height: 61px; }
 }
+
+/* ─── Rewards (V3: floating buttons → daily-login + lucky-spin modals) ─────── */
+/* Floating home-screen launcher: two stacked pill buttons, bottom-right. */
+.reward-fab-group {
+  position: fixed; right: 16px; bottom: 16px; z-index: 40;
+  display: flex; flex-direction: column; gap: 10px; align-items: flex-end;
+}
+.reward-fab {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 11px 16px; border-radius: 999px;
+  border: 1px solid var(--gold-border);
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  color: var(--cream); font-weight: 800; font-size: 0.85rem; letter-spacing: 0.2px;
+  cursor: pointer; white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08);
+  transition: transform 0.12s, box-shadow 0.15s, border-color 0.15s, background 0.15s;
+}
+.reward-fab:hover {
+  transform: translateY(-2px); border-color: var(--gold);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(var(--gold-rgb),0.35);
+}
+.reward-fab:active { transform: translateY(0); box-shadow: 0 4px 12px rgba(0,0,0,0.45); }
+.reward-fab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.reward-fab__icon {
+  font-size: 1.3rem; line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+}
+.reward-fab__label { letter-spacing: 0.2px; }
+/* Icon + status-dot cluster: the dot is a badge over the icon's top-right corner
+   (bell-style), so it hugs the glyph rather than the whole button. */
+.reward-fab__icon-wrap { position: relative; display: inline-flex; line-height: 0; }
+/* Notification dot — rendered only when a reward is pending: gold + a gentle pulse. */
+.reward-fab__dot {
+  position: absolute; top: -4px; right: -4px;
+  width: 11px; height: 11px; border-radius: 50%;
+  background: var(--gold); border: 2px solid var(--card-2);
+  animation: reward-dot-pulse 1.6s ease-out infinite;
+}
+@keyframes reward-dot-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(var(--gold-rgb),0.6); }
+  70%  { box-shadow: 0 0 0 7px rgba(var(--gold-rgb),0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--gold-rgb),0); }
+}
+
+/* Daily-login streak card — a bare layout container; the modal panel is the surface. */
+.reward-card { display: flex; flex-direction: column; gap: 16px; }
+.reward-card .btn { align-self: center; }
+
+/* Daily-login streak grid — 7 square rounded tiles, rows of 4 + 3. */
+.reward-days {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.reward-day {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px; padding: 4px;
+  border-radius: 14px;
+  border: 1px solid var(--gold-border);
+  background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(0,0,0,0.24));
+  text-align: center;
+  transition: transform 0.12s, box-shadow 0.2s, border-color 0.2s, background 0.2s;
+}
+/* Future (not yet reached) days sit back a little. */
+.reward-day:not(.reward-day--collected):not(.reward-day--claimable):not(.reward-day--final) {
+  opacity: 0.62;
+}
+.reward-day__label {
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--cream-muted);
+}
+.reward-day__value { font-size: 1rem; font-weight: 800; color: var(--cream); line-height: 1; }
+.reward-day__check {
+  position: absolute; top: 5px; right: 7px;
+  font-size: 0.72rem; font-weight: 900; color: var(--success); line-height: 1;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+}
+
+/* Day 7 (the gem prize) — always emphasised with an emerald→gold wash. */
+.reward-day--final {
+  border-color: var(--gold);
+  background: linear-gradient(160deg, rgba(23,160,92,0.30), rgba(var(--gold-rgb),0.20));
+  box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb),0.4);
+}
+.reward-day--final .reward-day__label { color: var(--gold); }
+.reward-day--final .reward-day__value { color: #7BE3A0; font-size: 1.05rem; }
+
+/* Collected — green tint + the corner ✓. */
+.reward-day--collected {
+  border-color: rgba(95,208,122,0.6);
+  background: linear-gradient(160deg, rgba(95,208,122,0.24), rgba(95,208,122,0.07));
+}
+.reward-day--collected .reward-day__label,
+.reward-day--collected .reward-day__value { color: var(--cream); }
+
+/* Claimable (today's reward) — gold glow + gentle pulse. */
+.reward-day--claimable {
+  border-color: var(--gold);
+  background: linear-gradient(160deg, rgba(var(--gold-rgb),0.30), rgba(var(--gold-rgb),0.10));
+  animation: reward-day-glow 1.5s ease-in-out infinite;
+}
+.reward-day--claimable .reward-day__label,
+.reward-day--claimable .reward-day__value { color: var(--gold); }
+@keyframes reward-day-glow {
+  0%, 100% { box-shadow: 0 0 0 1px var(--gold), 0 0 10px rgba(var(--gold-rgb),0.35); transform: translateY(0); }
+  50%      { box-shadow: 0 0 0 1px var(--gold), 0 0 20px rgba(var(--gold-rgb),0.6);  transform: translateY(-2px); }
+}
+
+/* Lucky-spin octagon wheel (inside its modal): a fixed pointer at 12 o'clock and
+   a rotating disc of 8 SVG wedges — graduated golds for coins, emerald for gems. */
+.spin-wheel {
+  position: relative;
+  width: min(74vw, 280px); aspect-ratio: 1 / 1;
+  margin: 4px auto 2px;
+}
+/* Soft golden halo behind the disc. */
+.spin-wheel::before {
+  content: ''; position: absolute; inset: -8%;
+  border-radius: 50%; pointer-events: none; z-index: 0;
+  background: radial-gradient(circle, rgba(var(--gold-rgb),0.20) 0%, transparent 68%);
+}
+.spin-wheel__pointer {
+  position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+  width: 0; height: 0; z-index: 4;
+  border-left: 13px solid transparent;
+  border-right: 13px solid transparent;
+  border-top: 24px solid var(--gold);
+  filter: drop-shadow(0 3px 4px rgba(0,0,0,0.6));
+}
+/* Gold peg cap seating the pointer. */
+.spin-wheel__pointer::after {
+  content: ''; position: absolute; left: 50%; top: -31px; transform: translateX(-50%);
+  width: 15px; height: 15px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #F7DE97, var(--gold-deep));
+  box-shadow: 0 1px 3px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.5);
+}
+.spin-wheel__disc {
+  position: relative; z-index: 1;
+  width: 100%; height: 100%;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+.spin-wheel__svg {
+  width: 100%; height: 100%; display: block; overflow: visible;
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,0.5));
+}
+/* Wedge fills — crisp dark edges; two golds strictly alternating by parity. */
+.spin-wheel__wedge { stroke: rgba(45,20,12,0.55); stroke-width: 1; transition: filter 0.25s; }
+.spin-wheel__wedge--a { fill: #ECC25A; }  /* even positions — bright gold */
+.spin-wheel__wedge--b { fill: #C0872E; }  /* odd positions  — mid gold    */
+/* Winning wedge, once the disc is at rest: brighten + a soft pulse. */
+.spin-wheel__wedge--win {
+  stroke: var(--gold); stroke-width: 2;
+  animation: spin-win-pulse 1.1s ease-in-out infinite;
+}
+@keyframes spin-win-pulse {
+  0%, 100% { filter: brightness(1.12) saturate(1.1); }
+  50%      { filter: brightness(1.5) saturate(1.35) drop-shadow(0 0 6px rgba(var(--gold-rgb),0.7)); }
+}
+/* Glowing gold rim around the whole wheel. */
+.spin-wheel__rim {
+  fill: none; stroke: var(--gold); stroke-width: 3;
+  filter: drop-shadow(0 0 5px rgba(var(--gold-rgb),0.6));
+}
+.spin-wheel__label {
+  fill: var(--cream); font-weight: 800; font-size: 15px;
+  paint-order: stroke; stroke: rgba(0,0,0,0.55); stroke-width: 0.9;
+}
+.spin-wheel__hub { fill: var(--gold); stroke: var(--gold-deep); stroke-width: 2; }
+
+.reward-cost { text-align: center; color: var(--gold); font-weight: 700; font-size: 0.9rem; margin-top: 2px; }
+.reward-toast { text-align: center; color: var(--success); font-weight: 800; font-size: 1rem; letter-spacing: 0.2px; }
+
+/* Respect reduced-motion: drop the reward pulses/glows. */
+@media (prefers-reduced-motion: reduce) {
+  .reward-fab__dot,
+  .reward-day--claimable,
+  .spin-wheel__wedge--win { animation: none; }
+}

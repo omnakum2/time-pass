@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config(); // load .env into process.env before anything reads it
 
 import { createServer, IncomingMessage } from 'http';
+import { randomInt } from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Room } from './room';
 import { ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES, UserAccount } from 'shared';
@@ -53,6 +54,20 @@ function getRoom(ws: WebSocket): { room: Room; playerId: string } | null {
   const room = rooms.get(ctx.roomId);
   if (!room) return null;
   return { room, playerId: ctx.playerId };
+}
+
+// ─── Reward helpers ──────────────────────────────────────────────────────────
+
+// Current date in IST (UTC+5:30) as 'YYYY-MM-DD' — the day boundary for streaks/spins.
+function istToday(): string {
+  const d = new Date(Date.now() + 5.5 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
+// Resolve the authenticated identity for a reward message (null = not signed in).
+async function rewardIdentity(idToken?: string): Promise<{ uid: string; name: string } | null> {
+  if (!idToken) return null;
+  return getIdentity().verifyIdToken(idToken);
 }
 
 const httpServer = createServer((req, res) => {
@@ -269,6 +284,37 @@ async function handleMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
       const r = getRoom(ws);
       if (!r) return;
       r.room.quickMessage(r.playerId, msg.id);
+      break;
+    }
+
+    case 'getRewards': {
+      const id = await rewardIdentity(msg.idToken);
+      if (!id) { sendError(ws, 'NOT_AUTHENTICATED'); return; }
+      await getIdentity().getOrCreateUser(id.uid, id.name); // ensure the doc exists
+      const rs = await getIdentity().getRewardsStatus(id.uid, istToday());
+      sendMessage(ws, { type: 'rewardsStatus', ...rs });
+      break;
+    }
+
+    case 'claimDaily': {
+      const id = await rewardIdentity(msg.idToken);
+      if (!id) { sendError(ws, 'NOT_AUTHENTICATED'); return; }
+      const r = await getIdentity().claimDaily(id.uid, istToday());
+      sendMessage(ws, { type: 'dailyReward', ...r });
+      break;
+    }
+
+    case 'spin': {
+      const id = await rewardIdentity(msg.idToken);
+      if (!id) { sendError(ws, 'NOT_AUTHENTICATED'); return; }
+      const rand = randomInt(0, 1_000_000) / 1_000_000; // crypto rng in [0,1)
+      try {
+        const r = await getIdentity().spin(id.uid, istToday(), rand);
+        sendMessage(ws, { type: 'spinResult', ...r });
+      } catch (e) {
+        const m = (e as Error).message;
+        sendError(ws, m === 'NO_SPINS_LEFT' || m === 'INSUFFICIENT_COINS' ? m as any : 'BAD_MESSAGE');
+      }
       break;
     }
 

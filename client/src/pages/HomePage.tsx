@@ -10,6 +10,7 @@ import { Button } from '../components/Button';
 import { Field } from '../components/Field';
 import { Surface } from '../components/Surface';
 import { RoomSettings } from '../components/RoomSettings';
+import { RewardsPanel } from '../components/RewardsPanel';
 
 export function HomePage() {
   const [name, setName] = useState(storage.getPlayer()?.name ?? '');
@@ -143,6 +144,7 @@ export function HomePage() {
               New here? Read our <Link className="home-seo__link" to="/guide">Guide</Link> to learn how to play.
             </p>
           </section>
+          <RewardsPanel />
         </div>
       ) : (
         <Surface className="flex-col gap-lg" style={{ maxWidth: 400, width: '100%' }}>

@@ -1,7 +1,7 @@
 import { ClientMessage, ServerMessage } from 'shared';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
-import { getIdToken } from '../auth';
+import { getIdToken, getIdTokenIfSignedIn } from '../auth';
 import { WS_DEFAULT_PORT, RECONNECT_BASE_MS, RECONNECT_MAX_MS, RECONNECT_EXP_CAP } from '../constants';
 
 // Environment-specific WS endpoint, from Vite's import.meta.env (see
@@ -83,6 +83,25 @@ export function disconnect(): void {
   ws?.close();
 }
 
+// ─── Reward senders (V3: daily login + spin) ─────────────────────────────────
+// getRewards refreshes status silently (no sign-in popup — skipped when signed
+// out). claimDaily / spin are explicit user actions, so a popup is acceptable.
+
+export async function sendGetRewards(): Promise<void> {
+  const t = await getIdTokenIfSignedIn();
+  if (t) sendMsg({ type: 'getRewards', idToken: t });
+}
+
+export async function sendClaimDaily(): Promise<void> {
+  const t = await getIdToken();
+  if (t) sendMsg({ type: 'claimDaily', idToken: t });
+}
+
+export async function sendSpin(): Promise<void> {
+  const t = await getIdToken();
+  if (t) sendMsg({ type: 'spin', idToken: t });
+}
+
 function dispatch(msg: ServerMessage): void {
   const store = useGameStore.getState();
   switch (msg.type) {
@@ -107,6 +126,41 @@ function dispatch(msg: ServerMessage): void {
     case 'account':
       store.setAccount(msg.account);
       break;
+    case 'rewardsStatus':
+      store.setRewards({
+        canClaimDaily: msg.canClaimDaily,
+        streak: msg.streak,
+        spinsUsedToday: msg.spinsUsedToday,
+        nextSpinCost: msg.nextSpinCost,
+      });
+      break;
+    case 'dailyReward': {
+      store.setAccount(msg.account);
+      const prev = store.rewards;
+      store.setRewards({
+        canClaimDaily: false,
+        streak: msg.streak,
+        spinsUsedToday: prev?.spinsUsedToday ?? 0,
+        nextSpinCost: prev?.nextSpinCost ?? null,
+      });
+      if (msg.claimed) store.setRewardToast({ kind: 'daily', coins: msg.reward.coins, gems: msg.reward.gems });
+      break;
+    }
+    case 'spinResult': {
+      store.setAccount(msg.account);
+      const prev = store.rewards;
+      store.setRewards({
+        canClaimDaily: prev?.canClaimDaily ?? false,
+        streak: prev?.streak ?? 0,
+        spinsUsedToday: msg.usedToday,
+        nextSpinCost: msg.nextCost,
+      });
+      store.setRewardToast({ kind: 'spin', coins: msg.prize.coins, gems: msg.prize.gems });
+      // Feed the wheel: which segment won + the prize. The Lucky Spin modal reads
+      // this to animate the octagon to a stop on the winning wedge.
+      store.setLastSpin({ segmentIndex: msg.segmentIndex, coins: msg.prize.coins, gems: msg.prize.gems });
+      break;
+    }
     case 'quickMessage':
       store.setBubble(msg.senderId, msg.text);
       break;

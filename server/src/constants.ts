@@ -44,4 +44,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   INVALID_TRUMP: 'That trump choice is not allowed.',
   INVALID_SETTINGS: 'Those room settings are not allowed.',
   AUTH_FAILED: 'Sign-in failed. Please try again.',
+  NOT_AUTHENTICATED: 'Please sign in to use rewards.',
+  NO_SPINS_LEFT: 'No spins left today.',
+  INSUFFICIENT_COINS: 'Not enough coins.',
 };

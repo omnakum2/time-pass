@@ -45,3 +45,18 @@ export async function getIdToken(): Promise<string | null> {
   }
   return auth.currentUser ? auth.currentUser.getIdToken() : null;
 }
+
+/**
+ * Like getIdToken but never prompts: returns a token only when a user is already
+ * signed in, otherwise null. Use for silent status refreshes (no popup).
+ */
+export function getIdTokenIfSignedIn(): Promise<string | null> {
+  if (!isConfigured) return Promise.resolve(null);
+  const u = getAuth().currentUser;
+  return u ? u.getIdToken() : Promise.resolve(null);
+}
+
+/** True when Firebase is configured AND a user is currently signed in. */
+export function isSignedIn(): boolean {
+  return isConfigured && getAuth().currentUser !== null;
+}

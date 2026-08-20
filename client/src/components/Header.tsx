@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { Scoreboard } from './Scoreboard';
 import { Modal } from './Modal';
+import { BalanceChip } from './BalanceChip';
 
 // Lazy so the (bilingual) guide content isn't in the initial bundle — loaded
 // only when the in-game overlay opens. The /guide route lazy-loads it too.
@@ -16,7 +17,6 @@ import logo from '../assets/logo.webp';
 export function Header() {
   const navigate = useNavigate();
   const gameState = useGameStore((s) => s.gameState);
-  const account = useGameStore((s) => s.account);
   const phase = gameState?.phase;
   const inGame =
     phase === 'DEALING' ||
@@ -43,12 +43,7 @@ export function Header() {
           <img src={logo} alt="Bid Club" className="app-header__logo" />
         </span>
         <nav className="app-header__nav">
-          {account && (
-            <span className="app-header__balance" title={account.displayName}>
-              <span className="app-header__coin">🪙 {account.coins}</span>
-              <span className="app-header__gem">💎 {account.gems}</span>
-            </span>
-          )}
+          <BalanceChip />
           {!inGame && (
             <Link className="app-header__link" to="/">
               Home

@@ -69,6 +69,11 @@ export function validateMessage(msg: ClientMessage): ErrorCode | null {
       return (msg.maxPlayers === undefined || typeof msg.maxPlayers === 'number')
         && (msg.mode === undefined || typeof msg.mode === 'string')
         ? null : 'INVALID_SETTINGS';
+    case 'getRewards':
+    case 'claimDaily':
+    case 'spin':
+      // Reward messages carry only an optional idToken beyond `type`.
+      return msg.idToken === undefined || typeof msg.idToken === 'string' ? null : 'BAD_MESSAGE';
     case 'startGame':
     case 'restartGame':
     case 'leaveRoom':

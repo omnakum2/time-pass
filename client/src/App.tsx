@@ -8,12 +8,14 @@ const GuidePage = lazy(() => import('./pages/GuidePage').then(m => ({ default: m
 const WinnerPage = lazy(() => import('./pages/WinnerPage').then(m => ({ default: m.WinnerPage })));
 import { Header } from './components/Header';
 import { ErrorToast } from './components/ErrorToast';
+import { CurrencySprite } from './components/CurrencyIcon';
 
 export default function App() {
   const { gameState, gameOver } = useGameStore();
   const phase = gameState?.phase;
   return (
     <div className="app-shell">
+      <CurrencySprite />
       <ErrorToast />
       <Header />
       <main className="app-main">

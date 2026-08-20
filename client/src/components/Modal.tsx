@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from './Icon';
 
@@ -13,6 +13,14 @@ interface Props {
 
 /** One backdrop-dimmed, centered, spring-animated modal for every overlay. */
 export function Modal({ open, onClose, title, dismissable = true, children }: Props) {
+  // Close on Esc while open (only when dismissable and a handler is provided).
+  useEffect(() => {
+    if (!open || !dismissable || !onClose) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, dismissable, onClose]);
+
   return (
     <AnimatePresence>
       {open && (
