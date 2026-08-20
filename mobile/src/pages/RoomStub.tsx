@@ -33,7 +33,7 @@ export function RoomStub() {
           {players.length > 0 && (
             <Text style={styles.names}>{players.map((p) => p.name).join(' · ')}</Text>
           )}
-          <Text style={styles.note}>Lobby UI arrives in Phase 3.</Text>
+          <Text style={styles.note}>Game screen arrives in Phase 4.</Text>
           <Button variant="danger" onPress={leave}>Leave room</Button>
         </Surface>
       </View>

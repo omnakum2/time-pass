@@ -3,7 +3,7 @@ import { useGameStore } from '../store/gameStore';
 import { colors } from '../theme';
 import { HomePage } from '../pages/HomePage';
 import { GuidePage } from '../pages/GuidePage';
-import { RoomStub } from '../pages/RoomStub';
+import { RoomRouter } from '../pages/RoomRouter';
 
 const Stack = createNativeStackNavigator();
 
@@ -23,7 +23,7 @@ export function RootNavigator() {
       }}
     >
       {roomId ? (
-        <Stack.Screen name="Room" component={RoomStub} />
+        <Stack.Screen name="Room" component={RoomRouter} />
       ) : (
         <>
           <Stack.Screen name="Home" component={HomePage} />
