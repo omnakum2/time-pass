@@ -43,4 +43,5 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   ILLEGAL_CARD: 'You must follow the lead suit if you can.',
   INVALID_TRUMP: 'That trump choice is not allowed.',
   INVALID_SETTINGS: 'Those room settings are not allowed.',
+  AUTH_FAILED: 'Sign-in failed. Please try again.',
 };

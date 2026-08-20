@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { GameState, MsgGameOver, MsgRoundResult } from 'shared';
+import { GameState, MsgGameOver, MsgRoundResult, UserAccount } from 'shared';
 import { BUBBLE_MS } from '../constants';
 
 interface ErrorState { code: string; message: string }
@@ -15,6 +15,7 @@ interface GameStore {
   roomClosed: boolean;
   reconnectFailed: boolean; // last session-reconnect attempt failed (room gone / bad token)
   activeBubbles: Record<string, { text: string; key: number }>; // playerId → quick-chat bubble
+  account: UserAccount | null; // V3: authenticated identity + wallet (null when anonymous)
 
   setConnected: (v: boolean) => void;
   setRoomClosed: (v: boolean) => void;
@@ -23,6 +24,7 @@ interface GameStore {
   setState: (s: GameState) => void;
   setRoundResult: (r: MsgRoundResult) => void;
   setGameOver: (g: MsgGameOver) => void;
+  setAccount: (a: UserAccount) => void;
   setError: (code: string, message: string) => void;
   clearError: () => void;
   setBubble: (playerId: string, text: string) => void;
@@ -42,6 +44,7 @@ export const useGameStore = create<GameStore>((set) => ({
   roomClosed: false,
   reconnectFailed: false,
   activeBubbles: {},
+  account: null,
 
   setConnected: (connected) => set({ connected }),
   setRoomClosed: (roomClosed) => set({ roomClosed }),
@@ -50,6 +53,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setState: (gameState) => set((s) => ({ gameState, gameOver: gameState.phase === 'GAME_OVER' ? s.gameOver : null })),
   setRoundResult: (lastRoundResult) => set({ lastRoundResult }),
   setGameOver: (gameOver) => set({ gameOver }),
+  setAccount: (account) => set({ account }),
   setError: (code, message) => set({ error: { code, message } }),
   clearError: () => set({ error: null }),
   setBubble: (playerId, text) => {

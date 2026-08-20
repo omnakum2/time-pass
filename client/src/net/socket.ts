@@ -1,6 +1,7 @@
 import { ClientMessage, ServerMessage } from 'shared';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
+import { getIdToken } from '../auth';
 import { WS_DEFAULT_PORT, RECONNECT_BASE_MS, RECONNECT_MAX_MS, RECONNECT_EXP_CAP } from '../constants';
 
 // Environment-specific WS endpoint, from Vite's import.meta.env (see
@@ -26,9 +27,12 @@ export function sendMsg(msg: ClientMessage): void {
 
 // Ask the server to restore our seat. Used by the auto-reconnect on connect AND by the
 // "Join" screen when the user already holds a seat in the target room (e.g. tab closed).
-export function reconnectSession(roomId: string, token: string): void {
+// Attach a Google ID token so the reconnected socket re-authenticates (V3 identity);
+// anonymous when Firebase isn't configured / the user isn't signed in (non-breaking).
+export async function reconnectSession(roomId: string, token: string): Promise<void> {
   reconnecting = true;
-  sendMsg({ type: 'reconnect', roomId, token });
+  const idToken = await getIdToken();
+  sendMsg({ type: 'reconnect', roomId, token, ...(idToken ? { idToken } : {}) });
 }
 
 export function connect(): void {
@@ -47,7 +51,7 @@ export function connect(): void {
 
     // Try to reconnect to existing session
     const session = storage.getSession();
-    if (session) reconnectSession(session.roomId, session.token);
+    if (session) void reconnectSession(session.roomId, session.token);
   };
 
   sock.onmessage = (ev) => {
@@ -99,6 +103,9 @@ function dispatch(msg: ServerMessage): void {
     case 'roomClosed':
       storage.clearSession();
       store.setRoomClosed(true);
+      break;
+    case 'account':
+      store.setAccount(msg.account);
       break;
     case 'quickMessage':
       store.setBubble(msg.senderId, msg.text);

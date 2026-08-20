@@ -4,14 +4,15 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc --noEmit && esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.js --external:bufferutil --external:utf-8-validate",
+    "build": "tsc --noEmit && esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.js --external:bufferutil --external:utf-8-validate --external:firebase-admin",
     "start": "node dist/index.js"
   },
   "dependencies": {
     "shared": "*",
     "ws": "^8.17.0",
     "uuid": "^9.0.1",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "firebase-admin": "^12.0.0"
   },
   "devDependencies": {
     "@types/ws": "^8.5.10",

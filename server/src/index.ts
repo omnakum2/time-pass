@@ -4,9 +4,10 @@ dotenv.config(); // load .env into process.env before anything reads it
 import { createServer, IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Room } from './room';
-import { ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES } from 'shared';
+import { ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES, UserAccount } from 'shared';
 import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS, HEARTBEAT_MS } from './constants';
 import { sendMessage, sendError, sanitizeName, clampPlayers, validateMessage, randomRoomCode } from './helpers';
+import { getIdentity } from './firebase';
 
 // ─── Environment-specific settings (from process.env) ──────────────────────
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -34,8 +35,8 @@ function generateRoomId(): string {
   return rooms.has(id) ? generateRoomId() : id;
 }
 
-// Track which ws belongs to which player/room
-const wsContext = new WeakMap<WebSocket, { playerId: string; roomId: string }>();
+// Track which ws belongs to which player/room (+ optional authenticated identity)
+const wsContext = new WeakMap<WebSocket, { playerId: string; roomId: string; uid?: string; account?: UserAccount }>();
 
 // Release the seat a socket currently holds (on explicit leave, or when it hops rooms)
 function releaseOldSeat(ws: WebSocket): void {
@@ -117,20 +118,24 @@ wss.on('connection', (ws, req) => {
       sendError(ws, 'BAD_MESSAGE');
       return;
     }
-    try {
-      handleMessage(ws, msg);
-    } catch {
-      sendError(ws, 'BAD_MESSAGE');
-    }
+    void handleMessage(ws, msg).catch(() => sendError(ws, 'BAD_MESSAGE'));
   });
 });
 
-function handleMessage(ws: WebSocket, msg: ClientMessage): void {
+async function handleMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
   const invalid = validateMessage(msg);
   if (invalid) { sendError(ws, invalid); return; }
   switch (msg.type) {
     case 'createRoom': {
       if (draining) { sendError(ws, 'JOIN_FAILED'); return; } // shutting down: no new rooms
+      // V3: authenticate if a token was supplied; anonymous otherwise (non-breaking).
+      let uid: string | undefined, account: UserAccount | undefined;
+      if (msg.idToken) {
+        const v = await getIdentity().verifyIdToken(msg.idToken);
+        if (!v) { sendError(ws, 'AUTH_FAILED'); return; }
+        account = await getIdentity().getOrCreateUser(v.uid, v.name);
+        uid = v.uid;
+      }
       releaseOldSeat(ws); // hopping rooms: drop any old seat first
       const name = sanitizeName(msg.name);
       if (!name) { sendError(ws, 'INVALID_NAME'); return; }
@@ -143,13 +148,22 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
 
       const seat = room.addPlayer(ws, name, true);
       if (!seat) { sendError(ws, 'JOIN_FAILED'); return; }
-      wsContext.set(ws, { playerId: seat.player.id, roomId });
+      wsContext.set(ws, { playerId: seat.player.id, roomId, uid, account });
       sendMessage(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
+      if (account) sendMessage(ws, { type: 'account', account });
       room.broadcastState();
       break;
     }
 
     case 'joinRoom': {
+      // V3: authenticate if a token was supplied; anonymous otherwise (non-breaking).
+      let uid: string | undefined, account: UserAccount | undefined;
+      if (msg.idToken) {
+        const v = await getIdentity().verifyIdToken(msg.idToken);
+        if (!v) { sendError(ws, 'AUTH_FAILED'); return; }
+        account = await getIdentity().getOrCreateUser(v.uid, v.name);
+        uid = v.uid;
+      }
       const name = sanitizeName(msg.name);
       const roomId = msg.roomId.toUpperCase();
       if (!name) { sendError(ws, 'INVALID_NAME'); return; }
@@ -160,20 +174,30 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       releaseOldSeat(ws); // hopping rooms: drop any old seat first
       const seat = room.addPlayer(ws, name);
       if (!seat) { sendError(ws, 'JOIN_FAILED'); return; }
-      wsContext.set(ws, { playerId: seat.player.id, roomId });
+      wsContext.set(ws, { playerId: seat.player.id, roomId, uid, account });
       sendMessage(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
+      if (account) sendMessage(ws, { type: 'account', account });
       room.broadcastState();
       break;
     }
 
     case 'reconnect': {
+      // V3: authenticate if a token was supplied; anonymous otherwise (non-breaking).
+      let uid: string | undefined, account: UserAccount | undefined;
+      if (msg.idToken) {
+        const v = await getIdentity().verifyIdToken(msg.idToken);
+        if (!v) { sendError(ws, 'AUTH_FAILED'); return; }
+        account = await getIdentity().getOrCreateUser(v.uid, v.name);
+        uid = v.uid;
+      }
       const roomId = msg.roomId.toUpperCase();
       const room = rooms.get(roomId);
       if (!room) { sendError(ws, 'ROOM_NOT_FOUND'); return; }
       const seat = room.reconnect(ws, msg.token);
       if (!seat) { sendError(ws, 'INVALID_TOKEN'); return; }
-      wsContext.set(ws, { playerId: seat.player.id, roomId });
+      wsContext.set(ws, { playerId: seat.player.id, roomId, uid, account });
       sendMessage(ws, { type: 'joined', playerId: seat.player.id, token: seat.token, roomId });
+      if (account) sendMessage(ws, { type: 'account', account });
       room.sendState(ws, seat.player.id);
       room.resendPhaseExtras(ws); // re-send GAME_OVER / ROUND_SCORING payloads a returning player missed
       room.broadcastState();

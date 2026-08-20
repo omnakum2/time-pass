@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { NAME_MIN_LEN, NAME_MAX_LEN, GameMode } from 'shared';
 import { sendMsg, reconnectSession } from '../net/socket';
+import { getIdToken } from '../auth';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
 import { STORAGE_KEYS } from '../constants';
@@ -50,10 +51,11 @@ export function HomePage() {
 
   // The actual "send + subscribe-to-navigate" work. Split out from the click
   // handlers so it can be fired immediately (connected) or queued (connecting).
-  const fireCreate = useCallback(() => {
+  const fireCreate = useCallback(async () => {
     const n = saveName();
     if (!n) return;
-    sendMsg({ type: 'createRoom', name: n, maxPlayers, mode: gameMode });
+    const idToken = await getIdToken(); // V3: Google ID token (null → anonymous)
+    sendMsg({ type: 'createRoom', name: n, maxPlayers, mode: gameMode, ...(idToken ? { idToken } : {}) });
     // Navigate will happen when we receive 'joined' + 'state'
     const unsub = useGameStore.subscribe((s) => {
       if (s.roomId) {
@@ -63,7 +65,7 @@ export function HomePage() {
     });
   }, [saveName, maxPlayers, gameMode, navigate]);
 
-  const fireJoin = useCallback(() => {
+  const fireJoin = useCallback(async () => {
     const n = saveName();
     const code = roomCode.trim().toUpperCase();
     if (!n || !code) return;
@@ -72,9 +74,10 @@ export function HomePage() {
       // We already hold a seat in this room (e.g. the tab was closed) → restore it rather
       // than joining as a newcomer, which a running game would reject with GAME_STARTED.
       rejoinAttempt.current = true;
-      reconnectSession(session.roomId, session.token);
+      void reconnectSession(session.roomId, session.token);
     } else {
-      sendMsg({ type: 'joinRoom', roomId: code, name: n });
+      const idToken = await getIdToken(); // V3: Google ID token (null → anonymous)
+      sendMsg({ type: 'joinRoom', roomId: code, name: n, ...(idToken ? { idToken } : {}) });
     }
     const unsub = useGameStore.subscribe((s) => {
       if (s.roomId) {

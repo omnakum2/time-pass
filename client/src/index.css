@@ -85,6 +85,15 @@ body {
   text-decoration: none;
 }
 .app-header__link:hover { background: rgba(var(--gold-rgb),0.14); color: var(--gold); }
+/* V3 wallet chip — sits with the nav; hidden entirely when anonymous (no account). */
+.app-header__balance {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 10px; border-radius: 8px;
+  border: 1px solid rgba(var(--gold-rgb),0.35);
+  background: rgba(var(--gold-rgb),0.10);
+  color: var(--cream); font-weight: 700; font-size: 0.85rem; white-space: nowrap;
+}
+.app-header__gem { color: var(--gold); }
 
 /* ─── Utility ─────────────────────────────────────────────────────────────── */
 .flex-center { display: flex; align-items: center; justify-content: center; }

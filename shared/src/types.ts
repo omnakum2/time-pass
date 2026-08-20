@@ -95,6 +95,15 @@ export interface Player {
   status: 'online' | 'reconnecting' | 'offline'; // 'online' = live socket; 'reconnecting' = in grace window; 'offline' = gone
 }
 
+// ─── User account (V3: trusted identity + wallet) ────────────────────────────
+
+export interface UserAccount {
+  uid: string;
+  displayName: string;
+  coins: number;
+  gems: number;
+}
+
 // ─── Trick card entry ─────────────────────────────────────────────────────────
 
 export interface TrickCard {
@@ -154,18 +163,21 @@ export interface MsgCreateRoom {
   name: string;
   maxPlayers?: number; // 2–7, defaults to 7
   mode?: GameMode; // defaults to 'classic'
+  idToken?: string; // V3: trusted identity token (dev or Firebase); absent = anonymous
 }
 
 export interface MsgJoinRoom {
   type: 'joinRoom';
   roomId: string;
   name: string;
+  idToken?: string; // V3: trusted identity token (dev or Firebase); absent = anonymous
 }
 
 export interface MsgReconnect {
   type: 'reconnect';
   roomId: string;
   token: string;
+  idToken?: string; // V3: trusted identity token (dev or Firebase); absent = anonymous
 }
 
 export interface MsgStartGame {
@@ -277,7 +289,8 @@ export type ErrorCode =
   | 'CARD_NOT_IN_HAND'
   | 'ILLEGAL_CARD'
   | 'INVALID_TRUMP'
-  | 'INVALID_SETTINGS';
+  | 'INVALID_SETTINGS'
+  | 'AUTH_FAILED';
 
 export interface MsgError {
   type: 'error';
@@ -295,6 +308,12 @@ export interface MsgQuickMessageBroadcast {
   text: string;
 }
 
+// V3: sent right after 'joined' when the socket authenticated with an idToken.
+export interface MsgAccount {
+  type: 'account';
+  account: UserAccount;
+}
+
 export type ServerMessage =
   | MsgJoined
   | MsgState
@@ -302,7 +321,8 @@ export type ServerMessage =
   | MsgGameOver
   | MsgError
   | MsgRoomClosed
-  | MsgQuickMessageBroadcast;
+  | MsgQuickMessageBroadcast
+  | MsgAccount;
 
 // ─── Quick chat messages (predefined, tap-to-send) ──────────────────────────
 
