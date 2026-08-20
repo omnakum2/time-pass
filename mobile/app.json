@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Bid Club",
+    "slug": "bid-club",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "bidclub",
+    "backgroundColor": "#3B1F1B",
+    "android": {
+      "package": "com.bidclub.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#3B1F1B",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    }
+  }
+}
