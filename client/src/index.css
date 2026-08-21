@@ -1187,3 +1187,165 @@ body {
   .reward-day--claimable,
   .spin-wheel__wedge--win { animation: none; }
 }
+
+/* ─── Coin Rush (currency mode) ───────────────────────────────────────────────
+   Buy-in create/lobby controls, the in-game pot/jackpot/chip-stack HUD, the
+   jackpot-claim / bust-out moment banners, and the game-over settlement bits.
+   All on the shared gold-on-mahogany theme; Coins use <CoinIcon>, in-game chip
+   points use the CSS `.cr-chip` poker token (no emoji anywhere). */
+
+/* Poker-chip token for chip *points* (distinct from the gold Coin icon). */
+.cr-chip {
+  display: inline-block;
+  width: 0.85em; height: 0.85em; vertical-align: -0.1em;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, var(--card-1) 0 36%, transparent 37%),
+    conic-gradient(
+      var(--gold) 0 12.5%, var(--card-2) 0 25%,
+      var(--gold) 0 37.5%, var(--card-2) 0 50%,
+      var(--gold) 0 62.5%, var(--card-2) 0 75%,
+      var(--gold) 0 87.5%, var(--card-2) 0 100%);
+  border: 1px solid var(--gold-deep);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.35);
+}
+.cr-chip--lg { width: 1.05em; height: 1.05em; }
+
+/* ── Create / lobby buy-in controls ── */
+.coinrush-unit { display: inline-flex; align-items: center; gap: 4px; opacity: 0.85; font-weight: 700; }
+.coinrush-error { color: var(--danger); font-size: 0.78rem; font-weight: 600; }
+
+.chip-presets { display: flex; gap: 8px; }
+.chip-preset {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 8px; border-radius: 12px; cursor: pointer;
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  border: 1px solid var(--gold-border); color: var(--cream);
+  font-weight: 800; font-size: 0.95rem;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s, color 0.15s;
+}
+.chip-preset:hover  { border-color: var(--gold); }
+.chip-preset:active { transform: scale(0.97); }
+.chip-preset--active {
+  border-color: var(--gold); color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold) inset;
+}
+
+.buyin-preview {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: 12px;
+  background: rgba(0,0,0,0.28); border: 1px dashed var(--gold-border);
+}
+.buyin-preview__label {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--cream-muted); font-weight: 800;
+}
+.buyin-preview__value {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-weight: 800; color: var(--gold); font-size: 1.05rem; font-variant-numeric: tabular-nums;
+}
+.buyin-preview__plus { color: var(--cream-muted); font-weight: 700; }
+.buyin-preview__eq   { color: var(--cream-muted); margin: 0 2px; }
+
+.coinrush-shortfall {
+  display: flex; align-items: center; justify-content: center; gap: 5px; flex-wrap: wrap;
+  text-align: center; font-size: 0.85rem; font-weight: 700; color: var(--danger);
+  background: rgba(240,115,108,0.10); border: 1px solid rgba(240,115,108,0.4);
+  border-radius: 10px; padding: 8px 12px;
+}
+.lobby-buyin {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex-wrap: wrap;
+  color: var(--gold); font-weight: 700; font-size: 0.85rem;
+}
+
+/* ── In-game HUD: pot + jackpot + per-seat chip stacks ── */
+.cr-hud {
+  flex-shrink: 0;
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 8px; padding: 2px 4px 4px;
+}
+.cr-hud__pots { display: flex; gap: 8px; flex-shrink: 0; }
+.cr-hud__stat {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  padding: 4px 12px; border-radius: 12px; min-width: 84px;
+  background: linear-gradient(150deg, var(--card-1), var(--card-2));
+  border: 1px solid var(--gold-border);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+}
+.cr-hud__label {
+  font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--cream-muted); font-weight: 800;
+}
+.cr-hud__value {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.98rem; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums;
+}
+.cr-hud__hint { font-size: 0.56rem; color: var(--cream-muted); line-height: 1.1; }
+.cr-hud__stat--jackpot { border-color: var(--gold); }
+.cr-hud__stat--jackpot .cr-hud__value { text-shadow: 0 0 10px rgba(var(--gold-rgb),0.35); }
+.cr-hud__stat--bump { animation: cr-jackpot-bump 0.9s ease; }
+@keyframes cr-jackpot-bump {
+  0%   { transform: scale(1);    box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
+  30%  { transform: scale(1.09); box-shadow: 0 0 20px rgba(var(--gold-rgb),0.65); }
+  100% { transform: scale(1);    box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
+}
+
+.cr-hud__players { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1; min-width: 0; }
+.cr-stack {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 999px;
+  background: rgba(0,0,0,0.28); border: 1px solid var(--gold-border);
+  font-size: 0.72rem; color: var(--cream);
+}
+.cr-stack--me { border-color: var(--gold); box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb),0.4); }
+.cr-stack__name {
+  font-weight: 700; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cr-stack__chips {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums;
+}
+.cr-stack--out { opacity: 0.5; filter: grayscale(0.85); }
+.cr-stack--out .cr-stack__name  { text-decoration: line-through; }
+.cr-stack--out .cr-stack__chips { color: var(--cream-muted); }
+.cr-stack__out {
+  font-size: 0.55rem; font-weight: 900; letter-spacing: 0.5px; color: var(--danger);
+  border: 1px solid var(--danger); border-radius: 5px; padding: 0 4px;
+}
+
+/* ── Moment banners (jackpot claim / bust-out) ── */
+.cr-moment-overlay {
+  position: fixed; top: 74px; left: 0; right: 0; z-index: 850;
+  display: flex; justify-content: center; padding: 0 12px; pointer-events: none;
+}
+.cr-moment {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 26px; border-radius: 16px; text-align: center; max-width: 92vw;
+  background: linear-gradient(100deg, var(--card-2), var(--card-1) 55%, var(--card-2));
+  border: 2px solid var(--gold);
+  box-shadow: 0 0 40px rgba(var(--gold-rgb),0.35), 0 14px 34px rgba(0,0,0,0.55);
+  animation: cr-moment-in 0.4s ease;
+}
+.cr-moment__title {
+  font-size: clamp(1.1rem, 4vw, 1.6rem); font-weight: 900; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--gold); text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+.cr-moment__sub { font-size: 0.85rem; color: var(--cream); }
+.cr-moment--bust {
+  border-color: var(--danger);
+  box-shadow: 0 0 34px rgba(240,115,108,0.3), 0 14px 34px rgba(0,0,0,0.55);
+}
+.cr-moment--bust .cr-moment__title { color: var(--danger); }
+@keyframes cr-moment-in {
+  from { opacity: 0; transform: translateY(-14px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Settlement (game-over) net cell ── */
+.cr-net { display: inline-flex; align-items: center; gap: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cr-hud__stat--bump { animation: none; }
+  .cr-moment { animation: none; }
+}

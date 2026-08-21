@@ -10,6 +10,7 @@ import { Surface } from '../components/Surface';
 import { Modal } from '../components/Modal';
 import { Scoreboard } from '../components/Scoreboard';
 import { Icon } from '../components/Icon';
+import { CoinIcon } from '../components/CurrencyIcon';
 import { STORAGE_KEYS, CONFETTI_COLORS } from '../constants';
 import { useSecondsRemaining } from '../hooks/useSecondsRemaining';
 
@@ -68,7 +69,7 @@ export function WinnerPage() {
 
   if (!gameOver) return <div className="page"><p>Loading…</p></div>;
 
-  const { winners, finalScores, playerNames } = gameOver;
+  const { winners, finalScores, playerNames, settlement } = gameOver;
   const isWinner = winners.includes(playerId ?? '');
 
   // Sort by score descending (handles all-negative scores correctly)
@@ -105,32 +106,70 @@ export function WinnerPage() {
             : `${winnerNames.join(' & ')} win${winners.length > 1 ? '!' : 's!'}`}
         </h1>
 
-        {/* Full standings table */}
-        <StandingsTable variant="lr">
-          <thead>
-            <tr>
-              <th>Player</th>
-              <th>Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedPlayers.map((p, i) => {
-              const isTopPlayer = winners.includes(p.id);
-              return (
-                <tr key={p.id} className={isTopPlayer ? 'row-highlight' : undefined}>
-                  <td className={p.id === playerId ? 'cell-me' : undefined}>
-                    {p.name}
-                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''}
-                    {p.id === playerId && <span className="tag-faint" style={{ marginLeft: 5 }}>(you)</span>}
-                  </td>
-                  <td>
-                    <Delta value={p.score} />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </StandingsTable>
+        {/* Full standings table — Coin Rush shows chips + real-Coin settlement */}
+        {settlement ? (
+          <StandingsTable>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Player</th>
+                <th>Chips</th>
+                <th>Coins</th>
+                <th>Net</th>
+              </tr>
+            </thead>
+            <tbody>
+              {settlement.rank.map((id, i) => {
+                const e = settlement.payouts[id];
+                const name = playerNames[id] ?? id;
+                return (
+                  <tr key={id} className={i === 0 ? 'row-highlight' : undefined}>
+                    <td>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</td>
+                    <td className={id === playerId ? 'cell-me' : undefined}>
+                      {name}
+                      {id === playerId && <span className="tag-faint" style={{ marginLeft: 5 }}>(you)</span>}
+                    </td>
+                    <td>
+                      <span className="cr-chip" aria-hidden="true" /> {(e?.chips ?? 0).toLocaleString()}
+                    </td>
+                    <td>
+                      <CoinIcon size={14} /> {(e?.coinsWon ?? 0).toLocaleString()}
+                    </td>
+                    <td>
+                      <span className="cr-net"><CoinIcon size={14} /> <Delta value={e?.net ?? 0} /></span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </StandingsTable>
+        ) : (
+          <StandingsTable variant="lr">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedPlayers.map((p, i) => {
+                const isTopPlayer = winners.includes(p.id);
+                return (
+                  <tr key={p.id} className={isTopPlayer ? 'row-highlight' : undefined}>
+                    <td className={p.id === playerId ? 'cell-me' : undefined}>
+                      {p.name}
+                      {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''}
+                      {p.id === playerId && <span className="tag-faint" style={{ marginLeft: 5 }}>(you)</span>}
+                    </td>
+                    <td>
+                      <Delta value={p.score} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </StandingsTable>
+        )}
 
         {gameState && (
           <button

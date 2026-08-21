@@ -3,8 +3,11 @@ import WebSocket from 'ws';
 import {
   Card, GameMode, GamePhase, GameState, Player, RoundScore,
   Suit, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, MsgGameOver, ErrorCode, QUICK_MESSAGES, Announcement,
+  Settlement, SettlementEntry, UserAccount, CurrencyState,
   roundsForMode, deal, pickTrump, firstBidderSeat,
-  legalMoves, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, isSummitRound, isLastStandRound, ROUNDS, SUITS, RANK_ORDER, GAME_MODES
+  legalMoves, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, isSummitRound, isLastStandRound, ROUNDS, SUITS, RANK_ORDER, GAME_MODES,
+  tableFee, buyInTotal, computePayouts, JACKPOT_MIN_BID, DEFAULT_STARTING_CHIPS,
+  isValidBet, isValidStartingChips,
 } from 'shared';
 import {
   BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS,
@@ -12,6 +15,7 @@ import {
   LOBBY_RECONNECT_WINDOW_MS, QUICK_MSG_THROTTLE_MS, ANNOUNCE_MS, PUSH_TIMEOUT_MS,
 } from './constants';
 import { sendMessage, clampPlayers } from './helpers';
+import { getIdentity } from './firebase';
 
 export interface Seat {
   player: Player;
@@ -62,6 +66,26 @@ export class Room {
   private pushed: Set<string> = new Set();               // Blind Bid: players who pushed this round (×3)
   private pushDecided: Set<string> = new Set();          // Blind Bid: players who have locked/pushed this round
   private pushTimer: ReturnType<typeof setTimeout> | null = null;
+  private bidOrder: string[] = [];                       // playerIds in the order they bid this round (jackpot tie-break)
+
+  // ─── Coin Rush (currency mode) state ────────────────────────────────────────
+  // All of this is inert (and `currency` is broadcast as null) unless mode === 'coinRush'.
+  private betAmount = 0;                                  // per-seat coin buy-in
+  private fee = 0;                                        // per-seat burned table fee (tableFee(betAmount))
+  private startingChips = DEFAULT_STARTING_CHIPS;         // each seat's opening chip stack
+  private chips: Map<string, number> = new Map();        // playerId → current chip stack
+  private jackpot = 0;                                    // progressive jackpot (chips), fills on misses
+  private pool = 0;                                       // prize pool = betAmount × non-forfeited buy-ins (fee excluded)
+  private eliminated: string[] = [];                     // playerIds in bust order, earliest first
+  private forfeited: string[] = [];                      // playerIds who quit mid-game (coins burned, out of ranking)
+  private chipsAtBust: Map<string, number> = new Map();  // playerId → chip stack captured at bust (tie-break)
+  private frozen: Set<string> = new Set();               // play-machinery freeze set (eliminated∪forfeited), recomputed each round
+  private startNonce = 0;                                 // bumped each start → unique gameId per match attempt
+  private gameId: string | null = null;                  // `${roomId}-${startNonce}` — the reservation key
+  private settled = false;                               // guard: settlement already applied
+  private refunded = false;                              // guard: refund already applied
+  private aborted = false;                               // guard: abort already ran
+  private finishing = false;                             // guard: end-of-game already entered
 
   // Called when the room should be destroyed
   onDestroy: (() => void) | null = null;
@@ -93,8 +117,51 @@ export class Room {
   }
 
   private nextSeatIndex(from: number): number {
-    return (from + 1) % this.seats.length;
+    const n = this.seats.length;
+    let idx = (from + 1) % n;
+    // Coin Rush: skip seats frozen out of this round (busted or forfeited last round).
+    if (this.mode === 'coinRush') {
+      let steps = 0;
+      while (this.frozen.has(this.seats[idx].player.id) && steps < n) { idx = (idx + 1) % n; steps++; }
+    }
+    return idx;
   }
+
+  // ─── Coin Rush helpers ──────────────────────────────────────────────────────
+  // Seats still dealt-in for the CURRENT round (frozen = busted/forfeited before it began).
+  private activeSeats(): Seat[] {
+    return this.seats.filter(s => !this.frozen.has(s.player.id));
+  }
+  // Players still in contention for the prize pool (accounting view, updates immediately
+  // on a mid-round forfeit — unlike `frozen`, which only changes at round boundaries).
+  private contenders(): string[] {
+    return this.seats
+      .map(s => s.player.id)
+      .filter(pid => !this.eliminated.includes(pid) && !this.forfeited.includes(pid));
+  }
+  private uidFor(playerId: string): string | undefined {
+    return this.getSeat(playerId)?.uid;
+  }
+  // Push each still-connected seat its freshly-mutated wallet (post debit/settle/refund).
+  private pushAccounts(accounts: Record<string, UserAccount>): void {
+    for (const seat of this.seats) {
+      const uid = seat.uid;
+      if (!uid) continue;
+      const acc = accounts[uid];
+      if (acc && seat.ws?.readyState === WebSocket.OPEN) {
+        sendMessage(seat.ws, { type: 'account', account: acc });
+      }
+    }
+  }
+
+  // Host lobby config for a Coin Rush room (betAmount already validated by index.ts).
+  setCurrencyConfig(betAmount: number, startingChips: number): void {
+    this.betAmount = betAmount;
+    this.fee = tableFee(betAmount);
+    this.startingChips = startingChips;
+  }
+  getMode(): GameMode { return this.mode; }
+  getBetAmount(): number { return this.betAmount; }
 
   get playerCount(): number { return this.seats.length; }
   get isFull(): boolean { return this.seats.length >= this.maxPlayers; }
@@ -263,6 +330,12 @@ export class Room {
     // indices stay intact (hard removal mid-round would corrupt state); the seat auto-plays
     // to the end and beginTurn fast-forwards its future turns because it's 'offline'.
     if (this.phase !== 'LOBBY' && this.phase !== 'GAME_OVER') {
+      // Coin Rush: a mid-game quit FORFEITS the buy-in (stays burned) — handled specially
+      // so the pool/ranking update and the game finishes/aborts if too few remain.
+      if (this.mode === 'coinRush' && this.gameId && !this.settled && !this.refunded && !this.aborted) {
+        this.forfeitPlayer(playerId);
+        return;
+      }
       this.disconnect(playerId, undefined, { immediate: true });
       return;
     }
@@ -279,7 +352,7 @@ export class Room {
 
   // ─── Lobby ────────────────────────────────────────────────────────────────
 
-  startGame(requesterId: string): ErrorCode | null {
+  async startGame(requesterId: string): Promise<ErrorCode | null> {
     if (requesterId !== this.hostId) return 'NOT_HOST';
     if (this.phase !== 'LOBBY') return 'WRONG_PHASE';
     if (this.seats.length < 2) return 'NOT_ENOUGH_PLAYERS';
@@ -287,25 +360,45 @@ export class Room {
     this.cancelCountdown(); // a manual start supersedes any pending lobby countdown
     this.previousTrump = undefined;
     this.roundIndex = 0;
+    if (this.mode === 'coinRush') return this.startGameCoinRush(); // debits buy-ins first
     this.startRound();
     return null;
   }
 
   // Host-only lobby settings edit: change capacity and/or mode before a match starts.
-  updateRoomSettings(requesterId: string, maxPlayers?: number, mode?: GameMode): ErrorCode | null {
+  // Coin Rush also carries the coin buy-in + starting-chip stack. Everything is
+  // validated BEFORE any field is mutated so a rejected edit leaves settings intact.
+  updateRoomSettings(requesterId: string, maxPlayers?: number, mode?: GameMode, betAmount?: number, startingChips?: number): ErrorCode | null {
     if (requesterId !== this.hostId) return 'NOT_HOST';
     if (this.phase !== 'LOBBY') return 'WRONG_PHASE';
+
+    let newMax = this.maxPlayers;
     if (maxPlayers !== undefined) {
       if (!Number.isFinite(maxPlayers)) return 'INVALID_SETTINGS';
       const clamped = clampPlayers(maxPlayers);           // clamps to [2,7]
       if (clamped < this.seats.length) return 'INVALID_SETTINGS'; // can't drop below seated players
-      this.maxPlayers = clamped;
+      newMax = clamped;
     }
+    let newMode = this.mode;
     if (mode !== undefined) {
       if (!GAME_MODES.some(m => m.id === mode)) return 'INVALID_SETTINGS';
-      this.mode = mode;
-      this.rounds = roundsForMode(mode);
+      newMode = mode;
     }
+    // Coin Rush economy, validated against the EFFECTIVE mode (index.ts already
+    // range-checks, but the room is authoritative — reject anything invalid here too).
+    let newBet = this.betAmount, newFee = this.fee, newChips = this.startingChips;
+    if (newMode === 'coinRush') {
+      newBet = betAmount ?? this.betAmount;
+      newChips = startingChips ?? (this.startingChips || DEFAULT_STARTING_CHIPS);
+      if (!isValidBet(newBet) || !isValidStartingChips(newChips)) return 'INVALID_SETTINGS';
+      newFee = tableFee(newBet);
+    }
+
+    // All valid → apply.
+    this.maxPlayers = newMax;
+    this.mode = newMode;
+    this.rounds = roundsForMode(newMode);
+    this.betAmount = newBet; this.fee = newFee; this.startingChips = newChips;
     // A host settings edit always cancels a pending auto-start countdown — the host is
     // actively configuring; they'll press Start manually, or a fresh join re-arms the
     // normal full-room countdown.
@@ -351,6 +444,19 @@ export class Room {
     this.pushDecided.clear();
     // clear the stored game-over so a reconnect won't re-show the winner screen
     this.lastGameOver = null;
+    this.bidOrder = [];
+
+    // Coin Rush: clear the finished match's economy so the next game starts fresh.
+    // (betAmount/fee/startingChips are room settings and intentionally persist.)
+    this.chips = new Map();
+    this.jackpot = 0;
+    this.pool = 0;
+    this.eliminated = [];
+    this.forfeited = [];
+    this.chipsAtBust = new Map();
+    this.frozen = new Set();
+    this.gameId = null;
+    this.settled = false; this.refunded = false; this.aborted = false; this.finishing = false;
 
     // Return to the lobby; do NOT deal or start the countdown here.
     this.phase = 'LOBBY';
@@ -381,7 +487,54 @@ export class Room {
     if (this.seats.length < 2) { this.cancelCountdown(); return; }
     this.previousTrump = undefined;
     this.roundIndex = 0;
+    if (this.mode === 'coinRush') { void this.startGameCoinRush(); return; } // debits buy-ins first
     this.startRound();
+  }
+
+  // ─── Coin Rush start: debit every seat's buy-in, then deal ───────────────────
+  // Real Coins move here. Every debit is an idempotent Firestore txn keyed by gameId;
+  // if ANY seat can't pay we refund the whole attempt and stay in the lobby.
+  private async startGameCoinRush(): Promise<ErrorCode | null> {
+    const betAmount = this.betAmount, fee = this.fee, buyIn = buyInTotal(betAmount);
+    const seatsToCharge = [...this.seats];
+
+    // Pre-flight: every seat must be a signed-in account that can afford the buy-in.
+    // (The debitBuyIn txn is the authoritative re-check — this just fails fast.)
+    for (const seat of seatsToCharge) {
+      if (!seat.uid) return 'INSUFFICIENT_BALANCE'; // anonymous seats can't buy in
+      try {
+        const acc = await getIdentity().getOrCreateUser(seat.uid, seat.player.name);
+        if (acc.coins < buyIn) return 'INSUFFICIENT_BALANCE';
+      } catch { return 'INSUFFICIENT_BALANCE'; }
+    }
+
+    // Fresh reservation for this attempt.
+    this.startNonce++;
+    this.gameId = `${this.id}-${this.startNonce}`;
+    this.settled = false; this.refunded = false; this.aborted = false; this.finishing = false;
+    this.chips = new Map(); this.jackpot = 0; this.pool = 0;
+    this.eliminated = []; this.forfeited = []; this.chipsAtBust = new Map(); this.frozen = new Set();
+
+    try {
+      for (const seat of seatsToCharge) {
+        const acc = await getIdentity().debitBuyIn(this.gameId, seat.uid!, betAmount, fee);
+        if (seat.ws?.readyState === WebSocket.OPEN) sendMessage(seat.ws, { type: 'account', account: acc });
+        this.chips.set(seat.player.id, this.startingChips);
+      }
+    } catch {
+      // A debit failed after others succeeded → refund the whole attempt, stay in lobby.
+      let accounts: Record<string, UserAccount> = {};
+      try { accounts = await getIdentity().refundGame(this.gameId); this.refunded = true; }
+      catch { /* left 'open' — the periodic stuck-sweep will refund it */ }
+      this.pushAccounts(accounts);
+      this.gameId = null;
+      return 'INSUFFICIENT_BALANCE';
+    }
+
+    // Pool is betAmount-only (the fee is already burned). jackpot starts at 0.
+    this.pool = betAmount * seatsToCharge.length;
+    this.startRound();
+    return null;
   }
 
   // ─── Round lifecycle ──────────────────────────────────────────────────────
@@ -405,8 +558,16 @@ export class Room {
   private startRound(): void {
     this.phase = 'DEALING';
     this.currentRound = this.rounds[this.roundIndex];
-    this.bids = new Map(this.seats.map(s => [s.player.id, null]));
-    this.tricksWon = new Map(this.seats.map(s => [s.player.id, 0]));
+    this.bidOrder = [];
+
+    // Coin Rush: freeze busted + forfeited players out of the WHOLE round (dealing,
+    // bidding, play). The freeze set is fixed for the round so mid-round forfeits (which
+    // still auto-play out the current round) never corrupt trick sizing / turn order.
+    if (this.mode === 'coinRush') this.frozen = new Set([...this.eliminated, ...this.forfeited]);
+    const participants = this.mode === 'coinRush' ? this.activeSeats() : this.seats;
+
+    this.bids = new Map(participants.map(s => [s.player.id, null]));
+    this.tricksWon = new Map(participants.map(s => [s.player.id, 0]));
     this.currentTrick = [];
     this.leadSuit = null;
     this.trump = null;        // clear last round's trump so the DEALING/announcement window
@@ -415,10 +576,19 @@ export class Room {
     this.pushDecided = new Set();
     this.pushTimer = this.clearTimer(this.pushTimer);
 
-    const { hands } = deal(this.currentRound, this.seats.length);
-    this.seats.forEach((seat, i) => { seat.hand = hands[i]; });
+    const { hands } = deal(this.currentRound, participants.length);
+    if (this.mode === 'coinRush') {
+      this.seats.forEach(s => { s.hand = []; });               // frozen seats get no cards
+      participants.forEach((seat, i) => { seat.hand = hands[i]; });
+    } else {
+      this.seats.forEach((seat, i) => { seat.hand = hands[i]; });
+    }
 
-    const firstSeat = firstBidderSeat(this.roundIndex, this.seats.length);
+    let firstSeat = firstBidderSeat(this.roundIndex, this.seats.length);
+    // Coin Rush: the computed opening seat may be frozen — advance to the next active one.
+    if (this.mode === 'coinRush' && this.frozen.has(this.seats[firstSeat].player.id)) {
+      firstSeat = this.nextSeatIndex(firstSeat);
+    }
     this.bidderSeatIndex = firstSeat;
     this.trickLeaderSeatIndex = firstSeat;
     this.currentTurnSeatIndex = firstSeat;
@@ -438,6 +608,9 @@ export class Room {
 
   // Clear the announcement banner and open the round (trump-select or bidding).
   private beginRoundPlay(): void {
+    // Coin Rush: a forfeit during the DEALING/announcement window may have already
+    // early-finished the game — never re-open a round on top of GAME_OVER.
+    if (this.phase === 'GAME_OVER' || this.finishing) return;
     this.announcement = null;
 
     // Trump is player-chosen on: Revolving Trump (every round), and Up & Down's
@@ -510,6 +683,7 @@ export class Room {
     }
 
     this.bids.set(playerId, bid);
+    if (!this.bidOrder.includes(playerId)) this.bidOrder.push(playerId); // for the jackpot tie-break
     this.advanceBidder();
     return null;
   }
@@ -604,7 +778,9 @@ export class Room {
 
     this.cancelTurnTimer();
 
-    if (this.currentTrick.length === this.seats.length) {
+    // Coin Rush: a trick is complete once every dealt-in (active) seat has played.
+    const trickSize = this.mode === 'coinRush' ? this.activeSeats().length : this.seats.length;
+    if (this.currentTrick.length === trickSize) {
       // Trick complete
       this.resolveTrick();
     } else {
@@ -631,11 +807,14 @@ export class Room {
     // Broadcast the completed trick state briefly, then continue
     this.broadcastState(prevTrick);
 
-    // Check if round is over (no cards left)
-    if (this.seats[0].hand.length === 0) {
+    // Check if round is over (no cards left). Coin Rush: check an ACTIVE seat — a frozen
+    // seat's hand is always empty and would end the round prematurely.
+    const refSeat = this.mode === 'coinRush' ? this.activeSeats()[0] : this.seats[0];
+    if ((refSeat?.hand.length ?? 0) === 0) {
       setTimeout(() => this.endRound(), TRICK_DISPLAY_MS);
     } else {
       setTimeout(() => {
+        if (this.phase === 'GAME_OVER' || this.finishing) return; // a forfeit may have finished the game mid-gap
         this.beginTurn();
         this.broadcastState();
       }, TRICK_DISPLAY_MS);
@@ -643,8 +822,11 @@ export class Room {
   }
 
   private endRound(): void {
+    if (this.phase === 'GAME_OVER') return; // a mid-round forfeit may have already finished the game
     this.phase = 'ROUND_SCORING';
     const roundNum = this.currentRound!;
+
+    if (this.mode === 'coinRush') { this.endRoundCoinRush(roundNum); return; }
 
     // Compute deltas
     const perPlayer: MsgRoundResult['perPlayer'] = [];
@@ -705,9 +887,10 @@ export class Room {
     return { finalScores, playerNames, maxScore };
   }
 
-  private finishGame(winners: string[], finalScores: Record<string, number>, playerNames: Record<string, string>): void {
+  private finishGame(winners: string[], finalScores: Record<string, number>, playerNames: Record<string, string>, settlement?: Settlement): void {
     this.phase = 'GAME_OVER';
-    this.lastGameOver = { type: 'gameOver', winners, finalScores, playerNames };
+    // `settlement` is coinRush-only; omitting the key keeps the other 4 modes' payload identical.
+    this.lastGameOver = { type: 'gameOver', winners, finalScores, playerNames, ...(settlement ? { settlement } : {}) };
     this.startGameOverTimer(); // set gameOverExpiresAt FIRST so the state carries roomExpiresInMs (drives the "Room closes in Xs" countdown)
     this.broadcast(this.lastGameOver);
     this.broadcastState();
@@ -719,6 +902,206 @@ export class Room {
       .filter(([, s]) => s === maxScore)
       .map(([id]) => id);
     this.finishGame(winners, finalScores, playerNames);
+  }
+
+  // ─── Coin Rush: round scoring, jackpot, bust-out ────────────────────────────
+
+  private endRoundCoinRush(roundNum: number): void {
+    const perPlayer: MsgRoundResult['perPlayer'] = [];
+    // Score every seat dealt into this round (multiplier is always ×1 in Coin Rush).
+    for (const seat of this.activeSeats()) {
+      const pid = seat.player.id;
+      const bid = this.bids.get(pid) ?? 0;
+      const won = this.tricksWon.get(pid) ?? 0;
+      const rows = this.scoreboard.get(pid) ?? [];
+      const prevTotal = latestTotal(rows);
+      const delta = scoreRound(bid, won); // ×1 — Coin Rush applies no mode scaling
+      const total = prevTotal + delta;
+      rows.push({ round: roundNum, bid, won, delta, total, multiplier: 1 });
+      this.scoreboard.set(pid, rows);
+      // Chips move by the same delta; every chip LOST feeds the progressive jackpot.
+      this.chips.set(pid, (this.chips.get(pid) ?? 0) + delta);
+      if (delta < 0) this.jackpot += -delta;
+      perPlayer.push({ playerId: pid, name: seat.player.name, bid, won, delta, total });
+    }
+
+    this.claimJackpot();     // biggest exact-hit of a bid ≥ JACKPOT_MIN_BID scoops the pot
+    this.processBustOuts();  // anyone at ≤0 chips is frozen out of all remaining rounds
+
+    const msg: MsgRoundResult = { type: 'roundResult', round: roundNum, perPlayer };
+    this.lastRoundResult = msg;
+    this.broadcast(msg);
+    this.broadcastState();
+
+    setTimeout(() => {
+      if (this.phase === 'GAME_OVER' || this.finishing) return; // a forfeit may have finished it
+      this.roundIndex++;
+      // End when the rounds run out OR ≤1 player is still in contention (early finish).
+      if (this.roundIndex < this.rounds.length && this.contenders().length > 1) {
+        this.startRound();
+      } else {
+        void this.endGameCoinRush();
+      }
+    }, ROUND_END_DELAY_MS);
+  }
+
+  // The whole jackpot goes to the biggest exact-hit of a bid ≥ JACKPOT_MIN_BID this round.
+  // Tie on bid size → the earliest bidder (this round's bid order) wins it.
+  private claimJackpot(): void {
+    if (this.jackpot <= 0) return;
+    const candidates = this.activeSeats()
+      .map(s => s.player.id)
+      .filter(pid => {
+        if (this.forfeited.includes(pid)) return false; // a forfeiter can't scoop
+        const bid = this.bids.get(pid) ?? 0;
+        const won = this.tricksWon.get(pid) ?? 0;
+        return bid >= JACKPOT_MIN_BID && won === bid;
+      });
+    if (candidates.length === 0) return;
+
+    let winner = candidates[0];
+    let bestBid = this.bids.get(winner) ?? 0;
+    let bestOrder = this.bidOrder.indexOf(winner);
+    for (const pid of candidates) {
+      const bid = this.bids.get(pid) ?? 0;
+      const order = this.bidOrder.indexOf(pid);
+      if (bid > bestBid || (bid === bestBid && order < bestOrder)) {
+        winner = pid; bestBid = bid; bestOrder = order;
+      }
+    }
+    this.chips.set(winner, (this.chips.get(winner) ?? 0) + this.jackpot);
+    this.jackpot = 0;
+  }
+
+  private processBustOuts(): void {
+    const busted = this.activeSeats()
+      .map(s => s.player.id)
+      .filter(pid => !this.forfeited.includes(pid) && (this.chips.get(pid) ?? 0) <= 0);
+    if (busted.length === 0) return;
+    // Multiple busts the same round: lower chips-at-bust is added first → earlier in
+    // `eliminated` → lower final rank (so the worse stack ranks below the less-bad one).
+    busted.sort((a, b) => (this.chips.get(a) ?? 0) - (this.chips.get(b) ?? 0));
+    for (const pid of busted) {
+      this.chipsAtBust.set(pid, this.chips.get(pid) ?? 0);
+      this.eliminated.push(pid);
+    }
+  }
+
+  // ─── Coin Rush: end of game — rank, pay out from the pool, settle on Firebase ─
+  private async endGameCoinRush(): Promise<void> {
+    if (this.finishing || this.phase === 'GAME_OVER') return; // one settlement only
+    this.finishing = true;
+    this.cancelTurnTimer();
+    this.turnExpiresAt = null;
+
+    // Survivors (still in contention) ranked by chips DESC; equal chips = a tie-group.
+    const survivors = this.contenders();
+    survivors.sort((a, b) => (this.chips.get(b) ?? 0) - (this.chips.get(a) ?? 0));
+    const rankGroups: string[][] = [];
+    let i = 0;
+    while (i < survivors.length) {
+      const group = [survivors[i]];
+      let j = i + 1;
+      while (j < survivors.length && (this.chips.get(survivors[j]) ?? 0) === (this.chips.get(survivors[i]) ?? 0)) {
+        group.push(survivors[j]); j++;
+      }
+      rankGroups.push(group); i = j;
+    }
+    // Then the eliminated, in REVERSE bust order (later bust ranks higher). Same-round
+    // busts were pushed lowest-chips-first, so reversing puts higher chips-at-bust first.
+    for (const pid of [...this.eliminated].reverse()) rankGroups.push([pid]);
+
+    // Pool = betAmount × non-forfeited buy-ins (forfeiters' stakes stay burned).
+    const nonForfeited = survivors.length + this.eliminated.length;
+    const pool = this.betAmount * nonForfeited;
+    this.pool = pool;
+    const coinsByPlayer = computePayouts(rankGroups, pool, nonForfeited);
+
+    // Map playerId → uid and settle on Firebase (idempotent). Guard against a game that
+    // was already refunded/aborted (shouldn't reach here, but never double-move coins).
+    const coinsByUid: Record<string, number> = {};
+    for (const [pid, coins] of Object.entries(coinsByPlayer)) {
+      const uid = this.uidFor(pid);
+      if (uid) coinsByUid[uid] = (coinsByUid[uid] ?? 0) + coins;
+    }
+    let accounts: Record<string, UserAccount> = {};
+    if (this.gameId && !this.settled && !this.refunded && !this.aborted) {
+      try {
+        accounts = await getIdentity().settleGame(this.gameId, coinsByUid);
+        this.settled = true;
+      } catch { /* settlement failed — reservation stays 'open' for the stuck-sweep */ }
+    }
+
+    // Build the settlement block (ranked players + forfeiters for full client info).
+    const rank = rankGroups.flat();
+    const buyIn = buyInTotal(this.betAmount);
+    const payouts: Record<string, SettlementEntry> = {};
+    for (const pid of rank) {
+      const won = coinsByPlayer[pid] ?? 0;
+      const chips = this.eliminated.includes(pid) ? (this.chipsAtBust.get(pid) ?? 0) : (this.chips.get(pid) ?? 0);
+      payouts[pid] = { chips, coinsWon: won, net: won - buyIn };
+    }
+    for (const pid of this.forfeited) { // not ranked; stake burned
+      payouts[pid] = { chips: this.chips.get(pid) ?? 0, coinsWon: 0, net: -buyIn };
+    }
+    const settlement: Settlement = { rank, payouts };
+
+    // Base gameOver payload uses chip stacks as the "score"; winners = the top tie-group.
+    const finalScores: Record<string, number> = {};
+    const playerNames: Record<string, string> = {};
+    for (const s of this.seats) {
+      playerNames[s.player.id] = s.player.name;
+      finalScores[s.player.id] = this.chips.get(s.player.id) ?? 0;
+    }
+    const winners = rankGroups.length > 0 ? rankGroups[0] : [];
+
+    this.pushAccounts(accounts);               // updated wallets first…
+    this.finishGame(winners, finalScores, playerNames, settlement); // …then GAME_OVER + settlement
+  }
+
+  // Refund a Coin Rush game that can never settle (whole table gone, shutdown/drain).
+  // A single quitter is a FORFEIT (handled in forfeitPlayer), NOT an abort. Idempotent.
+  async abortGame(): Promise<void> {
+    if (this.mode !== 'coinRush' || !this.gameId) return;
+    if (this.settled || this.refunded || this.aborted) return;
+    try {
+      const accounts = await getIdentity().refundGame(this.gameId);
+      this.refunded = true;
+      this.aborted = true;
+      this.pushAccounts(accounts);
+    } catch { /* reservation stays 'open'; the periodic stuck-sweep will refund it */ }
+  }
+
+  // A mid-game quit in a started Coin Rush game: the leaver FORFEITS. Their reserved
+  // coins stay burned (no refund); they leave the ranking and the pool shrinks by their
+  // betAmount. The game continues if ≥2 remain in contention; 1 → early finish; 0 → abort.
+  private forfeitPlayer(playerId: string): void {
+    if (!this.getSeat(playerId)) return;
+    if (!this.forfeited.includes(playerId) && !this.eliminated.includes(playerId)) {
+      this.forfeited.push(playerId);
+      this.pool = Math.max(0, this.pool - this.betAmount);
+    }
+    const remaining = this.contenders().length;
+    if (remaining <= 0) {
+      this.disconnect(playerId, undefined, { immediate: true });
+      void this.abortGame();
+      return;
+    }
+    if (remaining === 1) {
+      this.disconnect(playerId, undefined, { immediate: true });
+      void this.endGameCoinRush(); // sole survivor takes 1st
+      return;
+    }
+    // ≥2 remain: standard immediate-leave teardown. The forfeiter is not yet in `frozen`
+    // (that set only changes at startRound), so the current round finishes with them
+    // auto-played as an offline seat; from the next round they're frozen out.
+    this.disconnect(playerId, undefined, { immediate: true });
+  }
+
+  // Run abort-refund (if applicable) then the destroy callback. Fired from the
+  // empty-room and game-over TTL timers, and the shutdown-drain path (via abortGame).
+  private runDestroy(): void {
+    void (async () => { await this.abortGame(); this.onDestroy?.(); })();
   }
 
   // ─── Timers ───────────────────────────────────────────────────────────────
@@ -777,7 +1160,7 @@ export class Room {
   private startEmptyRoomTimer(): void {
     this.cancelEmptyRoomTimer();
     this.emptyRoomTimer = setTimeout(() => {
-      this.onDestroy?.();
+      this.runDestroy(); // Coin Rush: refund the open reservation before the room is dropped
     }, EMPTY_ROOM_DESTROY_MS);
   }
 
@@ -791,7 +1174,7 @@ export class Room {
     this.gameOverTimer = setTimeout(() => {
       this.gameOverTimer = null;
       this.broadcast({ type: 'roomClosed' });
-      this.onDestroy?.();
+      this.runDestroy(); // settled coinRush → abortGame is a guarded no-op; unsettled → refund
     }, GAME_OVER_TTL_MS);
   }
 
@@ -854,6 +1237,21 @@ export class Room {
       mode: this.mode,
       announcement: this.announcement,
       pushStatus,
+      // Coin Rush live economy (chips/pool/jackpot/eliminated); null for the other 4 modes.
+      currency: this.mode === 'coinRush' ? this.buildCurrencyState() : null,
+    };
+  }
+
+  // Snapshot of the Coin Rush economy for the client (chips as a plain Record).
+  private buildCurrencyState(): CurrencyState {
+    return {
+      betAmount: this.betAmount,
+      fee: this.fee,
+      pool: this.pool,
+      startingChips: this.startingChips,
+      chips: Object.fromEntries(this.chips),
+      jackpot: this.jackpot,
+      eliminated: [...this.eliminated],
     };
   }
 

@@ -47,4 +47,5 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   NOT_AUTHENTICATED: 'Please sign in to use rewards.',
   NO_SPINS_LEFT: 'No spins left today.',
   INSUFFICIENT_COINS: 'Not enough coins.',
+  INSUFFICIENT_BALANCE: 'Not enough coins for this buy-in.',
 };

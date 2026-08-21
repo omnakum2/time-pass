@@ -28,7 +28,7 @@ export interface Announcement {
 
 // ─── Game modes ──────────────────────────────────────────────────────────────
 
-export type GameMode = 'classic' | 'upDown' | 'blind' | 'revolvingTrump';
+export type GameMode = 'classic' | 'upDown' | 'blind' | 'revolvingTrump' | 'coinRush';
 
 export interface GameModeInfo { id: GameMode; label: string; short: string; desc: string; }
 
@@ -37,6 +37,7 @@ export const GAME_MODES: GameModeInfo[] = [
   { id: 'upDown',  label: 'Up & Down', short: 'Up & Down', desc: 'Climb 1→7→1 with rising stakes, a ×3 Summit, and a ×10 Last Stand.' },
   { id: 'blind',   label: 'Blind Bid', short: 'Blind',     desc: 'Bid blind, then lock (×2) or push (×3).' },
   { id: 'revolvingTrump', label: 'Revolving Trump', short: 'Rev. Trump', desc: 'The first bidder picks the trump each round.' },
+  { id: 'coinRush', label: 'Coin Rush', short: 'Coin Rush', desc: 'Real-Coin buy-in; win chips + a growing Jackpot, then cash out by rank.' },
 ];
 
 /**
@@ -129,6 +130,33 @@ export interface RoundScore {
 
 export type Scoreboard = Record<string, RoundScore[]>; // playerId → rounds
 
+// ─── Coin Rush (currency mode) state ─────────────────────────────────────────
+
+// Live currency-mode block, mirrored to clients (null for the other 4 modes).
+// All coin figures are Gold Coins; `chips`/`jackpot` are in-memory points.
+export interface CurrencyState {
+  betAmount: number;                 // host-set coin buy-in per seat
+  fee: number;                       // per-seat coin fee (burned; the sink)
+  pool: number;                      // prize pool = sum of betAmounts (fee excluded)
+  startingChips: number;             // each seat's opening chip stack
+  chips: Record<string, number>;     // playerId → current chip stack
+  jackpot: number;                   // current jackpot (chips), fills on misses
+  eliminated: string[];              // playerIds in bust order, earliest first
+}
+
+// Per-player final result, sent in the game-over settlement.
+export interface SettlementEntry {
+  chips: number;    // final chip stack (chips-at-bust for eliminated players)
+  coinsWon: number; // coins paid from the pool (0 if out of the money / forfeited)
+  net: number;      // coinsWon − (betAmount + fee): net Coin change for the game
+}
+
+// Final ranked settlement for a coinRush game.
+export interface Settlement {
+  rank: string[];                            // playerIds, 1st → last (ties broken deterministically)
+  payouts: Record<string, SettlementEntry>;  // by playerId
+}
+
 // ─── Redacted game state (sent to each client) ───────────────────────────────
 
 export interface GameState {
@@ -157,6 +185,7 @@ export interface GameState {
   mode: GameMode; // the room's game mode
   announcement: Announcement | null; // banner to show during the DEALING window (mode intro / Up & Down milestone)
   pushStatus: Record<string, 'locked' | 'pushed'> | null; // Blind Bid PUSH phase: each decided player's choice (null otherwise)
+  currency: CurrencyState | null; // Coin Rush live economy (chips/pot/jackpot/eliminated); null for the other 4 modes
 }
 
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
@@ -167,6 +196,8 @@ export interface MsgCreateRoom {
   maxPlayers?: number; // 2–7, defaults to 7
   mode?: GameMode; // defaults to 'classic'
   idToken?: string; // V3: trusted identity token (dev or Firebase); absent = anonymous
+  betAmount?: number;     // coinRush only: host coin buy-in (≥100, multiple of 10); ignored otherwise
+  startingChips?: number; // coinRush only: starting chip stack (one of STARTING_CHIP_PRESETS)
 }
 
 export interface MsgJoinRoom {
@@ -225,6 +256,8 @@ export interface MsgUpdateRoomSettings {
   type: 'updateRoomSettings';
   maxPlayers?: number; // 2–7; server clamps and blocks below seated count
   mode?: GameMode;
+  betAmount?: number;     // coinRush only: host coin buy-in (≥100, multiple of 10)
+  startingChips?: number; // coinRush only: starting chip stack (one of STARTING_CHIP_PRESETS)
 }
 
 // ─── Reward protocol (V3: daily login + spin wheel) ─────────────────────────
@@ -295,6 +328,7 @@ export interface MsgGameOver {
   winners: string[]; // playerIds
   finalScores: Record<string, number>; // playerId → total
   playerNames: Record<string, string>;
+  settlement?: Settlement; // coinRush only: final ranks + real-Coin payouts
 }
 
 export type ErrorCode =
@@ -318,7 +352,8 @@ export type ErrorCode =
   | 'AUTH_FAILED'
   | 'NOT_AUTHENTICATED'
   | 'NO_SPINS_LEFT'
-  | 'INSUFFICIENT_COINS';
+  | 'INSUFFICIENT_COINS'
+  | 'INSUFFICIENT_BALANCE';
 
 export interface MsgError {
   type: 'error';

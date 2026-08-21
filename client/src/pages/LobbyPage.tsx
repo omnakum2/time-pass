@@ -9,13 +9,28 @@ import { Surface } from '../components/Surface';
 import { Button } from '../components/Button';
 import { Icon } from '../components/Icon';
 import { RoomSettings } from '../components/RoomSettings';
-import { GAME_MODES } from 'shared';
+import { CoinIcon } from '../components/CurrencyIcon';
+import {
+  GAME_MODES, MIN_BET, DEFAULT_STARTING_CHIPS,
+  isValidBet, tableFee, buyInTotal,
+} from 'shared';
 
 export function LobbyPage() {
   const { roomId: urlRoomId } = useParams<{ roomId: string }>();
-  const { gameState, playerId, roomId, connected, reconnectFailed } = useGameStore();
+  const { gameState, playerId, roomId, connected, reconnectFailed, account } = useGameStore();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+
+  // Coin Rush host controls: local draft of the buy-in bet + starting chips.
+  // Seeded from the room's live currency block when the server exposes one.
+  const currency = gameState?.currency ?? null;
+  const [betAmount, setBetAmount] = useState<number>(currency?.betAmount ?? MIN_BET);
+  const [startingChips, setStartingChips] = useState<number>(currency?.startingChips ?? DEFAULT_STARTING_CHIPS);
+  // Keep the draft in sync when the server echoes updated currency settings.
+  useEffect(() => {
+    if (currency?.betAmount != null) setBetAmount(currency.betAmount);
+    if (currency?.startingChips != null) setStartingChips(currency.startingChips);
+  }, [currency?.betAmount, currency?.startingChips]);
 
   // If someone navigates directly to /room/:id without being in a room,
   // show a join prompt via the home page logic
@@ -49,6 +64,13 @@ export function LobbyPage() {
 
   const { players, hostId } = gameState;
   const isHost = hostId === playerId;
+
+  // Coin Rush buy-in gate (join-side): once the room's currency state is known, the
+  // effective bet comes from the server; before that, the host's own draft applies.
+  const isCoinRush = gameState.mode === 'coinRush';
+  const effectiveBet = currency?.betAmount ?? (isHost ? betAmount : null);
+  const effectiveTotal = effectiveBet != null && isValidBet(effectiveBet) ? buyInTotal(effectiveBet) : null;
+  const short = isCoinRush && effectiveTotal != null && account != null && account.coins < effectiveTotal;
   const hostName = players.find(p => p.id === hostId)?.name ?? '';
   const displayRoomId = roomId ?? urlRoomId ?? '';
   const joinUrl = `${window.location.origin}/room/${displayRoomId}?host=${encodeURIComponent(hostName)}`;
@@ -130,11 +152,39 @@ export function LobbyPage() {
             minPlayers={Math.max(2, players.length)}
             mode={gameState.mode}
             onCommitMaxPlayers={(n) => sendMsg({ type: 'updateRoomSettings', maxPlayers: n })}
-            onSelectMode={(m) => sendMsg({ type: 'updateRoomSettings', mode: m })}
+            onSelectMode={(m) => sendMsg(m === 'coinRush'
+              ? { type: 'updateRoomSettings', mode: m, betAmount, startingChips }
+              : { type: 'updateRoomSettings', mode: m })}
+            betAmount={betAmount}
+            startingChips={startingChips}
+            onCommitBetAmount={(n) => {
+              setBetAmount(n);
+              if (isValidBet(n)) sendMsg({ type: 'updateRoomSettings', betAmount: n });
+            }}
+            onCommitStartingChips={(n) => {
+              setStartingChips(n);
+              sendMsg({ type: 'updateRoomSettings', startingChips: n });
+            }}
+            coinBalance={account?.coins ?? null}
           />
         ) : (
-          <p className="text-center muted">
-            {GAME_MODES.find(m => m.id === gameState.mode)?.label ?? ''} · Players: {players.length} / {gameState.maxPlayers}
+          <div className="flex-col gap-sm text-center muted">
+            <p>
+              {GAME_MODES.find(m => m.id === gameState.mode)?.label ?? ''} · Players: {players.length} / {gameState.maxPlayers}
+            </p>
+            {isCoinRush && effectiveBet != null && isValidBet(effectiveBet) && (
+              <p className="lobby-buyin">
+                Buy-in <CoinIcon size={14} /> {effectiveBet.toLocaleString()} + {tableFee(effectiveBet).toLocaleString()} fee
+                {currency?.startingChips != null && <> · {currency.startingChips} starting chips</>}
+              </p>
+            )}
+          </div>
+        )}
+
+        {short && effectiveTotal != null && (
+          <p className="coinrush-shortfall">
+            You need <CoinIcon size={14} /> {(effectiveTotal - (account?.coins ?? 0)).toLocaleString()} more
+            coins to play this table.
           </p>
         )}
 

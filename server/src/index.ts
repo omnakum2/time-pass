@@ -5,7 +5,10 @@ import { createServer, IncomingMessage } from 'http';
 import { randomInt } from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Room } from './room';
-import { ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES, UserAccount } from 'shared';
+import {
+  ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES, UserAccount,
+  isValidBet, isValidStartingChips, buyInTotal, DEFAULT_STARTING_CHIPS,
+} from 'shared';
 import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS, HEARTBEAT_MS } from './constants';
 import { sendMessage, sendError, sanitizeName, clampPlayers, validateMessage, randomRoomCode } from './helpers';
 import { getIdentity } from './firebase';
@@ -157,7 +160,20 @@ async function handleMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
       const roomId = generateRoomId();
       const maxPlayers = clampPlayers(typeof msg.maxPlayers === 'number' ? msg.maxPlayers : MAX_PLAYERS);
       const mode: GameMode = GAME_MODES.some(m => m.id === msg.mode) ? (msg.mode as GameMode) : 'classic';
+      // Coin Rush: validate the coin buy-in + starting-chip stack, and require the host to
+      // be a signed-in account that can afford the buy-in (the debit happens at startGame).
+      let betAmount = 0, startingChips = DEFAULT_STARTING_CHIPS;
+      if (mode === 'coinRush') {
+        const bet = msg.betAmount;
+        const chips = msg.startingChips ?? DEFAULT_STARTING_CHIPS;
+        if (typeof bet !== 'number' || !isValidBet(bet) || !isValidStartingChips(chips)) {
+          sendError(ws, 'INVALID_SETTINGS'); return;
+        }
+        if (!account || account.coins < buyInTotal(bet)) { sendError(ws, 'INSUFFICIENT_BALANCE'); return; }
+        betAmount = bet; startingChips = chips;
+      }
       const room = new Room(roomId, maxPlayers, mode);
+      if (mode === 'coinRush') room.setCurrencyConfig(betAmount, startingChips);
       room.onDestroy = () => { rooms.delete(roomId); };
       rooms.set(roomId, room);
 
@@ -186,6 +202,11 @@ async function handleMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
       if (!room) { sendError(ws, 'ROOM_NOT_FOUND'); return; }
       if (room.getPhase() !== 'LOBBY') { sendError(ws, 'GAME_STARTED'); return; }
       if (room.isFull) { sendError(ws, 'ROOM_FULL'); return; }
+      // Coin Rush: must be a signed-in account able to afford the buy-in (authoritative
+      // re-check is the debitBuyIn txn at startGame).
+      if (room.getMode() === 'coinRush' && (!account || account.coins < buyInTotal(room.getBetAmount()))) {
+        sendError(ws, 'INSUFFICIENT_BALANCE'); return;
+      }
       releaseOldSeat(ws); // hopping rooms: drop any old seat first
       const seat = room.addPlayer(ws, name, false, uid);
       if (!seat) { sendError(ws, 'JOIN_FAILED'); return; }
@@ -222,7 +243,7 @@ async function handleMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
     case 'startGame': {
       const r = getRoom(ws);
       if (!r) { sendError(ws, 'NOT_IN_ROOM'); return; }
-      const err = r.room.startGame(r.playerId);
+      const err = await r.room.startGame(r.playerId); // async: coinRush debits buy-ins first
       if (err) sendError(ws, err);
       break;
     }
@@ -270,7 +291,7 @@ async function handleMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
     case 'updateRoomSettings': {
       const r = getRoom(ws);
       if (!r) return;
-      const err = r.room.updateRoomSettings(r.playerId, msg.maxPlayers, msg.mode);
+      const err = r.room.updateRoomSettings(r.playerId, msg.maxPlayers, msg.mode, msg.betAmount, msg.startingChips);
       if (err) sendError(ws, err);
       break;
     }
@@ -336,15 +357,34 @@ const heartbeat = setInterval(() => {
 }, HEARTBEAT_MS);
 wss.on('close', () => clearInterval(heartbeat));
 
+// Coin Rush crash-safety sweep: periodically refund any reservation left 'open' past its
+// max age (e.g. a server crash between debit and settle). Only runs when Firebase is
+// configured — the reservation ledger lives in Firestore. Errors are swallowed (best-effort).
+const FIREBASE_CONFIGURED = !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY);
+const STUCK_SWEEP_INTERVAL_MS = 15 * 60 * 1000; // every 15 min
+const STUCK_RESERVATION_MAX_AGE_MS = 60 * 60 * 1000; // refund reservations open > 1 hour
+let stuckSweep: ReturnType<typeof setInterval> | null = null;
+if (FIREBASE_CONFIGURED) {
+  stuckSweep = setInterval(() => {
+    void getIdentity().refundStuckReservations(STUCK_RESERVATION_MAX_AGE_MS).catch(() => { /* best-effort; retried next sweep */ });
+  }, STUCK_SWEEP_INTERVAL_MS);
+  stuckSweep.unref?.(); // don't keep the process alive for the sweep alone
+}
+wss.on('close', () => { if (stuckSweep) clearInterval(stuckSweep); });
+
 // Graceful shutdown for clean redeploys: stop accepting new rooms, let active
 // rooms drain (up to DRAIN_MAX_MS), then close sockets + servers and exit.
 function shutdown(): void {
   draining = true;
   const deadline = Date.now() + DRAIN_MAX_MS;
   const finish = () => {
-    for (const client of wss.clients) { try { client.close(1001, 'server shutting down'); } catch { /* ignore */ } }
-    wss.close(() => httpServer.close(() => process.exit(0)));
-    setTimeout(() => process.exit(0), 5000).unref();
+    // Coin Rush: refund any game whose reservation is still open (can't settle mid-shutdown).
+    // abortGame is a guarded no-op for settled games and the other 4 modes.
+    void Promise.allSettled([...rooms.values()].map(r => r.abortGame())).finally(() => {
+      for (const client of wss.clients) { try { client.close(1001, 'server shutting down'); } catch { /* ignore */ } }
+      wss.close(() => httpServer.close(() => process.exit(0)));
+      setTimeout(() => process.exit(0), 5000).unref();
+    });
   };
   const tick = () => {
     if (rooms.size === 0 || Date.now() >= deadline) finish();

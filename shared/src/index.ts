@@ -3,3 +3,4 @@ export * from './engine';
 export * from './constants';
 export * from './dailyLogin';
 export * from './spinWheel';
+export * from './coinRush';

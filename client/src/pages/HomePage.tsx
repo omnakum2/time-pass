@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { NAME_MIN_LEN, NAME_MAX_LEN, GameMode } from 'shared';
+import {
+  NAME_MIN_LEN, NAME_MAX_LEN, GameMode,
+  MIN_BET, DEFAULT_STARTING_CHIPS, isValidBet, buyInTotal,
+} from 'shared';
 import { sendMsg, reconnectSession } from '../net/socket';
 import { getIdToken } from '../auth';
 import { useGameStore } from '../store/gameStore';
@@ -18,9 +21,11 @@ export function HomePage() {
   const [maxPlayers, setMaxPlayers] = useState(7);
   const [mode, setMode] = useState<'landing' | 'create' | 'join'>('landing');
   const [gameMode, setGameMode] = useState<GameMode>('classic');
+  const [betAmount, setBetAmount] = useState<number>(MIN_BET);
+  const [startingChips, setStartingChips] = useState<number>(DEFAULT_STARTING_CHIPS);
   const [pendingHost, setPendingHost] = useState('');
   const [pending, setPending] = useState<'create' | 'join' | null>(null);
-  const { connected, roomId, gameState, reconnectFailed } = useGameStore();
+  const { connected, roomId, gameState, reconnectFailed, account } = useGameStore();
   const rejoinAttempt = useRef(false);
   const navigate = useNavigate();
 
@@ -55,8 +60,14 @@ export function HomePage() {
   const fireCreate = useCallback(async () => {
     const n = saveName();
     if (!n) return;
+    // Coin Rush needs a valid host-set buy-in before we send.
+    if (gameMode === 'coinRush' && !isValidBet(betAmount)) return;
     const idToken = await getIdToken(); // V3: Google ID token (null → anonymous)
-    sendMsg({ type: 'createRoom', name: n, maxPlayers, mode: gameMode, ...(idToken ? { idToken } : {}) });
+    sendMsg({
+      type: 'createRoom', name: n, maxPlayers, mode: gameMode,
+      ...(gameMode === 'coinRush' ? { betAmount, startingChips } : {}),
+      ...(idToken ? { idToken } : {}),
+    });
     // Navigate will happen when we receive 'joined' + 'state'
     const unsub = useGameStore.subscribe((s) => {
       if (s.roomId) {
@@ -64,7 +75,7 @@ export function HomePage() {
         unsub();
       }
     });
-  }, [saveName, maxPlayers, gameMode, navigate]);
+  }, [saveName, maxPlayers, gameMode, betAmount, startingChips, navigate]);
 
   const fireJoin = useCallback(async () => {
     const n = saveName();
@@ -90,9 +101,18 @@ export function HomePage() {
 
   // Click handlers: fire immediately when connected, otherwise queue a single
   // pending action. Extra clicks are ignored while something is pending.
+  // Coin Rush host-side buy-in gate: bet must be valid and (if we know the wallet)
+  // affordable. Wallet unknown (anonymous) → let the server enforce it.
+  const buyIn = buyInTotal(betAmount);
+  const coinRushBetInvalid = gameMode === 'coinRush' && !isValidBet(betAmount);
+  const coinRushCantAfford =
+    gameMode === 'coinRush' && isValidBet(betAmount) && account != null && account.coins < buyIn;
+  const createBlocked = coinRushBetInvalid || coinRushCantAfford;
+
   const handleCreate = () => {
     if (pending) return;
     if (name.trim().length < NAME_MIN_LEN) return;
+    if (createBlocked) return;
     if (connected) fireCreate();
     else setPending('create');
   };
@@ -170,12 +190,17 @@ export function HomePage() {
                 mode={gameMode}
                 onCommitMaxPlayers={setMaxPlayers}
                 onSelectMode={setGameMode}
+                betAmount={betAmount}
+                startingChips={startingChips}
+                onCommitBetAmount={setBetAmount}
+                onCommitStartingChips={setStartingChips}
+                coinBalance={account?.coins ?? null}
               />
               <div className="flex-col gap-sm">
                 <Button
                   variant="primary"
                   onClick={handleCreate}
-                  disabled={pending !== null || name.trim().length < NAME_MIN_LEN}
+                  disabled={pending !== null || name.trim().length < NAME_MIN_LEN || createBlocked}
                 >
                   {pending === 'create' ? 'Starting…' : 'Create Room'}
                 </Button>

@@ -197,6 +197,7 @@ const MODE_INTRO: Record<GameMode, Announcement> = {
   revolvingTrump: { title: 'Revolving Trump', subtitle: 'The first bidder calls the trump', variant: 'intro' },
   blind:          { title: 'Blind Bid', subtitle: 'Bid blind, then lock or push your luck', variant: 'intro' },
   upDown:         { title: 'Up & Down', subtitle: '13 rounds · rise and fall · survive', variant: 'intro' },
+  coinRush:       { title: 'Coin Rush', subtitle: 'Win chips + the Jackpot · cash out by rank', variant: 'intro' },
 };
 
 /**

@@ -15,6 +15,8 @@ import { RoundResultOverlay } from '../components/RoundResultOverlay';
 import { QuickMessages } from '../components/QuickMessages';
 import { Announcement } from '../components/Announcement';
 import { PushPanel } from '../components/PushPanel';
+import { CoinRushHud } from '../components/CoinRushHud';
+import { CoinRushMoments } from '../components/CoinRushMoments';
 import { URGENT_LEAD_MS } from '../constants';
 
 // ─── GamePage ─────────────────────────────────────────────────────────────────
@@ -140,6 +142,11 @@ export function GamePage() {
       {/* Round announcement banner (mode intro / Up & Down milestone) */}
       <Announcement announcement={gameState.announcement} />
 
+      {/* Coin Rush moments: jackpot-claim celebration + bust-out banners */}
+      {gameState.currency && (
+        <CoinRushMoments currency={gameState.currency} players={players} />
+      )}
+
       {/* Round result popup */}
       <RoundResultOverlay result={lastRoundResult} visible={phase === 'ROUND_SCORING'} />
 
@@ -185,6 +192,11 @@ export function GamePage() {
       <div className="game-area">
         {/* ── Full-width Game panel ─────────────────────────── */}
         <div className="game-panel">
+
+          {/* ── Coin Rush HUD: pot + jackpot + per-seat chip stacks ─── */}
+          {gameState.currency && (
+            <CoinRushHud currency={gameState.currency} players={players} playerId={playerId} />
+          )}
 
           {/* ── Table with players around it ─── */}
           <div className="table-wrap">
