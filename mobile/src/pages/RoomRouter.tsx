@@ -1,11 +1,12 @@
 import { useGameStore } from '../store/gameStore';
 import { LobbyPage } from './LobbyPage';
+import { GamePage } from './GamePage';
 import { RoomStub } from './RoomStub';
 
 // Switches the in-room view by game phase (mirrors the web RoomRouter):
 //   • game over → Winner (stub until Phase 6)
 //   • LOBBY (or no phase yet) → Lobby
-//   • any play phase → Game (stub until Phase 4)
+//   • any play phase → Game
 export function RoomRouter() {
   const gameState = useGameStore((s) => s.gameState);
   const gameOver = useGameStore((s) => s.gameOver);
@@ -13,5 +14,5 @@ export function RoomRouter() {
 
   if (gameOver) return <RoomStub />;
   if (!phase || phase === 'LOBBY') return <LobbyPage />;
-  return <RoomStub />;
+  return <GamePage />;
 }
