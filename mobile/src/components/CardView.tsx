@@ -3,6 +3,7 @@
 import React from 'react';
 import { Text, Pressable, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { MotiView } from 'moti';
+import { useReducedMotion } from 'react-native-reanimated';
 import { Card, SUIT_SYMBOL, isRedSuit } from 'shared';
 import { colors } from '../theme';
 import { scale, cardWidth, cardHeight } from '../lib/scale';
@@ -12,6 +13,7 @@ interface Props {
   disabled?: boolean;
   selected?: boolean;
   played?: boolean;
+  flyIn?: boolean;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
 }
@@ -20,18 +22,28 @@ interface Props {
 const RED = '#C0392B';
 const BLACK = '#1A1A1A';
 
-export function CardView({ card, disabled, selected, played, onPress, style }: Props) {
+export function CardView({ card, disabled, selected, played, flyIn, onPress, style }: Props) {
+  const reduce = useReducedMotion();
   const ink = isRedSuit(card.suit) ? RED : BLACK;
   const w = cardWidth();
   // Corner pip: rank stacked over suit; reused top-left and (rotated) bottom-right.
   const corner = `${card.rank}\n${SUIT_SYMBOL[card.suit]}`;
 
+  // Entrance origin: reduced-motion fades only; flyIn slides up from below; the
+  // default hand entrance keeps its subtle scale-in.
+  const from = reduce
+    ? { opacity: 0 }
+    : flyIn
+      ? { opacity: 0, translateY: scale(40), scale: 0.8 }
+      : { opacity: 0, scale: 0.85 };
+
   return (
     <MotiView
-      from={{ opacity: 0, scale: 0.85 }}
+      from={from}
       // `selected` lifts the card via translateY, animated by Moti alongside the
       // entrance scale to avoid a static-vs-animated transform clash.
       animate={{ opacity: 1, scale: 1, translateY: selected ? -scale(10) : 0 }}
+      exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.6 }}
       style={[
         {
           width: w,

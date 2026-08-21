@@ -1,4 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { MotiView, AnimatePresence } from 'moti';
+import { useReducedMotion } from 'react-native-reanimated';
 import { TrickCard, Player, GameMode, GAME_MODES, TrumpConfig, trumpLabel, SUIT_SYMBOL, SUIT_NAME, RED_SUITS } from 'shared';
 import { CardView } from './CardView';
 import { playerName } from '../lib/helpers';
@@ -21,6 +23,7 @@ interface Props {
  * web hover InfoTooltip is intentionally dropped (no hover on touch).
  */
 export function TrickArea({ trick, players, round, status, trumpConfig, urgent, mode }: Props) {
+  const reduce = useReducedMotion();
   const modeShort = GAME_MODES.find((m) => m.id === mode)?.short ?? '';
   const isSuitTrump = trumpConfig?.kind === 'suit' && !!trumpConfig.suit;
 
@@ -58,12 +61,21 @@ export function TrickArea({ trick, players, round, status, trumpConfig, urgent, 
 
         {/* Played trick cards, each captioned with the player's name. */}
         <View style={styles.cards}>
-          {trick.map(({ playerId, card }) => (
-            <View key={`${playerId}-${card.id}`} style={styles.slot}>
-              <Text style={styles.slotName}>{playerName(players, playerId)}</Text>
-              <CardView card={card} played />
-            </View>
-          ))}
+          <AnimatePresence>
+            {trick.map(({ playerId, card }) => (
+              <MotiView
+                key={`${playerId}-${card.id}`}
+                style={styles.slot}
+                from={reduce ? { opacity: 0 } : { opacity: 0, translateY: scale(30), scale: 0.85 }}
+                animate={reduce ? { opacity: 1 } : { opacity: 1, translateY: 0, scale: 1 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.7 }}
+                transition={{ type: 'timing', duration: 260 }}
+              >
+                <Text style={styles.slotName}>{playerName(players, playerId)}</Text>
+                <CardView card={card} played />
+              </MotiView>
+            ))}
+          </AnimatePresence>
         </View>
 
         {!!status && (

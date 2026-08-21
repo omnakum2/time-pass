@@ -4,6 +4,8 @@
 // styling is fresh RN (View/Text), NOT ported CSS.
 import React from 'react';
 import { View, Text } from 'react-native';
+import { MotiView } from 'moti';
+import { useReducedMotion } from 'react-native-reanimated';
 import { Player } from 'shared';
 import { useGameStore } from '../store/gameStore';
 import { Delta } from './Delta';
@@ -41,6 +43,7 @@ export function PlayerChip({
   pushChoice,
 }: Props) {
   const bubble = useGameStore((s) => s.activeBubbles[player.id]);
+  const reduce = useReducedMotion();
 
   // Turn ring shows on your PLAYING turn, or on others' BIDDING/TRUMP_SELECT turns.
   const showRing =
@@ -70,6 +73,27 @@ export function PlayerChip({
         alignItems: 'center',
       }}
     >
+      {/* Active-turn gold aura: pulsing overlay behind the content. Non-layout,
+          non-interactive, and gated on reduced motion. */}
+      {isActive && !reduce && (
+        <MotiView
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: -2,
+            left: -2,
+            right: -2,
+            bottom: -2,
+            borderRadius: radius + 2,
+            borderWidth: 2,
+            borderColor: colors.gold,
+          }}
+          from={{ opacity: 0.25 }}
+          animate={{ opacity: 0.9 }}
+          transition={{ loop: true, repeatReverse: true, type: 'timing', duration: 850 }}
+        />
+      )}
+
       {/* Quick-chat bubble floating above the card. Keyed so a new message remounts. */}
       {bubble && (
         <View

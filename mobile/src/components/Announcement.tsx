@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text } from 'react-native';
 import { MotiView, AnimatePresence } from 'moti';
+import { useReducedMotion } from 'react-native-reanimated';
 import type { Announcement as Ann } from 'shared';
 import Icon from './Icon';
 import { colors } from '../theme';
@@ -16,6 +17,7 @@ export function Announcement({ announcement }: { announcement: Ann | null }) {
   const variant = announcement?.variant;
   const title = announcement?.title;
   const [count, setCount] = useState(0);
+  const reduce = useReducedMotion();
 
   // Count ×N up from 0 → target over ~600ms; restart on content change, clear on cleanup.
   useEffect(() => {
@@ -40,9 +42,18 @@ export function Announcement({ announcement }: { announcement: Ann | null }) {
       {announcement && (
         <MotiView
           key={announcement.title} // stable key so exit animation runs on swap
-          from={{ opacity: 0, translateY: -40 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          exit={{ opacity: 0, translateY: 20 }}
+          from={reduce ? { opacity: 0 } : { opacity: 0, translateY: -scale(60), scale: 0.9 }}
+          animate={reduce ? { opacity: 1 } : { opacity: 1, translateY: 0, scale: 1 }}
+          exit={reduce ? { opacity: 0 } : { opacity: 0, translateY: scale(20) }}
+          transition={
+            reduce
+              ? { type: 'timing', duration: 200 }
+              : {
+                  translateY: { type: 'spring', damping: 14, stiffness: 220 },
+                  scale: { type: 'spring', damping: 12 },
+                  opacity: { type: 'timing', duration: 200 },
+                }
+          }
           style={{ position: 'absolute', top: scale(70), left: 0, right: 0, alignItems: 'center', zIndex: 200 }}
           pointerEvents="none"
         >

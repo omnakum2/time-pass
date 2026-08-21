@@ -1,8 +1,19 @@
+import { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import Animated, {
+  useSharedValue,
+  useAnimatedProps,
+  withTiming,
+  Easing,
+  useReducedMotion,
+} from 'react-native-reanimated';
 import { useCountdown } from '../hooks/useCountdown';
 import { timerColor } from '../lib/helpers';
 import { scale } from '../lib/scale';
+import { RING_TICK_MS } from '../constants';
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 interface Props {
   remainingMs: number;
@@ -14,6 +25,7 @@ interface Props {
 /** Native SVG countdown ring with the remaining whole seconds centered inside. */
 export function CountdownRing({ remainingMs, fullMs, startKey, running = true }: Props) {
   const { fraction, remaining } = useCountdown(remainingMs, fullMs, startKey, running);
+  const reduce = useReducedMotion();
 
   const size = 44;
   const strokeWidth = 4;
@@ -22,13 +34,23 @@ export function CountdownRing({ remainingMs, fullMs, startKey, running = true }:
   const dashoffset = c * fraction; // sweep grows as fraction (time spent) rises
   const color = timerColor(fraction);
 
+  // Smooth the sweep: ease the dashoffset toward each hook tick's target instead
+  // of jumping. Reduced motion snaps straight to the value.
+  const off = useSharedValue(dashoffset);
+  useEffect(() => {
+    off.value = reduce
+      ? dashoffset
+      : withTiming(dashoffset, { duration: RING_TICK_MS, easing: Easing.linear });
+  }, [dashoffset, reduce]);
+  const animatedProps = useAnimatedProps(() => ({ strokeDashoffset: off.value }));
+
   return (
     <View style={[styles.wrap, { width: size, height: size }]}>
       <Svg width={size} height={size}>
         {/* Faint gold track behind the progress arc */}
         <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(233,184,74,0.18)" strokeWidth={strokeWidth} fill="none" />
         {/* Progress arc: rotate -90 so it starts at 12 o'clock */}
-        <Circle
+        <AnimatedCircle
           cx={size / 2}
           cy={size / 2}
           r={r}
@@ -36,7 +58,7 @@ export function CountdownRing({ remainingMs, fullMs, startKey, running = true }:
           strokeWidth={strokeWidth}
           fill="none"
           strokeDasharray={c}
-          strokeDashoffset={dashoffset}
+          animatedProps={animatedProps}
           strokeLinecap="round"
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />

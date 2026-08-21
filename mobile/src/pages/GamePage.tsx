@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AnimatePresence } from 'moti';
 import { Suit, Player, legalMoves, SUIT_ORDER, RANK_ORDER, isHandHiddenForBid } from 'shared';
 import { useGameStore } from '../store/gameStore';
 import { sendMsg } from '../net/socket';
@@ -189,9 +190,11 @@ export function GamePage() {
 
       {/* My hand */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hand}>
-        {blindHidden
-          ? Array.from({ length: round ?? 0 }).map((_, i) => <View key={i} style={styles.cardBack} />)
-          : sortedHand.map((card) => (
+        {blindHidden ? (
+          Array.from({ length: round ?? 0 }).map((_, i) => <View key={i} style={styles.cardBack} />)
+        ) : (
+          <AnimatePresence>
+            {sortedHand.map((card) => (
               <CardView
                 key={card.id}
                 card={card}
@@ -200,6 +203,8 @@ export function GamePage() {
                 onPress={() => handleCardPress(card.id)}
               />
             ))}
+          </AnimatePresence>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
