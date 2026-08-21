@@ -137,6 +137,12 @@ export function WinnerPage() {
                     </td>
                     <td>
                       <span className="cr-net"><CoinIcon size={14} /> <Delta value={e?.net ?? 0} /></span>
+                      {/* V3 Phase 6: first-Coin-Rush-win-of-the-day bonus (already folded into net). */}
+                      {e?.firstWinBonus != null && e.firstWinBonus > 0 && (
+                        <span className="cr-firstwin" title="First Coin Rush win of the day bonus">
+                          <CoinIcon size={11} /> +{e.firstWinBonus.toLocaleString()} first win
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );

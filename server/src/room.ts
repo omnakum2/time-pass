@@ -15,7 +15,7 @@ import {
   LOBBY_RECONNECT_WINDOW_MS, QUICK_MSG_THROTTLE_MS, ANNOUNCE_MS, PUSH_TIMEOUT_MS,
 } from './constants';
 import { sendMessage, clampPlayers } from './helpers';
-import { getIdentity, istWeekKey } from './firebase';
+import { getIdentity, istWeekKey, istToday } from './firebase';
 
 export interface Seat {
   player: Player;
@@ -1033,12 +1033,16 @@ export class Room {
     const winnerPids = rankGroups.length > 0 ? rankGroups[0] : [];
     const winnerUids = winnerPids.map(pid => this.uidFor(pid)).filter((u): u is string => !!u);
     const jackpotUids = this.jackpotWinners.map(pid => this.uidFor(pid)).filter((u): u is string => !!u);
-    const outcome = { weekKey: istWeekKey(), winnerUids, jackpotUids };
+    // `today` drives the first-win-of-day bonus (credited once per IST day inside settleGame).
+    const outcome = { weekKey: istWeekKey(), today: istToday(), winnerUids, jackpotUids };
 
     let accounts: Record<string, UserAccount> = {};
+    let firstWinBonusByUid: Record<string, number> = {};
     if (this.gameId && !this.settled && !this.refunded && !this.aborted) {
       try {
-        accounts = await getIdentity().settleGame(this.gameId, coinsByUid, outcome);
+        const result = await getIdentity().settleGame(this.gameId, coinsByUid, outcome);
+        accounts = result.accounts;
+        firstWinBonusByUid = result.firstWinBonus;
         this.settled = true;
       } catch { /* settlement failed — reservation stays 'open' for the stuck-sweep */ }
     }
@@ -1050,7 +1054,12 @@ export class Room {
     for (const pid of rank) {
       const won = coinsByPlayer[pid] ?? 0;
       const chips = this.eliminated.includes(pid) ? (this.chipsAtBust.get(pid) ?? 0) : (this.chips.get(pid) ?? 0);
-      payouts[pid] = { chips, coinsWon: won, net: won - buyIn };
+      // First-win-of-day bonus (if any) was also credited by settleGame — surface it + fold into net.
+      const uid = this.uidFor(pid);
+      const firstWinBonus = uid ? (firstWinBonusByUid[uid] ?? 0) : 0;
+      const entry: SettlementEntry = { chips, coinsWon: won, net: won + firstWinBonus - buyIn };
+      if (firstWinBonus > 0) entry.firstWinBonus = firstWinBonus;
+      payouts[pid] = entry;
     }
     for (const pid of this.forfeited) { // not ranked; stake burned
       payouts[pid] = { chips: this.chips.get(pid) ?? 0, coinsWon: 0, net: -buyIn };

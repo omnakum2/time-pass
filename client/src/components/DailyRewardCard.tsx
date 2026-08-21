@@ -56,11 +56,21 @@ export function DailyRewardCard() {
         {canClaimDaily ? 'Claim reward' : 'Come back tomorrow'}
       </Button>
       {rewardToast?.kind === 'daily' && (
-        <p className="reward-toast">
-          You got {rewardToast.coins > 0 && <><CoinIcon size={15} /> {Math.round(rewardToast.coins)}</>}
-          {rewardToast.coins > 0 && rewardToast.gems > 0 && ' / '}
-          {rewardToast.gems > 0 && <><GemIcon size={15} /> {Math.round(rewardToast.gems)}</>}!
-        </p>
+        <>
+          <p className="reward-toast">
+            You got {rewardToast.coins > 0 && <><CoinIcon size={15} /> {Math.round(rewardToast.coins)}</>}
+            {rewardToast.coins > 0 && rewardToast.gems > 0 && ' / '}
+            {rewardToast.gems > 0 && <><GemIcon size={15} /> {Math.round(rewardToast.gems)}</>}!
+          </p>
+          {/* V3 Phase 6: extra Coins from the Coin Rush win-streak (already in the wallet). */}
+          {rewardToast.streakBonus != null && rewardToast.streakBonus > 0 && (
+            <p className="reward-streak-bonus">
+              <span className="reward-streak-bonus__badge">
+                Win-streak bonus <CoinIcon size={14} /> +{Math.round(rewardToast.streakBonus)}
+              </span>
+            </p>
+          )}
+        </>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { GameState, MsgGameOver, MsgRoundResult, MsgLeaderboard, UserAccount } from 'shared';
+import { GameState, MsgGameOver, MsgRoundResult, MsgLeaderboard, MsgReferralStatus, UserAccount } from 'shared';
 import { BUBBLE_MS } from '../constants';
 
 interface ErrorState { code: string; message: string }
@@ -13,7 +13,9 @@ export interface RewardsStatus {
 }
 
 // Transient "you got X" banner shown after a claim / spin (client-only).
-export interface RewardToast { kind: 'daily' | 'spin'; coins: number; gems: number }
+// `streakBonus` (V3 Phase 6) carries the daily-claim's extra Coin-Rush win-streak
+// bonus so the Daily Reward card can surface it (0/absent when there's no streak).
+export interface RewardToast { kind: 'daily' | 'spin'; coins: number; gems: number; streakBonus?: number }
 
 // Last spin result (client-only): the winning segment index + its prize. Drives
 // the Lucky Spin wheel's landing animation; survives reset() by design.
@@ -35,6 +37,7 @@ interface GameStore {
   rewardToast: RewardToast | null; // V3: last claim/spin prize banner (null when none)
   lastSpin: LastSpin | null; // V3: last spin's segment + prize (drives the wheel; null when none)
   leaderboard: MsgLeaderboard | null; // V3 Phase 5: last-fetched weekly board (null until fetched)
+  referral: MsgReferralStatus | null; // V3 Phase 6: own code + invite count + referredBy (null until fetched)
 
   setConnected: (v: boolean) => void;
   setRoomClosed: (v: boolean) => void;
@@ -48,6 +51,7 @@ interface GameStore {
   setRewardToast: (t: RewardToast | null) => void;
   setLastSpin: (v: LastSpin | null) => void;
   setLeaderboard: (v: MsgLeaderboard | null) => void;
+  setReferral: (v: MsgReferralStatus | null) => void;
   setError: (code: string, message: string) => void;
   clearError: () => void;
   setBubble: (playerId: string, text: string) => void;
@@ -72,6 +76,7 @@ export const useGameStore = create<GameStore>((set) => ({
   rewardToast: null,
   lastSpin: null,
   leaderboard: null,
+  referral: null,
 
   setConnected: (connected) => set({ connected }),
   setRoomClosed: (roomClosed) => set({ roomClosed }),
@@ -85,6 +90,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setRewardToast: (rewardToast) => set({ rewardToast }),
   setLastSpin: (lastSpin) => set({ lastSpin }),
   setLeaderboard: (leaderboard) => set({ leaderboard }),
+  setReferral: (referral) => set({ referral }),
   setError: (code, message) => set({ error: { code, message } }),
   clearError: () => set({ error: null }),
   setBubble: (playerId, text) => {

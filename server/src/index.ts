@@ -11,12 +11,15 @@ import {
 } from 'shared';
 import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS, HEARTBEAT_MS } from './constants';
 import { sendMessage, sendError, sanitizeName, clampPlayers, validateMessage, randomRoomCode } from './helpers';
-import { getIdentity, istWeekKey } from './firebase';
+import { getIdentity, istWeekKey, istToday } from './firebase';
 
 // ─── Environment-specific settings (from process.env) ──────────────────────
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '').split(',').map(s => s.trim()).filter(Boolean);
 const TRUST_PROXY = process.env.TRUST_PROXY === 'true'; // trust X-Forwarded-For only behind a known reverse proxy (e.g. Render)
+// V3 Phase 6: the rewarded-ad top-up stays OFF until a real ad SDK is wired. Only when this
+// env flag is 'true' does claimAdReward credit Coins (otherwise it throws AD_REWARD_DISABLED).
+const AD_REWARD_ENABLED = process.env.AD_REWARD_ENABLED === 'true';
 
 // Resolve the real client IP for per-IP limits. Behind a trusted proxy the
 // socket address is the proxy's, so read the leftmost X-Forwarded-For entry;
@@ -60,12 +63,8 @@ function getRoom(ws: WebSocket): { room: Room; playerId: string } | null {
 }
 
 // ─── Reward helpers ──────────────────────────────────────────────────────────
-
-// Current date in IST (UTC+5:30) as 'YYYY-MM-DD' — the day boundary for streaks/spins.
-function istToday(): string {
-  const d = new Date(Date.now() + 5.5 * 3600 * 1000);
-  return d.toISOString().slice(0, 10);
-}
+// (istToday now lives in ./firebase — imported above — so room.ts can share it without a
+// circular import; the reward handlers below still call it exactly as before.)
 
 // Resolve the authenticated identity for a reward message (null = not signed in).
 async function rewardIdentity(idToken?: string): Promise<{ uid: string; name: string } | null> {
@@ -368,6 +367,43 @@ async function handleMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
       }
       const lb = await getIdentity().getLeaderboard(istWeekKey(), requesterUid);
       sendMessage(ws, { type: 'leaderboard', week: lb.week, entries: lb.entries, you: lb.you });
+      break;
+    }
+
+    case 'getReferral': {
+      const id = await rewardIdentity(msg.idToken);
+      if (!id) { sendError(ws, 'NOT_AUTHENTICATED'); return; }
+      sendMessage(ws, { type: 'referralStatus', ...await getIdentity().getReferral(id.uid) });
+      break;
+    }
+
+    case 'applyReferral': {
+      const id = await rewardIdentity(msg.idToken);
+      if (!id) { sendError(ws, 'NOT_AUTHENTICATED'); return; }
+      try {
+        const r = await getIdentity().applyReferral(id.uid, msg.code);
+        // Both the updated wallet and the new referral standing (referredBy now true).
+        sendMessage(ws, { type: 'account', account: r.account });
+        sendMessage(ws, { type: 'referralStatus', ...r.status });
+      } catch (e) {
+        const m = (e as Error).message;
+        if (m === 'INVALID_REFERRAL' || m === 'ALREADY_REFERRED' || m === 'SELF_REFERRAL') sendError(ws, m);
+        else sendError(ws, 'BAD_MESSAGE');
+      }
+      break;
+    }
+
+    case 'adReward': {
+      const id = await rewardIdentity(msg.idToken);
+      if (!id) { sendError(ws, 'NOT_AUTHENTICATED'); return; }
+      try {
+        const acc = await getIdentity().claimAdReward(id.uid, istToday(), AD_REWARD_ENABLED);
+        sendMessage(ws, { type: 'account', account: acc });
+      } catch (e) {
+        const m = (e as Error).message;
+        if (m === 'AD_REWARD_DISABLED' || m === 'AD_REWARD_LIMIT') sendError(ws, m);
+        else sendError(ws, 'BAD_MESSAGE');
+      }
       break;
     }
 

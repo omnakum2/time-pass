@@ -1,5 +1,10 @@
+import { createHash } from 'crypto';
 import type { UserAccount, DailyReward, SpinPrize, LeaderboardEntry } from 'shared';
-import { claimDaily as computeClaim, spinCost, drawSpin, coinsForGems, isValidGemAmount, LEADERBOARD_SIZE } from 'shared';
+import {
+  claimDaily as computeClaim, spinCost, drawSpin, coinsForGems, isValidGemAmount, LEADERBOARD_SIZE,
+  FIRST_WIN_BONUS, winStreakBonusCoins, REFERRAL_REWARD, REFERRAL_CODE_LENGTH, normalizeReferralCode,
+  AD_REWARD_COINS, AD_REWARDS_PER_DAY,
+} from 'shared';
 
 // Seed wallet granted to a brand-new account on first sign-in.
 export const SEED_COINS = 1000, SEED_GEMS = 0;
@@ -13,8 +18,29 @@ type UserDoc = UserAccount & {
   // V3 Phase 5: weekly leaderboard driver + lifetime stats. `weekly.wins` resets to
   // 1 on the first win of a new ISO week (see settleGame); `stats` accumulates forever.
   weekly?: { key: string; wins: number };
-  stats?: { games?: number; wins?: number; jackpots?: number };
+  // V3 Phase 6: `winStreak` = consecutive Coin Rush wins (bumped on a win, reset to 0 on a
+  // non-win); `lastWinDate` = last IST day a first-win-of-day bonus was paid (dedupe key).
+  stats?: { games?: number; wins?: number; jackpots?: number; winStreak?: number; lastWinDate?: string };
+  // V3 Phase 6: referral invites. `code` is this user's own shareable code (deterministic
+  // from uid); `referredBy` is set once when they apply someone else's code; `invitedCount`
+  // counts players who applied THIS user's code.
+  referral?: { code: string; referredBy?: string; invitedCount?: number };
+  // V3 Phase 6: rewarded-ad top-up quota. `dayKey` is the IST day the count applies to;
+  // `used` resets to 0 on a new day (see claimAdReward).
+  ad?: { dayKey: string | null; used: number };
 };
+
+// ─── Referral code derivation (V3 Phase 6) ───────────────────────────────────
+// Deterministic, stable, collision-resistant code from the uid: hash the uid and map the
+// leading bytes onto a 36-char uppercase alphanumeric alphabet. Same uid → same code
+// forever (so it can be regenerated lazily for pre-Phase-6 docs without a migration).
+const REFERRAL_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; // [A-Z0-9], matches isValidReferralCodeShape
+function referralCodeForUid(uid: string): string {
+  const hash = createHash('sha256').update(uid).digest(); // 32 bytes
+  let code = '';
+  for (let i = 0; i < REFERRAL_CODE_LENGTH; i++) code += REFERRAL_ALPHABET[hash[i] % REFERRAL_ALPHABET.length];
+  return code;
+}
 
 // ─── Coin Rush reservation doc shape (internal) ──────────────────────────────
 // One `reservations/{gameId}` doc per Coin Rush match: the real-Coin buy-in
@@ -55,6 +81,7 @@ export interface DailyClaimResult {
   claimed: boolean;
   streak: number;
   reward: DailyReward;
+  streakBonus: number; // V3 Phase 6: extra Coins from the Coin Rush win-streak (0 if no claim / no streak); already in `account`
   account: UserAccount;
 }
 export interface SpinResult {
@@ -104,17 +131,25 @@ export interface Identity {
   // burned (never credited back except on a true refund). Idempotent per uid.
   debitBuyIn(gameId: string, uid: string, betAmount: number, fee: number): Promise<UserAccount>;
   // Credit each uid its payout coins and mark the reservation settled (idempotent). Folds
-  // in weekly/stats bookkeeping (games/wins/jackpots) in the SAME per-user writes, so it
-  // stays a single write per player and runs exactly once (open→settled).
+  // in weekly/stats bookkeeping (games/wins/jackpots/winStreak) AND the first-win-of-day
+  // bonus in the SAME per-user writes, so it stays a single write per player and runs
+  // exactly once (open→settled). Returns per-winner first-win bonuses so room.ts can show them.
   settleGame(
     gameId: string,
     payouts: Record<string, number>,
-    outcome: { weekKey: string; winnerUids: string[]; jackpotUids: string[] },
-  ): Promise<Record<string, UserAccount>>;
+    outcome: { weekKey: string; today: string; winnerUids: string[]; jackpotUids: string[] },
+  ): Promise<{ accounts: Record<string, UserAccount>; firstWinBonus: Record<string, number> }>;
   // Return betAmount+fee to every reserved player and mark refunded (idempotent).
   refundGame(gameId: string): Promise<Record<string, UserAccount>>;
   // Sweep: refund any still-'open' reservation older than maxAgeMs (crash safety).
   refundStuckReservations(maxAgeMs: number): Promise<void>;
+  // ─── Engagement track (V3 Phase 6) ──────────────────────────────────────────
+  // Apply someone else's referral code (one-time; credits REFERRAL_REWARD to BOTH sides).
+  applyReferral(uid: string, rawCode: string): Promise<{ account: UserAccount; status: { code: string; invitedCount: number; referredBy: boolean } }>;
+  // The player's own referral standing (lazily mints + persists a code if they lack one).
+  getReferral(uid: string): Promise<{ code: string; invitedCount: number; referredBy: boolean }>;
+  // Claim a rewarded-ad top-up (daily-capped; throws AD_REWARD_DISABLED unless `enabled`).
+  claimAdReward(uid: string, today: string, enabled: boolean): Promise<UserAccount>;
 }
 
 /**
@@ -164,6 +199,8 @@ class FirebaseIdentity implements Identity {
       ...account,
       login: { lastClaimDate: null, streak: 0 },
       spin: { dayKey: null, usedToday: 0 },
+      // V3 Phase 6: seed a stable, deterministic referral code so it's shareable immediately.
+      referral: { code: referralCodeForUid(uid), invitedCount: 0 },
     };
     await ref.set(doc);
     return account;
@@ -193,9 +230,11 @@ class FirebaseIdentity implements Identity {
       const gems = data.gems ?? 0;
       const login = data.login;
       const { claimed, newStreak, reward } = computeClaim(login?.lastClaimDate ?? null, login?.streak ?? 0, today);
+      // V3 Phase 6: a real claim also pays the (capped) Coin Rush win-streak bonus on top.
+      const streakBonus = claimed ? winStreakBonusCoins(data.stats?.winStreak ?? 0) : 0;
       if (claimed) {
         tx.update(ref, {
-          coins: coins + reward.coins,
+          coins: coins + reward.coins + streakBonus,
           gems: gems + reward.gems,
           'login.lastClaimDate': today,
           'login.streak': newStreak,
@@ -205,10 +244,11 @@ class FirebaseIdentity implements Identity {
         claimed,
         streak: claimed ? newStreak : (login?.streak ?? 0),
         reward,
+        streakBonus,
         account: {
           uid,
           displayName: data.displayName,
-          coins: coins + (claimed ? reward.coins : 0),
+          coins: coins + (claimed ? reward.coins + streakBonus : 0),
           gems: gems + (claimed ? reward.gems : 0),
         },
       };
@@ -292,8 +332,8 @@ class FirebaseIdentity implements Identity {
   async settleGame(
     gameId: string,
     payouts: Record<string, number>,
-    outcome: { weekKey: string; winnerUids: string[]; jackpotUids: string[] },
-  ): Promise<Record<string, UserAccount>> {
+    outcome: { weekKey: string; today: string; winnerUids: string[]; jackpotUids: string[] },
+  ): Promise<{ accounts: Record<string, UserAccount>; firstWinBonus: Record<string, number> }> {
     const db = this.admin.firestore();
     const resRef = db.collection('reservations').doc(gameId);
     // Winners are distinct (one seat per uid); jackpots can repeat if a uid scooped in
@@ -303,7 +343,7 @@ class FirebaseIdentity implements Identity {
     for (const u of outcome.jackpotUids) jackpotCounts[u] = (jackpotCounts[u] ?? 0) + 1;
     return db.runTransaction(async (tx: any) => {
       const resSnap = await tx.get(resRef);
-      if (!resSnap.exists) return {};
+      if (!resSnap.exists) return { accounts: {}, firstWinBonus: {} };
       const res = resSnap.data() as ReservationDoc;
       const uids = Object.keys(res.players ?? {});
       const userRefs = uids.map(u => db.collection('users').doc(u));
@@ -321,36 +361,49 @@ class FirebaseIdentity implements Identity {
       // The status guard also makes the weekly/stats bumps below fire exactly once.
       if (res.status !== 'open') {
         uids.forEach((_, i) => { out[uids[i]] = walletOf(i, (userSnaps[i].data()?.coins ?? 0)); });
-        return out;
+        return { accounts: out, firstWinBonus: {} };
       }
 
       const resUpdate: Record<string, any> = { status: 'settled' };
+      const firstWinBonusOut: Record<string, number> = {};
       uids.forEach((u, i) => {
         const data = (userSnaps[i].exists ? userSnaps[i].data() : {}) as UserDoc;
         const coins = data.coins ?? 0;
         const won = payouts[u] ?? 0;
-        const newCoins = coins + won;
-
-        // One write per player, folding coins + stats/weekly together (no extra game write).
         const stats = data.stats ?? {};
+        const isWinner = winnerSet.has(u);
+
+        // One write per player, folding coins + stats/weekly + engagement bonuses together.
         const userUpdate: Record<string, any> = { 'stats.games': (stats.games ?? 0) + 1 };
-        if (won !== 0) userUpdate.coins = newCoins;
-        if (winnerSet.has(u)) {
+        let bonus = 0; // first-win-of-day bonus (0 unless earned this settle)
+        if (isWinner) {
+          // Win-streak continues (+1). First Coin Rush win of the IST day earns FIRST_WIN_BONUS.
+          userUpdate['stats.winStreak'] = (stats.winStreak ?? 0) + 1;
+          if (stats.lastWinDate !== outcome.today) {
+            bonus = FIRST_WIN_BONUS;
+            userUpdate['stats.lastWinDate'] = outcome.today;
+          }
           // Week rollover: reset weekly.wins to 1 when the stored week differs; else +1.
           const sameWeek = data.weekly?.key === outcome.weekKey;
           userUpdate['weekly.key'] = outcome.weekKey;
           userUpdate['weekly.wins'] = sameWeek ? (data.weekly?.wins ?? 0) + 1 : 1;
           userUpdate['stats.wins'] = (stats.wins ?? 0) + 1;
+        } else {
+          // A non-win breaks the streak (games still counted above).
+          userUpdate['stats.winStreak'] = 0;
         }
+        const newCoins = coins + won + bonus;
+        if (won !== 0 || bonus !== 0) userUpdate.coins = newCoins;
         const jp = jackpotCounts[u] ?? 0;
         if (jp > 0) userUpdate['stats.jackpots'] = (stats.jackpots ?? 0) + jp;
 
         tx.update(userRefs[i], userUpdate);
         resUpdate[`players.${u}.payout`] = won;
+        if (bonus > 0) firstWinBonusOut[u] = bonus;
         out[u] = walletOf(i, newCoins);
       });
       tx.update(resRef, resUpdate);
-      return out;
+      return { accounts: out, firstWinBonus: firstWinBonusOut };
     });
   }
 
@@ -519,6 +572,121 @@ class FirebaseIdentity implements Identity {
       try { await this.refundGame(d.id); } catch { /* best-effort; the next sweep retries */ }
     }
   }
+
+  // ─── Engagement track (V3 Phase 6) ──────────────────────────────────────────
+
+  // Apply someone else's referral code. The referrer is resolved by an equality query
+  // BEFORE the txn (Firestore txns can't run this query inline); the txn then reads both
+  // docs, re-checks the invariants, and credits REFERRAL_REWARD to BOTH. One-time: once the
+  // requester has `referral.referredBy`, a re-apply throws ALREADY_REFERRED.
+  async applyReferral(
+    uid: string,
+    rawCode: string,
+  ): Promise<{ account: UserAccount; status: { code: string; invitedCount: number; referredBy: boolean } }> {
+    const db = this.admin.firestore();
+    const code = normalizeReferralCode(rawCode);
+    // Resolve the referrer by their stored code (outside the txn).
+    const q = await db.collection('users').where('referral.code', '==', code).limit(1).get();
+    if (q.empty || (q.docs?.length ?? 0) === 0) throw new Error('INVALID_REFERRAL');
+    const referrerUid = q.docs[0].id as string;
+    if (referrerUid === uid) throw new Error('SELF_REFERRAL');
+
+    const requesterRef = db.collection('users').doc(uid);
+    const referrerRef = db.collection('users').doc(referrerUid);
+    return db.runTransaction(async (tx: any) => {
+      const [reqSnap, refSnap] = await Promise.all([tx.get(requesterRef), tx.get(referrerRef)]);
+      if (!refSnap.exists) throw new Error('INVALID_REFERRAL'); // referrer vanished between query and txn
+      const reqData = (reqSnap.exists ? reqSnap.data() : {}) as UserDoc;
+      const refData = refSnap.data() as UserDoc;
+      if (reqData.referral?.referredBy) throw new Error('ALREADY_REFERRED'); // one-time only
+
+      // Credit the referrer (+reward, +1 invitedCount).
+      tx.update(referrerRef, {
+        coins: (refData.coins ?? 0) + REFERRAL_REWARD,
+        'referral.invitedCount': (refData.referral?.invitedCount ?? 0) + 1,
+      });
+
+      // Credit the requester (+reward) and stamp referredBy. Seed a full doc if they somehow
+      // have none yet, so a brand-new account can still apply a code without crashing.
+      const ownCode = reqData.referral?.code ?? referralCodeForUid(uid);
+      const ownInvited = reqData.referral?.invitedCount ?? 0;
+      let newReqCoins: number;
+      let displayName: string;
+      if (reqSnap.exists) {
+        newReqCoins = (reqData.coins ?? 0) + REFERRAL_REWARD;
+        displayName = reqData.displayName;
+        tx.update(requesterRef, {
+          coins: newReqCoins,
+          'referral.code': ownCode,               // lazily persist a code if it was missing
+          'referral.invitedCount': ownInvited,     // preserve existing count (or seed 0)
+          'referral.referredBy': referrerUid,
+        });
+      } else {
+        newReqCoins = SEED_COINS + REFERRAL_REWARD;
+        displayName = '';
+        tx.set(requesterRef, {
+          uid, displayName, coins: newReqCoins, gems: SEED_GEMS,
+          login: { lastClaimDate: null, streak: 0 },
+          spin: { dayKey: null, usedToday: 0 },
+          referral: { code: ownCode, invitedCount: 0, referredBy: referrerUid },
+        });
+      }
+
+      return {
+        account: { uid, displayName, coins: newReqCoins, gems: reqData.gems ?? SEED_GEMS },
+        status: { code: ownCode, invitedCount: ownInvited, referredBy: true },
+      };
+    });
+  }
+
+  // The player's own referral standing. Lazily mints + persists a deterministic code for
+  // pre-Phase-6 docs (no migration needed — the code is stable per uid).
+  async getReferral(uid: string): Promise<{ code: string; invitedCount: number; referredBy: boolean }> {
+    const db = this.admin.firestore();
+    const ref = db.collection('users').doc(uid);
+    const snap = await ref.get();
+    const data = (snap.exists ? snap.data() : {}) as UserDoc;
+    let code = data.referral?.code;
+    if (!code) {
+      code = referralCodeForUid(uid);
+      // Persist only when the doc already exists; a missing doc gets the same code seeded on
+      // its next getOrCreateUser, so the returned value is stable either way.
+      if (snap.exists) {
+        await ref.update({ 'referral.code': code, 'referral.invitedCount': data.referral?.invitedCount ?? 0 });
+      }
+    }
+    return { code, invitedCount: data.referral?.invitedCount ?? 0, referredBy: !!data.referral?.referredBy };
+  }
+
+  // Claim a rewarded-ad top-up. Disabled unless `enabled` (server env flag). Daily-capped at
+  // AD_REWARDS_PER_DAY per IST day; the count resets when the stored dayKey differs from today.
+  async claimAdReward(uid: string, today: string, enabled: boolean): Promise<UserAccount> {
+    if (!enabled) throw new Error('AD_REWARD_DISABLED');
+    const db = this.admin.firestore();
+    const ref = db.collection('users').doc(uid);
+    return db.runTransaction(async (tx: any) => {
+      const snap = await tx.get(ref);
+      const data = (snap.exists ? snap.data() : {}) as UserDoc;
+      const ad = data.ad;
+      const used = ad && ad.dayKey === today ? ad.used : 0; // count only applies within the same IST day
+      if (used >= AD_REWARDS_PER_DAY) throw new Error('AD_REWARD_LIMIT');
+      if (snap.exists) {
+        const newCoins = (data.coins ?? 0) + AD_REWARD_COINS;
+        tx.update(ref, { coins: newCoins, 'ad.dayKey': today, 'ad.used': used + 1 });
+        return { uid, displayName: data.displayName, coins: newCoins, gems: data.gems ?? 0 };
+      }
+      // Brand-new account: seed a full doc with the first ad claim recorded.
+      const newCoins = SEED_COINS + AD_REWARD_COINS;
+      tx.set(ref, {
+        uid, displayName: '', coins: newCoins, gems: SEED_GEMS,
+        login: { lastClaimDate: null, streak: 0 },
+        spin: { dayKey: null, usedToday: 0 },
+        referral: { code: referralCodeForUid(uid), invitedCount: 0 },
+        ad: { dayKey: today, used: 1 },
+      });
+      return { uid, displayName: '', coins: newCoins, gems: SEED_GEMS };
+    });
+  }
 }
 
 // Cached process-wide singleton, built on first use.
@@ -526,6 +694,14 @@ let identity: Identity | null = null;
 export function getIdentity(): Identity {
   if (!identity) identity = new FirebaseIdentity();
   return identity;
+}
+
+// Current date in IST (UTC+5:30) as 'YYYY-MM-DD' — the day boundary for streaks/spins/ads
+// and the first-win-of-day bonus. Lives here (next to the identity that consumes it) so both
+// room.ts and index.ts can import it without importing from index.ts (which would be circular).
+export function istToday(): string {
+  const d = new Date(Date.now() + 5.5 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
 }
 
 // Current IST (UTC+5:30) ISO-8601 week key 'YYYY-Www' (zero-padded week). ISO weeks

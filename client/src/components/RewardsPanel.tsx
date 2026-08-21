@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { getIdToken, isSignedIn, isAuthEnabled } from '../auth';
-import { sendGetRewards } from '../net/socket';
+import { sendGetRewards, sendAdReward } from '../net/socket';
+import { isAdRewardEnabled } from '../flags';
 import { DailyRewardModal } from './DailyRewardModal';
 import { LuckySpinModal } from './LuckySpinModal';
 
@@ -15,11 +16,26 @@ type OpenModal = 'daily' | 'spin' | null;
  */
 export function RewardsPanel() {
   const rewards = useGameStore((s) => s.rewards);
+  const account = useGameStore((s) => s.account);
+  const error = useGameStore((s) => s.error);
   const [open, setOpen] = useState<OpenModal>(null);
+  // Rewarded-ad top-up (flag-gated, default hidden). `adPending` guards against
+  // double-taps until the server's account update or an error lands.
+  const adEnabled = isAdRewardEnabled();
+  const [adPending, setAdPending] = useState(false);
+  const adAwaitingRef = useRef(false);
 
   useEffect(() => {
     if (isSignedIn()) void sendGetRewards();
   }, []);
+
+  // Release the ad button once the wallet update (account) or an error arrives.
+  useEffect(() => {
+    if (adAwaitingRef.current) {
+      adAwaitingRef.current = false;
+      setAdPending(false);
+    }
+  }, [account, error]);
 
   if (!isAuthEnabled()) return null;
 
@@ -30,6 +46,23 @@ export function RewardsPanel() {
       await sendGetRewards();
     }
     setOpen(which);
+  };
+
+  // Rewarded-ad top-up: PLACEHOLDER for a future ad SDK's reward callback — there
+  // is no real ad, we just send `adReward`. Signs in first if needed. The wallet
+  // updates via the server's `account` reply; AD_REWARD_LIMIT / AD_REWARD_DISABLED
+  // surface through the global error toast.
+  const watchAd = async () => {
+    if (adPending) return;
+    setAdPending(true);
+    adAwaitingRef.current = true;
+    try {
+      if (!isSignedIn()) await getIdToken(); // prompts the Google popup when needed
+      await sendAdReward();
+    } catch {
+      adAwaitingRef.current = false;
+      setAdPending(false);
+    }
   };
 
   const dailyReady = Boolean(rewards?.canClaimDaily);
@@ -66,6 +99,20 @@ export function RewardsPanel() {
           </span>
           <span className="reward-fab__label">Lucky Spin</span>
         </button>
+        {adEnabled && (
+          <button
+            type="button"
+            className="reward-fab"
+            onClick={() => void watchAd()}
+            disabled={adPending}
+            aria-label="Watch an ad for Coins"
+          >
+            <span className="reward-fab__icon-wrap">
+              <span className="reward-fab__icon" aria-hidden>📺</span>
+            </span>
+            <span className="reward-fab__label">{adPending ? 'Loading…' : 'Watch Ad'}</span>
+          </button>
+        )}
       </div>
 
       {open === 'daily' && <DailyRewardModal onClose={() => setOpen(null)} />}

@@ -1181,6 +1181,16 @@ body {
 .reward-cost { text-align: center; color: var(--gold); font-weight: 700; font-size: 0.9rem; margin-top: 2px; }
 .reward-toast { text-align: center; color: var(--success); font-weight: 800; font-size: 1rem; letter-spacing: 0.2px; }
 
+/* Win-streak bonus (V3 Phase 6) — a small gold pill under the daily claim toast. */
+.reward-streak-bonus { margin: -6px 0 0; text-align: center; }
+.reward-streak-bonus__badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 11px; border-radius: 999px;
+  border: 1px solid var(--gold-border);
+  background: rgba(var(--gold-rgb),0.14);
+  color: var(--gold); font-weight: 800; font-size: 0.82rem; letter-spacing: 0.2px;
+}
+
 /* Respect reduced-motion: drop the reward pulses/glows. */
 @media (prefers-reduced-motion: reduce) {
   .reward-fab__dot,
@@ -1309,6 +1319,63 @@ body {
   text-align: center; color: var(--cream-muted);
   letter-spacing: 3px; font-size: 0.8rem; line-height: 1;
 }
+
+/* ─── Referral invites (V3 Phase 6) ───────────────────────────────────────────
+   Own code (prominent, copyable) + invite count + a friend-code apply field.
+   Reuses the modal surface, .input and .btn; tiles echo the gem-convert styling. */
+.referral { display: flex; flex-direction: column; gap: 14px; min-width: min(300px, 82vw); }
+.referral__note {
+  margin: 6px 0; text-align: center; color: var(--cream-muted);
+  font-size: 0.9rem; line-height: 1.5;
+}
+.referral__code-block {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 12px; border-radius: 14px;
+  border: 1px solid var(--gold-border);
+  background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(0,0,0,0.24));
+}
+.referral__code-label {
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--cream-muted);
+}
+.referral__code-row { display: inline-flex; align-items: center; gap: 10px; }
+.referral__code {
+  font-size: 1.5rem; font-weight: 900; letter-spacing: 4px;
+  color: var(--gold); font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+}
+.referral__reward {
+  display: flex; align-items: center; justify-content: center; gap: 5px; flex-wrap: wrap;
+  margin: 0; text-align: center; color: var(--cream);
+  font-size: 0.9rem; font-weight: 700; line-height: 1.4;
+}
+.referral__stat {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; border-radius: 12px;
+  border: 1px solid var(--gold-border);
+  background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(0,0,0,0.24));
+}
+.referral__stat-label {
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.4px;
+  text-transform: uppercase; color: var(--cream-muted);
+}
+.referral__stat-value {
+  font-size: 1.15rem; font-weight: 900; color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+.referral__used {
+  margin: 0; text-align: center; color: var(--cream-muted);
+  font-size: 0.88rem; font-weight: 700;
+  padding-top: 12px; border-top: 1px solid rgba(var(--gold-rgb),0.18);
+}
+.referral__apply {
+  display: flex; flex-direction: column; gap: 10px;
+  padding-top: 12px; border-top: 1px solid rgba(var(--gold-rgb),0.18);
+}
+.referral__field { display: flex; flex-direction: column; gap: 6px; }
+.referral__input { text-align: center; font-size: 1.15rem; letter-spacing: 3px; text-transform: uppercase; }
+.referral__error { margin: 0; text-align: center; color: var(--danger); font-size: 0.85rem; font-weight: 700; }
+.referral__apply .btn { align-self: center; }
 
 /* ─── Coin Rush (currency mode) ───────────────────────────────────────────────
    Buy-in create/lobby controls, the in-game pot/jackpot/chip-stack HUD, the
@@ -1466,6 +1533,13 @@ body {
 
 /* ── Settlement (game-over) net cell ── */
 .cr-net { display: inline-flex; align-items: center; gap: 4px; }
+/* First-Coin-Rush-win-of-the-day bonus marker (V3 Phase 6) — a tiny green note
+   under the net (the bonus is already folded into net). */
+.cr-firstwin {
+  display: flex; align-items: center; gap: 3px; margin-top: 3px;
+  color: var(--success); font-size: 0.66rem; font-weight: 800;
+  letter-spacing: 0.2px; white-space: nowrap;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .cr-hud__stat--bump { animation: none; }

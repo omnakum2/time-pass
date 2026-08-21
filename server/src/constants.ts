@@ -50,4 +50,9 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   INSUFFICIENT_BALANCE: 'Not enough coins for this buy-in.',
   INSUFFICIENT_GEMS: 'Not enough gems for this conversion.',
   INVALID_AMOUNT: 'That amount is not allowed.',
+  INVALID_REFERRAL: 'That referral code is not valid.',
+  ALREADY_REFERRED: "You've already used a referral code.",
+  SELF_REFERRAL: "You can't use your own referral code.",
+  AD_REWARD_LIMIT: "You've claimed all your ad rewards for today.",
+  AD_REWARD_DISABLED: 'Ad rewards are not available right now.',
 };

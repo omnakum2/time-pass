@@ -118,6 +118,28 @@ export async function sendGetLeaderboard(): Promise<void> {
   sendMsg({ type: 'getLeaderboard', ...(t ? { idToken: t } : {}) });
 }
 
+// ─── Engagement senders (V3 Phase 6: referrals + rewarded-ad top-up) ─────────
+// All three are signed-in-only actions launched from UI already gated behind a
+// signed-in check (referral modal / ad-reward button), so we attach the token
+// silently via getIdTokenIfSignedIn — no sign-in popup here — and no-op when the
+// token is somehow absent. Server replies (referralStatus / account / error)
+// flow back through dispatch() below.
+
+export async function sendGetReferral(): Promise<void> {
+  const t = await getIdTokenIfSignedIn();
+  if (t) sendMsg({ type: 'getReferral', idToken: t });
+}
+
+export async function sendApplyReferral(code: string): Promise<void> {
+  const t = await getIdTokenIfSignedIn();
+  if (t) sendMsg({ type: 'applyReferral', code, idToken: t });
+}
+
+export async function sendAdReward(): Promise<void> {
+  const t = await getIdTokenIfSignedIn();
+  if (t) sendMsg({ type: 'adReward', idToken: t });
+}
+
 function dispatch(msg: ServerMessage): void {
   const store = useGameStore.getState();
   switch (msg.type) {
@@ -159,7 +181,7 @@ function dispatch(msg: ServerMessage): void {
         spinsUsedToday: prev?.spinsUsedToday ?? 0,
         nextSpinCost: prev?.nextSpinCost ?? null,
       });
-      if (msg.claimed) store.setRewardToast({ kind: 'daily', coins: msg.reward.coins, gems: msg.reward.gems });
+      if (msg.claimed) store.setRewardToast({ kind: 'daily', coins: msg.reward.coins, gems: msg.reward.gems, streakBonus: msg.streakBonus });
       break;
     }
     case 'spinResult': {
@@ -179,6 +201,11 @@ function dispatch(msg: ServerMessage): void {
     }
     case 'leaderboard':
       store.setLeaderboard(msg);
+      break;
+    case 'referralStatus':
+      // Sent in reply to getReferral and again after a successful applyReferral
+      // (the wallet update rides the separate `account` message).
+      store.setReferral(msg);
       break;
     case 'quickMessage':
       store.setBubble(msg.senderId, msg.text);

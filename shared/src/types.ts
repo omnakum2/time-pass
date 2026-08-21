@@ -148,7 +148,8 @@ export interface CurrencyState {
 export interface SettlementEntry {
   chips: number;    // final chip stack (chips-at-bust for eliminated players)
   coinsWon: number; // coins paid from the pool (0 if out of the money / forfeited)
-  net: number;      // coinsWon − (betAmount + fee): net Coin change for the game
+  firstWinBonus?: number; // V3 Phase 6: first-Coin-Rush-win-of-the-day bonus (also credited; included in net)
+  net: number;      // (coinsWon + firstWinBonus) − (betAmount + fee): net Coin change for the game
 }
 
 // Final ranked settlement for a coinRush game.
@@ -292,6 +293,25 @@ export interface MsgGetLeaderboard {
   idToken?: string;
 }
 
+// V3 Phase 6: fetch the player's own referral code + invite count.
+export interface MsgGetReferral {
+  type: 'getReferral';
+  idToken?: string;
+}
+
+// V3 Phase 6: apply someone else's referral code (one-time; both sides rewarded).
+export interface MsgApplyReferral {
+  type: 'applyReferral';
+  code: string;
+  idToken?: string;
+}
+
+// V3 Phase 6: claim a rewarded-ad top-up (server-authoritative, daily-capped, ad-SDK-gated).
+export interface MsgAdReward {
+  type: 'adReward';
+  idToken?: string;
+}
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
@@ -309,7 +329,10 @@ export type ClientMessage =
   | MsgClaimDaily
   | MsgSpin
   | MsgConvertGems
-  | MsgGetLeaderboard;
+  | MsgGetLeaderboard
+  | MsgGetReferral
+  | MsgApplyReferral
+  | MsgAdReward;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 
@@ -370,7 +393,12 @@ export type ErrorCode =
   | 'INSUFFICIENT_COINS'
   | 'INSUFFICIENT_BALANCE'
   | 'INSUFFICIENT_GEMS'
-  | 'INVALID_AMOUNT';
+  | 'INVALID_AMOUNT'
+  | 'INVALID_REFERRAL'
+  | 'ALREADY_REFERRED'
+  | 'SELF_REFERRAL'
+  | 'AD_REWARD_LIMIT'
+  | 'AD_REWARD_DISABLED';
 
 export interface MsgError {
   type: 'error';
@@ -409,6 +437,7 @@ export interface MsgDailyReward {
   claimed: boolean;
   streak: number;
   reward: DailyReward;
+  streakBonus: number; // V3 Phase 6: extra Coins from the Coin Rush win-streak (0 if none); already in `account`
   account: UserAccount;
 }
 
@@ -439,6 +468,14 @@ export interface MsgLeaderboard {
   you: LeaderboardEntry | null;  // the requester's own row (even if outside the top N); null if no wins this week
 }
 
+// V3 Phase 6: the player's referral standing (own code + invites + whether they can still apply one).
+export interface MsgReferralStatus {
+  type: 'referralStatus';
+  code: string;          // the player's own shareable code
+  invitedCount: number;  // how many players have used this code
+  referredBy: boolean;   // true once the player has applied someone else's code (can't apply another)
+}
+
 export type ServerMessage =
   | MsgJoined
   | MsgState
@@ -451,7 +488,8 @@ export type ServerMessage =
   | MsgRewardsStatus
   | MsgDailyReward
   | MsgSpinResult
-  | MsgLeaderboard;
+  | MsgLeaderboard
+  | MsgReferralStatus;
 
 // ─── Quick chat messages (predefined, tap-to-send) ──────────────────────────
 

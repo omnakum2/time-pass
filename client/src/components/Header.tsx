@@ -15,6 +15,7 @@ import { storage } from '../storage';
 import { isAuthEnabled, isSignedIn } from '../auth';
 import { GemConvertModal } from './GemConvertModal';
 import { LeaderboardModal } from './LeaderboardModal';
+import { ReferralModal } from './ReferralModal';
 import logo from '../assets/logo.webp';
 
 export function Header() {
@@ -32,9 +33,13 @@ export function Header() {
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [referralOpen, setReferralOpen] = useState(false);
   // Gem → Coin conversion is a signed-in action; the leaderboard is prestige,
   // viewable by anyone in an auth-enabled build.
   const walletLaunch = isAuthEnabled() && isSignedIn() ? () => setWalletOpen(true) : undefined;
+  // Referrals are a signed-in action (own code + wallet reward), so gate the
+  // launcher on sign-in like the wallet chip.
+  const canInvite = isAuthEnabled() && isSignedIn();
 
   const handleLeave = () => {
     if (!window.confirm('Leave the game? You will return to the home screen.')) return;
@@ -55,6 +60,11 @@ export function Header() {
           {!inGame && isAuthEnabled() && (
             <button className="app-header__link" onClick={() => setLeaderboardOpen(true)}>
               Leaderboard
+            </button>
+          )}
+          {!inGame && canInvite && (
+            <button className="app-header__link" onClick={() => setReferralOpen(true)}>
+              Invite
             </button>
           )}
           {!inGame && (
@@ -105,6 +115,9 @@ export function Header() {
 
       {/* ── Weekly leaderboard ─────────────────────────────────── */}
       {leaderboardOpen && <LeaderboardModal onClose={() => setLeaderboardOpen(false)} />}
+
+      {/* ── Referral invites ───────────────────────────────────── */}
+      {referralOpen && <ReferralModal onClose={() => setReferralOpen(false)} />}
     </>
   );
 }

@@ -73,8 +73,15 @@ export function validateMessage(msg: ClientMessage): ErrorCode | null {
     case 'claimDaily':
     case 'spin':
     case 'getLeaderboard':
+    case 'getReferral':
+    case 'adReward':
       // These carry only an optional idToken beyond `type`.
       return msg.idToken === undefined || typeof msg.idToken === 'string' ? null : 'BAD_MESSAGE';
+    case 'applyReferral':
+      // `code` must be a string here; the handler normalises + resolves it (INVALID_REFERRAL if unknown).
+      return typeof msg.code === 'string'
+        && (msg.idToken === undefined || typeof msg.idToken === 'string')
+        ? null : 'BAD_MESSAGE';
     case 'convertGems':
       // `gems` must be a number here; the handler re-checks integer/range → INVALID_AMOUNT.
       return typeof msg.gems === 'number'
