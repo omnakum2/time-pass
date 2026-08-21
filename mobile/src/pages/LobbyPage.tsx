@@ -1,13 +1,14 @@
 // Mobile-native Lobby (Waiting Room) for Bid Club.
 // Fresh RN screen (View/Text/ScrollView/Pressable + StyleSheet) — not a port of
 // the web LobbyPage CSS. Sharing uses the native Share sheet (no clipboard/URLs).
-import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Share, StyleSheet } from 'react-native';
+import { useCallback, useState } from 'react';
+import { View, Text, ScrollView, Pressable, Share, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GAME_MODES } from 'shared';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
 import { sendMsg } from '../net/socket';
+import { useAndroidBack } from '../hooks/useAndroidBack';
 import { useSecondsRemaining } from '../hooks/useSecondsRemaining';
 import { colors, radius } from '../theme';
 import { scale } from '../lib/scale';
@@ -23,6 +24,16 @@ export function LobbyPage() {
   // Tick the server countdown locally. Called BEFORE the early return so the
   // hook order stays stable across the null → loaded transition (Rules of Hooks).
   const secondsLeft = useSecondsRemaining(gameState?.countdownMs ?? null);
+
+  // Hardware-back confirms leaving the room. Called BEFORE the early return so the
+  // hook order stays stable across the null → loaded transition (Rules of Hooks).
+  useAndroidBack(useCallback(() => {
+    Alert.alert('Leave room?', 'You will return to the home screen.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Leave', style: 'destructive', onPress: () => { sendMsg({ type: 'leaveRoom' }); void storage.clearSession(); useGameStore.getState().reset(); } },
+    ]);
+    return true;
+  }, []));
 
   // Guard: nothing to show until the server has seeded room state + our id.
   if (!gameState || !playerId) {

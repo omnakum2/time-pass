@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, ScrollView, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AnimatePresence } from 'moti';
 import { Suit, Player, legalMoves, SUIT_ORDER, RANK_ORDER, isHandHiddenForBid } from 'shared';
 import { useGameStore } from '../store/gameStore';
 import { sendMsg } from '../net/socket';
+import { storage } from '../storage';
+import { useAndroidBack } from '../hooks/useAndroidBack';
 import { getTotal } from '../lib/helpers';
 import { scale, cardWidth, cardHeight } from '../lib/scale';
 import { colors } from '../theme';
@@ -30,6 +32,16 @@ export function GamePage() {
   const prevTrickEmptyRef = useRef(true);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [urgent, setUrgent] = useState(false);
+
+  // Hardware-back confirms leaving the game. Registered among the top hooks so the
+  // hook order stays stable across the null → loaded transition (Rules of Hooks).
+  useAndroidBack(useCallback(() => {
+    Alert.alert('Leave game?', 'You will return to the home screen. Your seat is forfeited.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Leave', style: 'destructive', onPress: () => { sendMsg({ type: 'leaveRoom' }); void storage.clearSession(); useGameStore.getState().reset(); } },
+    ]);
+    return true;
+  }, []));
 
   const phase = gameState?.phase ?? '';
   const currentTurn = gameState?.currentTurn ?? null;

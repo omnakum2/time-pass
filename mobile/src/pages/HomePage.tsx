@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAndroidBack } from '../hooks/useAndroidBack';
 import { NAME_MIN_LEN, NAME_MAX_LEN, GameMode } from 'shared';
 import { sendMsg, reconnectSession } from '../net/socket';
 import { useGameStore } from '../store/gameStore';
@@ -25,6 +26,13 @@ export function HomePage() {
   const [pending, setPending] = useState<'create' | 'join' | null>(null);
   const { connected, reconnectFailed } = useGameStore();
   const rejoinAttempt = useRef(false);
+
+  // Hardware-back from the create/join view returns to the landing view; on the
+  // landing view it does nothing special so the OS default (app exit) applies.
+  useAndroidBack(useCallback(() => {
+    if (view !== 'landing') { setView('landing'); return true; }
+    return false;
+  }, [view]));
 
   // Prefill the saved display name (AsyncStorage is async).
   useEffect(() => {
@@ -95,6 +103,7 @@ export function HomePage() {
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <Header />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {view === 'landing' ? (
           <View style={styles.landing}>
@@ -165,6 +174,7 @@ export function HomePage() {
           </Surface>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
