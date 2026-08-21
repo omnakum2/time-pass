@@ -48,4 +48,6 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   NO_SPINS_LEFT: 'No spins left today.',
   INSUFFICIENT_COINS: 'Not enough coins.',
   INSUFFICIENT_BALANCE: 'Not enough coins for this buy-in.',
+  INSUFFICIENT_GEMS: 'Not enough gems for this conversion.',
+  INVALID_AMOUNT: 'That amount is not allowed.',
 };

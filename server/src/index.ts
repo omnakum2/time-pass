@@ -11,7 +11,7 @@ import {
 } from 'shared';
 import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS, HEARTBEAT_MS } from './constants';
 import { sendMessage, sendError, sanitizeName, clampPlayers, validateMessage, randomRoomCode } from './helpers';
-import { getIdentity } from './firebase';
+import { getIdentity, istWeekKey } from './firebase';
 
 // ─── Environment-specific settings (from process.env) ──────────────────────
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -336,6 +336,38 @@ async function handleMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
         const m = (e as Error).message;
         sendError(ws, m === 'NO_SPINS_LEFT' || m === 'INSUFFICIENT_COINS' ? m as any : 'BAD_MESSAGE');
       }
+      break;
+    }
+
+    case 'convertGems': {
+      const id = await rewardIdentity(msg.idToken);
+      if (!id) { sendError(ws, 'NOT_AUTHENTICATED'); return; }
+      // Cheap pre-txn guard: reject non-numeric / non-finite / non-integer / <1 amounts
+      // (the convertGems txn re-validates against the held balance authoritatively).
+      if (typeof msg.gems !== 'number' || !Number.isInteger(msg.gems) || msg.gems < 1) {
+        sendError(ws, 'INVALID_AMOUNT'); return;
+      }
+      try {
+        const acc = await getIdentity().convertGems(id.uid, msg.gems);
+        sendMessage(ws, { type: 'account', account: acc });
+      } catch (e) {
+        const m = (e as Error).message;
+        if (m === 'INSUFFICIENT_GEMS' || m === 'INVALID_AMOUNT') sendError(ws, m);
+        else sendError(ws, 'BAD_MESSAGE');
+      }
+      break;
+    }
+
+    case 'getLeaderboard': {
+      // Anonymous viewing is allowed: an absent/invalid token → requesterUid null
+      // (all rows isYou=false, you=null). A valid token identifies the requester's row.
+      let requesterUid: string | null = null;
+      if (msg.idToken) {
+        const v = await getIdentity().verifyIdToken(msg.idToken);
+        if (v) requesterUid = v.uid;
+      }
+      const lb = await getIdentity().getLeaderboard(istWeekKey(), requesterUid);
+      sendMessage(ws, { type: 'leaderboard', week: lb.week, entries: lb.entries, you: lb.you });
       break;
     }
 

@@ -279,6 +279,19 @@ export interface MsgSpin {
   idToken?: string;
 }
 
+// V3 Phase 5: convert Gems → Coins (one-way; 1 Gem = GEM_TO_COINS Coins).
+export interface MsgConvertGems {
+  type: 'convertGems';
+  gems: number; // whole number of Gems to convert (≥1, ≤ held)
+  idToken?: string;
+}
+
+// V3 Phase 5: request the current weekly leaderboard.
+export interface MsgGetLeaderboard {
+  type: 'getLeaderboard';
+  idToken?: string;
+}
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
@@ -294,7 +307,9 @@ export type ClientMessage =
   | MsgUpdateRoomSettings
   | MsgGetRewards
   | MsgClaimDaily
-  | MsgSpin;
+  | MsgSpin
+  | MsgConvertGems
+  | MsgGetLeaderboard;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 
@@ -353,7 +368,9 @@ export type ErrorCode =
   | 'NOT_AUTHENTICATED'
   | 'NO_SPINS_LEFT'
   | 'INSUFFICIENT_COINS'
-  | 'INSUFFICIENT_BALANCE';
+  | 'INSUFFICIENT_BALANCE'
+  | 'INSUFFICIENT_GEMS'
+  | 'INVALID_AMOUNT';
 
 export interface MsgError {
   type: 'error';
@@ -405,6 +422,23 @@ export interface MsgSpinResult {
   account: UserAccount;
 }
 
+// V3 Phase 5: one row of the weekly leaderboard (no uid exposed to clients).
+export interface LeaderboardEntry {
+  rank: number;        // 1-based finishing position on the board
+  displayName: string;
+  wins: number;        // wins this ISO week
+  coins: number;       // coin balance (the tiebreak; also shown)
+  isYou: boolean;      // true for the requesting player's own row
+}
+
+// V3 Phase 5: the weekly leaderboard, top LEADERBOARD_SIZE by wins then coins.
+export interface MsgLeaderboard {
+  type: 'leaderboard';
+  week: string;                  // IST ISO-week key, e.g. '2026-W34'
+  entries: LeaderboardEntry[];   // ranked top → down
+  you: LeaderboardEntry | null;  // the requester's own row (even if outside the top N); null if no wins this week
+}
+
 export type ServerMessage =
   | MsgJoined
   | MsgState
@@ -416,7 +450,8 @@ export type ServerMessage =
   | MsgAccount
   | MsgRewardsStatus
   | MsgDailyReward
-  | MsgSpinResult;
+  | MsgSpinResult
+  | MsgLeaderboard;
 
 // ─── Quick chat messages (predefined, tap-to-send) ──────────────────────────
 

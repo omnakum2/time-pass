@@ -102,6 +102,22 @@ export async function sendSpin(): Promise<void> {
   if (t) sendMsg({ type: 'spin', idToken: t });
 }
 
+// ─── Gems + leaderboard senders (V3 Phase 5) ─────────────────────────────────
+// convertGems is an explicit user action, so a sign-in popup is acceptable (and
+// required — you must be signed in to hold Gems). getLeaderboard is a prestige,
+// read-only board anyone can view: attach the token only when already signed in
+// (silent, no popup) so the server can mark the requester's own row.
+
+export async function sendConvertGems(gems: number): Promise<void> {
+  const t = await getIdToken();
+  if (t) sendMsg({ type: 'convertGems', gems, idToken: t });
+}
+
+export async function sendGetLeaderboard(): Promise<void> {
+  const t = await getIdTokenIfSignedIn();
+  sendMsg({ type: 'getLeaderboard', ...(t ? { idToken: t } : {}) });
+}
+
 function dispatch(msg: ServerMessage): void {
   const store = useGameStore.getState();
   switch (msg.type) {
@@ -161,6 +177,9 @@ function dispatch(msg: ServerMessage): void {
       store.setLastSpin({ segmentIndex: msg.segmentIndex, coins: msg.prize.coins, gems: msg.prize.gems });
       break;
     }
+    case 'leaderboard':
+      store.setLeaderboard(msg);
+      break;
     case 'quickMessage':
       store.setBubble(msg.senderId, msg.text);
       break;

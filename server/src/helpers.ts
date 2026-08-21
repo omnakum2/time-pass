@@ -72,8 +72,14 @@ export function validateMessage(msg: ClientMessage): ErrorCode | null {
     case 'getRewards':
     case 'claimDaily':
     case 'spin':
-      // Reward messages carry only an optional idToken beyond `type`.
+    case 'getLeaderboard':
+      // These carry only an optional idToken beyond `type`.
       return msg.idToken === undefined || typeof msg.idToken === 'string' ? null : 'BAD_MESSAGE';
+    case 'convertGems':
+      // `gems` must be a number here; the handler re-checks integer/range → INVALID_AMOUNT.
+      return typeof msg.gems === 'number'
+        && (msg.idToken === undefined || typeof msg.idToken === 'string')
+        ? null : 'BAD_MESSAGE';
     case 'startGame':
     case 'restartGame':
     case 'leaveRoom':

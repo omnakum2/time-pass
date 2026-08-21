@@ -1188,6 +1188,128 @@ body {
   .spin-wheel__wedge--win { animation: none; }
 }
 
+/* ─── Gem → Coin conversion (V3 Phase 5) ──────────────────────────────────────
+   One-way conversion modal launched from the header wallet chip. Reuses the
+   modal surface + .btn; wallet tiles echo the daily-reward tile styling. */
+.gem-convert { display: flex; flex-direction: column; gap: 14px; min-width: min(280px, 80vw); }
+.gem-convert__wallet { display: flex; gap: 10px; flex-wrap: wrap; }
+.gem-convert__stat {
+  flex: 1 1 110px;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 10px 8px; border-radius: 12px;
+  border: 1px solid var(--gold-border);
+  background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(0,0,0,0.24));
+}
+.gem-convert__stat-label {
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--cream-muted);
+}
+.gem-convert__stat-value {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 1.05rem; font-weight: 800; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.gem-convert__stat-value--gems  { color: var(--success); }
+.gem-convert__stat-value--coins { color: var(--gold); }
+
+.gem-convert__field { display: flex; flex-direction: column; gap: 6px; }
+.gem-convert__field .input { text-align: center; font-size: 1.1rem; }
+
+.gem-convert__preview {
+  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+  margin: 0; font-weight: 800; font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+.gem-convert__preview-from { display: inline-flex; align-items: center; gap: 5px; color: var(--success); }
+.gem-convert__preview-to   { display: inline-flex; align-items: center; gap: 5px; color: var(--gold); }
+.gem-convert__preview-arrow { color: var(--cream-muted); font-weight: 700; }
+
+.gem-convert__error { margin: 0; text-align: center; color: var(--danger); font-size: 0.85rem; font-weight: 700; }
+.gem-convert .btn { align-self: center; }
+
+.gem-convert__empty {
+  margin: 0; text-align: center; color: var(--cream-muted);
+  font-size: 0.9rem; line-height: 1.5;
+}
+.gem-convert__rule {
+  display: flex; align-items: center; justify-content: center; gap: 5px; flex-wrap: wrap;
+  margin: 2px 0 0; padding-top: 12px;
+  border-top: 1px solid rgba(var(--gold-rgb),0.18);
+  text-align: center; color: var(--cream-muted);
+  font-size: 0.8rem; font-weight: 700; letter-spacing: 0.2px;
+}
+
+/* ─── Weekly leaderboard (V3 Phase 5) ─────────────────────────────────────────
+   Prestige board (no prizes). Header row + scrollable ranked list; the
+   requester's row is gold-highlighted, and a pinned row shows their rank when
+   they sit outside the visible top N. */
+.leaderboard { display: flex; flex-direction: column; gap: 10px; min-width: min(340px, 84vw); }
+.leaderboard__week {
+  margin: 0; text-align: center; color: var(--gold);
+  font-weight: 800; font-size: 0.9rem; letter-spacing: 0.4px;
+}
+.leaderboard__note {
+  margin: 6px 0; text-align: center; color: var(--cream-muted);
+  font-size: 0.9rem; line-height: 1.5;
+}
+.leaderboard__head,
+.leaderboard__row {
+  display: grid;
+  grid-template-columns: 3rem 1fr 3.5rem minmax(4.5rem, auto);
+  align-items: center; gap: 8px;
+  padding: 9px 12px;
+}
+.leaderboard__head {
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+  color: var(--cream-muted);
+  border-bottom: 1px solid rgba(255,255,255,0.14);
+}
+.leaderboard__list {
+  display: flex; flex-direction: column;
+  max-height: 52vh; overflow-y: auto;
+}
+.leaderboard__row {
+  border-bottom: 1px solid var(--gold-border);
+  color: var(--cream); font-size: 0.9rem;
+}
+.leaderboard__row:last-child { border-bottom: none; }
+.leaderboard__row--you {
+  background: rgba(var(--gold-rgb),0.12);
+  border-radius: 8px;
+}
+.leaderboard__row--you .leaderboard__name { color: var(--gold); font-weight: 800; }
+.leaderboard__row--pinned {
+  margin-top: 2px;
+  border: 1px solid var(--gold);
+  border-radius: 10px;
+  background: rgba(var(--gold-rgb),0.14);
+}
+.leaderboard__rank { font-weight: 800; color: var(--cream-muted); font-variant-numeric: tabular-nums; }
+.leaderboard__row--you .leaderboard__rank { color: var(--gold); }
+.leaderboard__name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px; font-weight: 700;
+}
+.leaderboard__you-tag {
+  flex: none;
+  padding: 1px 7px; border-radius: 999px;
+  background: var(--gold); color: var(--card-2);
+  font-size: 0.62rem; font-weight: 900; letter-spacing: 0.4px; text-transform: uppercase;
+}
+.leaderboard__wins {
+  text-align: right; font-weight: 800; color: var(--cream);
+  font-variant-numeric: tabular-nums;
+}
+.leaderboard__wins-unit { color: var(--cream-muted); font-weight: 700; font-size: 0.78em; }
+.leaderboard__coins {
+  display: inline-flex; align-items: center; justify-content: flex-end; gap: 5px;
+  color: var(--gold); font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.leaderboard__pinned-sep {
+  text-align: center; color: var(--cream-muted);
+  letter-spacing: 3px; font-size: 0.8rem; line-height: 1;
+}
+
 /* ─── Coin Rush (currency mode) ───────────────────────────────────────────────
    Buy-in create/lobby controls, the in-game pot/jackpot/chip-stack HUD, the
    jackpot-claim / bust-out moment banners, and the game-over settlement bits.

@@ -15,7 +15,7 @@ import {
   LOBBY_RECONNECT_WINDOW_MS, QUICK_MSG_THROTTLE_MS, ANNOUNCE_MS, PUSH_TIMEOUT_MS,
 } from './constants';
 import { sendMessage, clampPlayers } from './helpers';
-import { getIdentity } from './firebase';
+import { getIdentity, istWeekKey } from './firebase';
 
 export interface Seat {
   player: Player;
@@ -79,6 +79,7 @@ export class Room {
   private eliminated: string[] = [];                     // playerIds in bust order, earliest first
   private forfeited: string[] = [];                      // playerIds who quit mid-game (coins burned, out of ranking)
   private chipsAtBust: Map<string, number> = new Map();  // playerId → chip stack captured at bust (tie-break)
+  private jackpotWinners: string[] = [];                 // playerIds who scooped the jackpot this game (weekly stats; may repeat across rounds)
   private frozen: Set<string> = new Set();               // play-machinery freeze set (eliminated∪forfeited), recomputed each round
   private startNonce = 0;                                 // bumped each start → unique gameId per match attempt
   private gameId: string | null = null;                  // `${roomId}-${startNonce}` — the reservation key
@@ -454,6 +455,7 @@ export class Room {
     this.eliminated = [];
     this.forfeited = [];
     this.chipsAtBust = new Map();
+    this.jackpotWinners = [];
     this.frozen = new Set();
     this.gameId = null;
     this.settled = false; this.refunded = false; this.aborted = false; this.finishing = false;
@@ -513,7 +515,7 @@ export class Room {
     this.gameId = `${this.id}-${this.startNonce}`;
     this.settled = false; this.refunded = false; this.aborted = false; this.finishing = false;
     this.chips = new Map(); this.jackpot = 0; this.pool = 0;
-    this.eliminated = []; this.forfeited = []; this.chipsAtBust = new Map(); this.frozen = new Set();
+    this.eliminated = []; this.forfeited = []; this.chipsAtBust = new Map(); this.jackpotWinners = []; this.frozen = new Set();
 
     try {
       for (const seat of seatsToCharge) {
@@ -970,6 +972,7 @@ export class Room {
       }
     }
     this.chips.set(winner, (this.chips.get(winner) ?? 0) + this.jackpot);
+    this.jackpotWinners.push(winner); // recorded for weekly stats.jackpots (per scoop)
     this.jackpot = 0;
   }
 
@@ -1024,10 +1027,18 @@ export class Room {
       const uid = this.uidFor(pid);
       if (uid) coinsByUid[uid] = (coinsByUid[uid] ?? 0) + coins;
     }
+    // Weekly leaderboard + stats outcome, folded into settlement (single write per player):
+    // winners = the top tie-group; jackpot winners = every scoop this game (may repeat).
+    // uidFor never misses here — Coin Rush requires every seat to be a signed-in account.
+    const winnerPids = rankGroups.length > 0 ? rankGroups[0] : [];
+    const winnerUids = winnerPids.map(pid => this.uidFor(pid)).filter((u): u is string => !!u);
+    const jackpotUids = this.jackpotWinners.map(pid => this.uidFor(pid)).filter((u): u is string => !!u);
+    const outcome = { weekKey: istWeekKey(), winnerUids, jackpotUids };
+
     let accounts: Record<string, UserAccount> = {};
     if (this.gameId && !this.settled && !this.refunded && !this.aborted) {
       try {
-        accounts = await getIdentity().settleGame(this.gameId, coinsByUid);
+        accounts = await getIdentity().settleGame(this.gameId, coinsByUid, outcome);
         this.settled = true;
       } catch { /* settlement failed — reservation stays 'open' for the stuck-sweep */ }
     }

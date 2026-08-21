@@ -12,6 +12,9 @@ const GuideContent = lazy(() =>
 );
 import { sendMsg } from '../net/socket';
 import { storage } from '../storage';
+import { isAuthEnabled, isSignedIn } from '../auth';
+import { GemConvertModal } from './GemConvertModal';
+import { LeaderboardModal } from './LeaderboardModal';
 import logo from '../assets/logo.webp';
 
 export function Header() {
@@ -27,6 +30,11 @@ export function Header() {
     phase === 'ROUND_SCORING';
   const [guideOpen, setGuideOpen] = useState(false);
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
+  const [walletOpen, setWalletOpen] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  // Gem → Coin conversion is a signed-in action; the leaderboard is prestige,
+  // viewable by anyone in an auth-enabled build.
+  const walletLaunch = isAuthEnabled() && isSignedIn() ? () => setWalletOpen(true) : undefined;
 
   const handleLeave = () => {
     if (!window.confirm('Leave the game? You will return to the home screen.')) return;
@@ -43,7 +51,12 @@ export function Header() {
           <img src={logo} alt="Bid Club" className="app-header__logo" />
         </span>
         <nav className="app-header__nav">
-          <BalanceChip />
+          <BalanceChip onClick={walletLaunch} />
+          {!inGame && isAuthEnabled() && (
+            <button className="app-header__link" onClick={() => setLeaderboardOpen(true)}>
+              Leaderboard
+            </button>
+          )}
           {!inGame && (
             <Link className="app-header__link" to="/">
               Home
@@ -86,6 +99,12 @@ export function Header() {
           <GuideContent />
         </Suspense>
       </Modal>
+
+      {/* ── Gem → Coin conversion (tap the wallet chip) ─────────── */}
+      {walletOpen && <GemConvertModal onClose={() => setWalletOpen(false)} />}
+
+      {/* ── Weekly leaderboard ─────────────────────────────────── */}
+      {leaderboardOpen && <LeaderboardModal onClose={() => setLeaderboardOpen(false)} />}
     </>
   );
 }

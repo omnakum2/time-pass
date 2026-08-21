@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { GameState, MsgGameOver, MsgRoundResult, UserAccount } from 'shared';
+import { GameState, MsgGameOver, MsgRoundResult, MsgLeaderboard, UserAccount } from 'shared';
 import { BUBBLE_MS } from '../constants';
 
 interface ErrorState { code: string; message: string }
@@ -34,6 +34,7 @@ interface GameStore {
   rewards: RewardsStatus | null; // V3: daily-login + spin status (null until fetched)
   rewardToast: RewardToast | null; // V3: last claim/spin prize banner (null when none)
   lastSpin: LastSpin | null; // V3: last spin's segment + prize (drives the wheel; null when none)
+  leaderboard: MsgLeaderboard | null; // V3 Phase 5: last-fetched weekly board (null until fetched)
 
   setConnected: (v: boolean) => void;
   setRoomClosed: (v: boolean) => void;
@@ -46,6 +47,7 @@ interface GameStore {
   setRewards: (r: RewardsStatus) => void;
   setRewardToast: (t: RewardToast | null) => void;
   setLastSpin: (v: LastSpin | null) => void;
+  setLeaderboard: (v: MsgLeaderboard | null) => void;
   setError: (code: string, message: string) => void;
   clearError: () => void;
   setBubble: (playerId: string, text: string) => void;
@@ -69,6 +71,7 @@ export const useGameStore = create<GameStore>((set) => ({
   rewards: null,
   rewardToast: null,
   lastSpin: null,
+  leaderboard: null,
 
   setConnected: (connected) => set({ connected }),
   setRoomClosed: (roomClosed) => set({ roomClosed }),
@@ -81,6 +84,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setRewards: (rewards) => set({ rewards }),
   setRewardToast: (rewardToast) => set({ rewardToast }),
   setLastSpin: (lastSpin) => set({ lastSpin }),
+  setLeaderboard: (leaderboard) => set({ leaderboard }),
   setError: (code, message) => set({ error: { code, message } }),
   clearError: () => set({ error: null }),
   setBubble: (playerId, text) => {

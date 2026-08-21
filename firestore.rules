@@ -1,0 +1,38 @@
+rules_version = '2';
+
+// ─── Bid Club V3 — Firestore security rules ──────────────────────────────────
+//
+// Every balance/stat/reservation MUTATION is performed by the game server through
+// the firebase-admin SDK, which runs with full privileges and BYPASSES these rules
+// entirely. These rules therefore only constrain *direct client* access (a browser
+// talking to Firestore itself), which in this app is read-only and self-scoped:
+//
+//   • users/{uid}       — a signed-in client may READ ONLY its own account doc.
+//                         NO client writes: coins, gems, weekly wins and lifetime
+//                         stats are server-authoritative (admin writes bypass rules).
+//   • reservations/{id} — the Coin Rush buy-in ledger is server-only: clients can
+//                         neither read nor write it.
+//   • everything else   — denied by default.
+//
+// Deploy:  firebase deploy --only firestore:rules
+//
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // A user may read only their own account document; no client writes ever.
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Coin Rush reservation ledger — server-only (firebase-admin bypasses these rules).
+    match /reservations/{gameId} {
+      allow read, write: if false;
+    }
+
+    // Deny anything not matched above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

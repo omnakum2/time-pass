@@ -1,5 +1,5 @@
-import type { UserAccount, DailyReward, SpinPrize } from 'shared';
-import { claimDaily as computeClaim, spinCost, drawSpin } from 'shared';
+import type { UserAccount, DailyReward, SpinPrize, LeaderboardEntry } from 'shared';
+import { claimDaily as computeClaim, spinCost, drawSpin, coinsForGems, isValidGemAmount, LEADERBOARD_SIZE } from 'shared';
 
 // Seed wallet granted to a brand-new account on first sign-in.
 export const SEED_COINS = 1000, SEED_GEMS = 0;
@@ -10,6 +10,10 @@ export const SEED_COINS = 1000, SEED_GEMS = 0;
 type UserDoc = UserAccount & {
   login?: { lastClaimDate: string | null; streak: number };
   spin?: { dayKey: string | null; usedToday: number };
+  // V3 Phase 5: weekly leaderboard driver + lifetime stats. `weekly.wins` resets to
+  // 1 on the first win of a new ISO week (see settleGame); `stats` accumulates forever.
+  weekly?: { key: string; wins: number };
+  stats?: { games?: number; wins?: number; jackpots?: number };
 };
 
 // ─── Coin Rush reservation doc shape (internal) ──────────────────────────────
@@ -28,6 +32,17 @@ type ReservationDoc = {
   status: 'open' | 'settled' | 'refunded';
   players: Record<string, ReservationPlayer>;
 };
+
+// ─── Weekly leaderboard cache (module-level) ─────────────────────────────────
+// Cached top rows per weekKey for ~60s. Rows carry an internal `uid` (never sent to
+// clients) so each request can stamp `isYou` / resolve `you` without a fresh read.
+type LeaderboardRow = LeaderboardEntry & { uid: string };
+const LEADERBOARD_CACHE_TTL_MS = 60_000;
+const leaderboardCache = new Map<string, { at: number; rows: LeaderboardRow[] }>();
+function getCachedLeaderboardRows(weekKey: string): LeaderboardRow[] | null {
+  const c = leaderboardCache.get(weekKey);
+  return c && Date.now() - c.at < LEADERBOARD_CACHE_TTL_MS ? c.rows : null;
+}
 
 // Return shapes for the reward operations (shared by the interface + class).
 export interface RewardsStatus {
@@ -78,12 +93,24 @@ export interface Identity {
   getRewardsStatus(uid: string, today: string): Promise<RewardsStatus>;
   claimDaily(uid: string, today: string): Promise<DailyClaimResult>;
   spin(uid: string, today: string, rand: number): Promise<SpinResult>;
+  // ─── Gems + weekly leaderboard (V3 Phase 5) ─────────────────────────────────
+  // One-way conversion Gems → Coins in a single idempotent-per-call txn (amount-guarded).
+  convertGems(uid: string, gems: number): Promise<UserAccount>;
+  // Weekly leaderboard for `weekKey` (top LEADERBOARD_SIZE by wins→coins). `you` is the
+  // requester's own row (even outside the top set); null when anonymous / no wins this week.
+  getLeaderboard(weekKey: string, requesterUid: string | null): Promise<{ week: string; entries: LeaderboardEntry[]; you: LeaderboardEntry | null }>;
   // ─── Coin Rush buy-in ledger (V3) — every method is an idempotent txn ───────
   // Debit one seat's buy-in (betAmount+fee) into reservations/{gameId}; the fee is
   // burned (never credited back except on a true refund). Idempotent per uid.
   debitBuyIn(gameId: string, uid: string, betAmount: number, fee: number): Promise<UserAccount>;
-  // Credit each uid its payout coins and mark the reservation settled (idempotent).
-  settleGame(gameId: string, payouts: Record<string, number>): Promise<Record<string, UserAccount>>;
+  // Credit each uid its payout coins and mark the reservation settled (idempotent). Folds
+  // in weekly/stats bookkeeping (games/wins/jackpots) in the SAME per-user writes, so it
+  // stays a single write per player and runs exactly once (open→settled).
+  settleGame(
+    gameId: string,
+    payouts: Record<string, number>,
+    outcome: { weekKey: string; winnerUids: string[]; jackpotUids: string[] },
+  ): Promise<Record<string, UserAccount>>;
   // Return betAmount+fee to every reserved player and mark refunded (idempotent).
   refundGame(gameId: string): Promise<Record<string, UserAccount>>;
   // Sweep: refund any still-'open' reservation older than maxAgeMs (crash safety).
@@ -262,9 +289,18 @@ class FirebaseIdentity implements Identity {
     });
   }
 
-  async settleGame(gameId: string, payouts: Record<string, number>): Promise<Record<string, UserAccount>> {
+  async settleGame(
+    gameId: string,
+    payouts: Record<string, number>,
+    outcome: { weekKey: string; winnerUids: string[]; jackpotUids: string[] },
+  ): Promise<Record<string, UserAccount>> {
     const db = this.admin.firestore();
     const resRef = db.collection('reservations').doc(gameId);
+    // Winners are distinct (one seat per uid); jackpots can repeat if a uid scooped in
+    // several rounds, so count occurrences and bump stats.jackpots by that many.
+    const winnerSet = new Set(outcome.winnerUids);
+    const jackpotCounts: Record<string, number> = {};
+    for (const u of outcome.jackpotUids) jackpotCounts[u] = (jackpotCounts[u] ?? 0) + 1;
     return db.runTransaction(async (tx: any) => {
       const resSnap = await tx.get(resRef);
       if (!resSnap.exists) return {};
@@ -282,6 +318,7 @@ class FirebaseIdentity implements Identity {
       // Only an 'open' reservation settles. Already 'settled' → idempotent no-op;
       // already 'refunded' → a concurrent abort won the race, so pay nothing on top
       // (the reservation's Firestore status is the authoritative single-winner lock).
+      // The status guard also makes the weekly/stats bumps below fire exactly once.
       if (res.status !== 'open') {
         uids.forEach((_, i) => { out[uids[i]] = walletOf(i, (userSnaps[i].data()?.coins ?? 0)); });
         return out;
@@ -289,16 +326,143 @@ class FirebaseIdentity implements Identity {
 
       const resUpdate: Record<string, any> = { status: 'settled' };
       uids.forEach((u, i) => {
-        const coins = userSnaps[i].data()?.coins ?? 0;
+        const data = (userSnaps[i].exists ? userSnaps[i].data() : {}) as UserDoc;
+        const coins = data.coins ?? 0;
         const won = payouts[u] ?? 0;
         const newCoins = coins + won;
-        if (won !== 0) tx.update(userRefs[i], { coins: newCoins });
+
+        // One write per player, folding coins + stats/weekly together (no extra game write).
+        const stats = data.stats ?? {};
+        const userUpdate: Record<string, any> = { 'stats.games': (stats.games ?? 0) + 1 };
+        if (won !== 0) userUpdate.coins = newCoins;
+        if (winnerSet.has(u)) {
+          // Week rollover: reset weekly.wins to 1 when the stored week differs; else +1.
+          const sameWeek = data.weekly?.key === outcome.weekKey;
+          userUpdate['weekly.key'] = outcome.weekKey;
+          userUpdate['weekly.wins'] = sameWeek ? (data.weekly?.wins ?? 0) + 1 : 1;
+          userUpdate['stats.wins'] = (stats.wins ?? 0) + 1;
+        }
+        const jp = jackpotCounts[u] ?? 0;
+        if (jp > 0) userUpdate['stats.jackpots'] = (stats.jackpots ?? 0) + jp;
+
+        tx.update(userRefs[i], userUpdate);
         resUpdate[`players.${u}.payout`] = won;
         out[u] = walletOf(i, newCoins);
       });
       tx.update(resRef, resUpdate);
       return out;
     });
+  }
+
+  // ─── Gems → Coins conversion (one-way; V3 Phase 5) ──────────────────────────
+  async convertGems(uid: string, gems: number): Promise<UserAccount> {
+    const db = this.admin.firestore();
+    const ref = db.collection('users').doc(uid);
+    return db.runTransaction(async (tx: any) => {
+      const snap = await tx.get(ref);
+      const data = (snap.exists ? snap.data() : {}) as UserDoc;
+      const currentGems = data.gems ?? 0;
+      if (!isValidGemAmount(gems, currentGems)) {
+        // Distinguish "not enough gems" (a well-formed but over-balance ask) from a
+        // malformed amount, so the client can show the right message.
+        throw new Error(
+          Number.isInteger(gems) && gems >= 1 && gems > currentGems ? 'INSUFFICIENT_GEMS' : 'INVALID_AMOUNT',
+        );
+      }
+      const newGems = currentGems - gems;
+      const newCoins = (data.coins ?? 0) + coinsForGems(gems);
+      tx.update(ref, { gems: newGems, coins: newCoins });
+      return { uid, displayName: data.displayName, coins: newCoins, gems: newGems };
+    });
+  }
+
+  // ─── Weekly leaderboard (V3 Phase 5) ────────────────────────────────────────
+  async getLeaderboard(
+    weekKey: string,
+    requesterUid: string | null,
+  ): Promise<{ week: string; entries: LeaderboardEntry[]; you: LeaderboardEntry | null }> {
+    const db = this.admin.firestore();
+
+    // Top rows are cached per-week (~60s): the leaderboard is the main Firestore read
+    // consumer, so we keep it cheap. Cached rows carry an internal uid for `isYou`/`you`.
+    let rows = getCachedLeaderboardRows(weekKey);
+    if (!rows) {
+      rows = await this.computeLeaderboardRows(db, weekKey);
+      leaderboardCache.set(weekKey, { at: Date.now(), rows });
+    }
+
+    // Per-request projection: stamp `isYou`, drop the internal uid.
+    const entries: LeaderboardEntry[] = rows.map(r => ({
+      rank: r.rank, displayName: r.displayName, wins: r.wins, coins: r.coins,
+      isYou: requesterUid != null && r.uid === requesterUid,
+    }));
+
+    // `you`: reuse the top-set row if present; otherwise read the requester's doc.
+    let you: LeaderboardEntry | null = null;
+    if (requesterUid != null) {
+      const mine = rows.find(r => r.uid === requesterUid);
+      you = mine
+        ? { rank: mine.rank, displayName: mine.displayName, wins: mine.wins, coins: mine.coins, isYou: true }
+        : await this.computeYouRow(db, weekKey, requesterUid);
+    }
+
+    return { week: weekKey, entries, you };
+  }
+
+  // Read + rank the week's top rows (resilient to a missing composite index).
+  private async computeLeaderboardRows(db: any, weekKey: string): Promise<LeaderboardRow[]> {
+    let docs: any[];
+    try {
+      const snap = await db.collection('users')
+        .where('weekly.key', '==', weekKey)
+        .orderBy('weekly.wins', 'desc')
+        .limit(LEADERBOARD_SIZE)
+        .get();
+      docs = snap.docs ?? [];
+    } catch {
+      // Missing composite index → fall back to the equality-only query, sort in memory
+      // (same resilience pattern as refundStuckReservations).
+      const snap = await db.collection('users').where('weekly.key', '==', weekKey).get();
+      docs = snap.docs ?? [];
+    }
+    const ranked = docs.map((d: any) => {
+      const data = d.data() as UserDoc;
+      return {
+        uid: (data.uid ?? d.id) as string,
+        displayName: data.displayName ?? '',
+        wins: data.weekly?.wins ?? 0,
+        coins: data.coins ?? 0,
+      };
+    });
+    // Wins DESC, then coins DESC (the coins tiebreak isn't in the Firestore orderBy).
+    ranked.sort((a: any, b: any) => (b.wins - a.wins) || (b.coins - a.coins));
+    return ranked.slice(0, LEADERBOARD_SIZE).map((r: any, i: number): LeaderboardRow => ({
+      uid: r.uid, rank: i + 1, displayName: r.displayName, wins: r.wins, coins: r.coins, isYou: false,
+    }));
+  }
+
+  // Build the requester's own row when they're outside the top set. Rank via a count()
+  // aggregation of everyone ahead this week (+1); rank 0 if the aggregation is unavailable.
+  private async computeYouRow(db: any, weekKey: string, uid: string): Promise<LeaderboardEntry | null> {
+    const snap = await db.collection('users').doc(uid).get();
+    if (!snap.exists) return null;
+    const data = snap.data() as UserDoc;
+    if (data.weekly?.key !== weekKey) return null; // no wins this week → not on the board
+    const wins = data.weekly?.wins ?? 0;
+    const coins = data.coins ?? 0;
+    let rank = 0; // 0 = "rank unknown" sentinel (see fallback below)
+    try {
+      const agg = await db.collection('users')
+        .where('weekly.key', '==', weekKey)
+        .where('weekly.wins', '>', wins)
+        .count()
+        .get();
+      const ahead = agg.data().count;
+      if (typeof ahead === 'number') rank = ahead + 1;
+    } catch {
+      rank = 0; // count aggregation / index unavailable → best-effort unknown rank
+    }
+    return { rank, displayName: data.displayName ?? '', wins, coins, isYou: true };
   }
 
   async refundGame(gameId: string): Promise<Record<string, UserAccount>> {
@@ -362,4 +526,24 @@ let identity: Identity | null = null;
 export function getIdentity(): Identity {
   if (!identity) identity = new FirebaseIdentity();
   return identity;
+}
+
+// Current IST (UTC+5:30) ISO-8601 week key 'YYYY-Www' (zero-padded week). ISO weeks
+// start Monday; week 1 is the week containing the year's first Thursday (i.e. Jan 4).
+// Lives here (next to the identity that consumes it) so both room.ts and index.ts can
+// import it without importing from index.ts (which would be circular). Mirrors istToday's
+// shift-then-read-UTC-fields trick for the IST offset.
+export function istWeekKey(): string {
+  const ist = new Date(Date.now() + 5.5 * 3600 * 1000);
+  // Work on a UTC-midnight copy of the IST calendar date.
+  const d = new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()));
+  // ISO weekday Mon=0 … Sun=6; step to this week's Thursday (which fixes the ISO year).
+  const dayNum = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - dayNum + 3);
+  const isoYear = d.getUTCFullYear();
+  // Thursday of ISO week 1 is the Thursday in the week containing Jan 4.
+  const firstThursday = new Date(Date.UTC(isoYear, 0, 4));
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - ((firstThursday.getUTCDay() + 6) % 7) + 3);
+  const week = 1 + Math.round((d.getTime() - firstThursday.getTime()) / (7 * 24 * 3600 * 1000));
+  return `${isoYear}-W${String(week).padStart(2, '0')}`;
 }
