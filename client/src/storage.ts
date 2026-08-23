@@ -12,12 +12,15 @@ export const storage = {
   setPlayer(p: StoredPlayer): void {
     localStorage.setItem(STORAGE_KEYS.player, JSON.stringify(p));
   },
+  // Session token is TAB-SCOPED (sessionStorage): it survives a same-tab refresh
+  // so a reload can rejoin the seat, but it is gone once the tab is closed — so a
+  // stale room can never trap the browser across sessions (no incognito needed).
   getSession(): StoredSession | null {
     try {
-      const s = JSON.parse(localStorage.getItem(STORAGE_KEYS.session) ?? 'null') as StoredSession | null;
+      const s = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.session) ?? 'null') as StoredSession | null;
       if (!s) return null;
       if (s.v !== SESSION_VERSION || typeof s.savedAt !== 'number' || Date.now() - s.savedAt > SESSION_TTL_MS) {
-        localStorage.removeItem(STORAGE_KEYS.session);
+        sessionStorage.removeItem(STORAGE_KEYS.session);
         return null;
       }
       return s;
@@ -25,9 +28,10 @@ export const storage = {
   },
   setSession(s: { roomId: string; token: string; playerId: string }): void {
     const full: StoredSession = { ...s, savedAt: Date.now(), v: SESSION_VERSION };
-    localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(full));
+    sessionStorage.setItem(STORAGE_KEYS.session, JSON.stringify(full));
   },
   clearSession(): void {
-    localStorage.removeItem(STORAGE_KEYS.session);
+    sessionStorage.removeItem(STORAGE_KEYS.session);
+    localStorage.removeItem(STORAGE_KEYS.session); // purge any legacy token from the old localStorage-based build
   },
 };

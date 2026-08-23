@@ -8,7 +8,7 @@ import {
 } from 'shared';
 import {
   BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS,
-  GAME_OVER_TTL_MS, COUNTDOWN_MS, DISCONNECTED_AUTO_MOVE_MS, TRICK_DISPLAY_MS, ROUND_END_DELAY_MS,
+  GAME_OVER_TTL_MS, COUNTDOWN_MS, NPC_AUTO_MOVE_MS, TRICK_DISPLAY_MS, ROUND_END_DELAY_MS,
   LOBBY_RECONNECT_WINDOW_MS, QUICK_MSG_THROTTLE_MS, ANNOUNCE_MS, PUSH_TIMEOUT_MS,
 } from './constants';
 import { sendMessage, clampPlayers } from './helpers';
@@ -233,7 +233,7 @@ export class Room {
     } else if (immediate &&
                this.currentTurnPlayerId() === playerId &&
                (this.phase === 'BIDDING' || this.phase === 'PLAYING' || this.phase === 'TRUMP_SELECT')) {
-      this.turnExpiresAt = Date.now() + DISCONNECTED_AUTO_MOVE_MS;
+      this.turnExpiresAt = Date.now() + NPC_AUTO_MOVE_MS;
       this.armTurnTimer();
     }
 
@@ -730,7 +730,7 @@ export class Room {
     const currentSeat = this.seats[this.currentTurnSeatIndex];
     const offline = currentSeat?.player.status === 'offline';
     const duration = offline
-      ? DISCONNECTED_AUTO_MOVE_MS
+      ? NPC_AUTO_MOVE_MS
       : ((this.phase === 'BIDDING' || this.phase === 'TRUMP_SELECT') ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS);
     this.turnExpiresAt = Date.now() + duration;
     this.armTurnTimer();
