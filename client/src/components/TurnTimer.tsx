@@ -7,10 +7,11 @@ interface Props {
   fullMs: number;
   startKey: string;
   running?: boolean;
+  expiresAt?: number | null;
 }
 
-export function TurnBorder({ remainingMs, fullMs, startKey, running = true }: Props) {
-  const { fraction } = useCountdown(remainingMs, fullMs, startKey, running);
+export function TurnBorder({ remainingMs, fullMs, startKey, running = true, expiresAt }: Props) {
+  const { fraction } = useCountdown(remainingMs, fullMs, startKey, running, expiresAt);
 
   const remaining = Math.max(0, (1 - fraction) * 100); // percent of ring remaining
   const color = timerColor(fraction);

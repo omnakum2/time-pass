@@ -1,3 +1,5 @@
+import { RummyClientMessage, RummyServerMessage } from './rummy/types';
+
 // ─── Suits & Cards ───────────────────────────────────────────────────────────
 
 export type Suit = 'D' | 'C' | 'H' | 'S'; // Diamonds, Clubs, Hearts, Spades
@@ -151,6 +153,7 @@ export interface MsgCreateRoom {
   name: string;
   maxPlayers?: number; // 2–7, defaults to 7
   mode?: GameMode; // defaults to 'classic'
+  game?: 'bid-club' | 'rummy'; // defaults to 'bid-club'
 }
 
 export interface MsgJoinRoom {
@@ -214,7 +217,8 @@ export type ClientMessage =
   | MsgLeaveRoom
   | MsgQuickMessage
   | MsgSelectTrump
-  | MsgPushBid;
+  | MsgPushBid
+  | RummyClientMessage;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 
@@ -266,7 +270,10 @@ export type ErrorCode =
   | 'INVALID_BID'
   | 'CARD_NOT_IN_HAND'
   | 'ILLEGAL_CARD'
-  | 'INVALID_TRUMP';
+  | 'INVALID_TRUMP'
+  | 'INVALID_DRAW_SOURCE'
+  | 'INVALID_DISCARD'
+  | 'INVALID_DECLARE';
 
 export interface MsgError {
   type: 'error';
@@ -291,7 +298,8 @@ export type ServerMessage =
   | MsgGameOver
   | MsgError
   | MsgRoomClosed
-  | MsgQuickMessageBroadcast;
+  | MsgQuickMessageBroadcast
+  | RummyServerMessage;
 
 // ─── Quick chat messages (predefined, tap-to-send) ──────────────────────────
 

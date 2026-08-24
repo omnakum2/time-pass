@@ -22,6 +22,7 @@ export const DRAIN_MAX_MS = 60_000;              // max wait for active rooms to
 export const QUICK_MSG_THROTTLE_MS = 1_500;      // min gap between a seat's quick-chat messages
 export const ANNOUNCE_MS = 4_000;                // how long a round-start announcement banner holds before play
 export const PUSH_TIMEOUT_MS = 20_000;           // Blind Bid: time to lock/push before auto-lock
+export const RUMMY_TURN_TIMEOUT_MS = 60_000;     // Rummy: time to draw + discard (or declare) before auto-play
 
 // ─── 2. Error messages ───────────────────────────────────────────────────────
 export const ERROR_MESSAGES: Record<ErrorCode, string> = {
@@ -41,4 +42,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   CARD_NOT_IN_HAND: "You don't have that card.",
   ILLEGAL_CARD: 'You must follow the lead suit if you can.',
   INVALID_TRUMP: 'That trump choice is not allowed.',
+  INVALID_DRAW_SOURCE: 'You cannot draw from there right now.',
+  INVALID_DISCARD: "You can't immediately discard the card you just picked up.",
+  INVALID_DECLARE: 'Your hand does not form a valid declare.',
 };

@@ -1,11 +1,15 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useGameStore } from './store/gameStore';
+import { useRummyStore } from './store/rummyStore';
 import { Header } from './components/Header';
 import { GameSelectionPage } from './pages/GameSelectionPage';
 import { HomePage } from './pages/HomePage';
 import { LobbyPage } from './pages/LobbyPage';
 import { GamePage } from './pages/GamePage';
+import { RummyHomePage } from './pages/RummyHomePage';
+import { RummyLobbyPage } from './pages/RummyLobbyPage';
+import { RummyGamePage } from './pages/RummyGamePage';
 const GuidePage = lazy(() => import('./pages/GuidePage').then(m => ({ default: m.GuidePage })));
 const WinnerPage = lazy(() => import('./pages/WinnerPage').then(m => ({ default: m.WinnerPage })));
 import { ErrorToast } from './components/ErrorToast';
@@ -26,6 +30,8 @@ export default function App() {
             <Route path="/guide" element={<GuidePage />} />
             <Route path="/bid-club/room/:roomId" element={<RoomRouter phase={phase} hasGameOver={!!gameOver} />} />
             <Route path="/room/:roomId" element={<RoomRouter phase={phase} hasGameOver={!!gameOver} />} />
+            <Route path="/rummy" element={<RummyHomePage />} />
+            <Route path="/rummy/room/:roomId" element={<RummyRoomRouter />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
@@ -38,4 +44,10 @@ function RoomRouter({ phase, hasGameOver }: { phase: string | undefined; hasGame
   if (hasGameOver) return <WinnerPage />;
   if (!phase || phase === 'LOBBY') return <LobbyPage />;
   return <GamePage />;
+}
+
+function RummyRoomRouter() {
+  const phase = useRummyStore(s => s.gameState?.phase);
+  if (!phase || phase === 'LOBBY') return <RummyLobbyPage />;
+  return <RummyGamePage />;
 }

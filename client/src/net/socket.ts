@@ -1,5 +1,6 @@
 import { ClientMessage, ServerMessage } from 'shared';
 import { useGameStore } from '../store/gameStore';
+import { useRummyStore } from '../store/rummyStore';
 import { storage } from '../storage';
 import { WS_DEFAULT_PORT, RECONNECT_BASE_MS, RECONNECT_MAX_MS, RECONNECT_EXP_CAP } from '../constants';
 
@@ -95,6 +96,12 @@ function dispatch(msg: ServerMessage): void {
       break;
     case 'gameOver':
       store.setGameOver(msg);
+      break;
+    case 'rummyState':
+      useRummyStore.getState().setState(msg.state);
+      break;
+    case 'rummyGameOver':
+      useRummyStore.getState().setGameOver(msg);
       break;
     case 'roomClosed':
       storage.clearSession();

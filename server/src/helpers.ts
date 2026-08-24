@@ -65,6 +65,12 @@ export function validateMessage(msg: ClientMessage): ErrorCode | null {
       return typeof msg.push === 'boolean' ? null : 'BAD_MESSAGE';
     case 'quickMessage':
       return typeof msg.id === 'string' ? null : 'BAD_MESSAGE';
+    case 'drawCard':
+      return msg.source === 'pile' || msg.source === 'discard' ? null : 'BAD_MESSAGE';
+    case 'discardCard':
+      return typeof msg.cardId === 'string' ? null : 'BAD_MESSAGE';
+    case 'declare':
+      return typeof msg.cardIdToDiscard === 'string' && msg.groups && typeof msg.groups === 'object' ? null : 'BAD_MESSAGE';
     case 'startGame':
     case 'restartGame':
     case 'leaveRoom':

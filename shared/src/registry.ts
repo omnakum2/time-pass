@@ -24,7 +24,7 @@ export const GAMES: GameInfo[] = [
     description: 'Form melds, minimize points & go out first',
     players: '2–6 Players',
     route: '/rummy',
-    status: 'coming-soon',
+    status: 'active',
     icon: 'rummy',
   },
   {

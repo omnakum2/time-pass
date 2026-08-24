@@ -3,7 +3,7 @@ dotenv.config(); // load .env into process.env before anything reads it
 
 import { createServer, IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { Room } from './room';
+import { BidClubRoom, RummyRoom } from './room';
 import { ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES } from 'shared';
 import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS } from './constants';
 import { sendMessage, sendError, sanitizeName, clampPlayers, validateMessage, randomRoomCode } from './helpers';
@@ -25,6 +25,7 @@ function clientIp(req: IncomingMessage): string {
   return req.socket.remoteAddress ?? 'unknown';
 }
 
+type Room = BidClubRoom | RummyRoom;
 const rooms = new Map<string, Room>();
 let draining = false; // during shutdown drain: reject new rooms, let existing ones finish
 
@@ -129,8 +130,9 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       if (!name) { sendError(ws, 'INVALID_NAME'); return; }
       const roomId = generateRoomId();
       const maxPlayers = clampPlayers(typeof msg.maxPlayers === 'number' ? msg.maxPlayers : MAX_PLAYERS);
-      const mode: GameMode = GAME_MODES.some(m => m.id === msg.mode) ? (msg.mode as GameMode) : 'classic';
-      const room = new Room(roomId, maxPlayers, mode);
+      const room: Room = msg.game === 'rummy'
+        ? new RummyRoom(roomId, maxPlayers)
+        : new BidClubRoom(roomId, maxPlayers, GAME_MODES.some(m => m.id === msg.mode) ? (msg.mode as GameMode) : 'classic');
       room.onDestroy = () => { rooms.delete(roomId); };
       rooms.set(roomId, room);
 
@@ -183,7 +185,7 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
 
     case 'placeBid': {
       const r = getRoom(ws);
-      if (!r) return;
+      if (!r || !(r.room instanceof BidClubRoom)) return;
       const err = r.room.placeBid(r.playerId, msg.bid);
       if (err) sendError(ws, err);
       break;
@@ -191,7 +193,7 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
 
     case 'selectTrump': {
       const r = getRoom(ws);
-      if (!r) return;
+      if (!r || !(r.room instanceof BidClubRoom)) return;
       const err = r.room.selectTrump(r.playerId, msg.kind, msg.suit);
       if (err) sendError(ws, err);
       break;
@@ -199,7 +201,7 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
 
     case 'playCard': {
       const r = getRoom(ws);
-      if (!r) return;
+      if (!r || !(r.room instanceof BidClubRoom)) return;
       const err = r.room.playCard(r.playerId, msg.cardId);
       if (err) sendError(ws, err);
       break;
@@ -207,7 +209,7 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
 
     case 'pushBid': {
       const r = getRoom(ws);
-      if (!r) return;
+      if (!r || !(r.room instanceof BidClubRoom)) return;
       const err = r.room.pushBid(r.playerId, msg.push);
       if (err) sendError(ws, err);
       break;
@@ -217,6 +219,30 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       const r = getRoom(ws);
       if (!r) return;
       const err = r.room.restartGame(r.playerId);
+      if (err) sendError(ws, err);
+      break;
+    }
+
+    case 'drawCard': {
+      const r = getRoom(ws);
+      if (!r || !(r.room instanceof RummyRoom)) return;
+      const err = r.room.drawCard(r.playerId, msg.source);
+      if (err) sendError(ws, err);
+      break;
+    }
+
+    case 'discardCard': {
+      const r = getRoom(ws);
+      if (!r || !(r.room instanceof RummyRoom)) return;
+      const err = r.room.discardCard(r.playerId, msg.cardId);
+      if (err) sendError(ws, err);
+      break;
+    }
+
+    case 'declare': {
+      const r = getRoom(ws);
+      if (!r || !(r.room instanceof RummyRoom)) return;
+      const err = r.room.declare(r.playerId, msg.cardIdToDiscard, msg.groups);
       if (err) sendError(ws, err);
       break;
     }

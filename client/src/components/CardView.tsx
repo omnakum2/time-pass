@@ -8,10 +8,14 @@ interface Props {
   played?: boolean;
   onClick?: () => void;
   layoutId?: string;
+  // Set when this card sits inside a parent that animates its own position/size
+  // (e.g. a Reorder.Item) — keeps this card's face from stretching during that
+  // parent's layout transition.
+  layout?: boolean;
   style?: React.CSSProperties;
 }
 
-export function CardView({ card, disabled, selected, played, onClick, layoutId, style }: Props) {
+export function CardView({ card, disabled, selected, played, onClick, layoutId, layout, style }: Props) {
   const isRed = isRedSuit(card.suit);
   const cls = [
     'card',
@@ -24,6 +28,7 @@ export function CardView({ card, disabled, selected, played, onClick, layoutId, 
   return (
     <motion.div
       className={cls}
+      layout={layout}
       layoutId={layoutId}
       onClick={disabled ? undefined : onClick}
       style={style}

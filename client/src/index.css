@@ -90,6 +90,7 @@ body {
 /* ─── Utility ─────────────────────────────────────────────────────────────── */
 .flex-center { display: flex; align-items: center; justify-content: center; }
 .flex-col    { display: flex; flex-direction: column; }
+.flex-row    { display: flex; flex-direction: row; flex-wrap: wrap; }
 .gap-sm      { gap: 8px; }
 .gap-md      { gap: 16px; }
 .gap-lg      { gap: 24px; }
@@ -670,10 +671,17 @@ body {
 /* ─── Hand ────────────────────────────────────────────────────────────────── */
 .hand-area { display: flex; justify-content: center; align-items: flex-end; flex-shrink: 0; padding: 6px 0 4px; position: relative; }
 .hand-cards { display: flex; justify-content: center; align-items: flex-end; }
-.hand-cards .card { margin-left: -16px; transition: transform 0.15s, box-shadow 0.15s, margin 0.15s, z-index 0s; }
-.hand-cards .card:first-child { margin-left: 0; }
-.hand-cards .card:hover:not(.card--disabled) { margin-left: -6px; z-index: 5; }
-.hand-cards .card--selected { z-index: 6; }
+/* .hand-card-slot wraps each card so it can be dragged to reorder (Reorder.Item);
+   the fan/overlap effect lives on the wrapper, not the card, since every card is
+   the sole child of its own wrapper (:first-child alone can't tell them apart).
+   NB: no `transition: transform` here — Reorder.Item already drives this same
+   element's transform via framer-motion's own layout animation every frame; a
+   competing CSS transition on the same property makes the drag lag/rubber-band. */
+.hand-card-slot { margin-left: -16px; transition: margin 0.15s, z-index 0s; cursor: grab; }
+.hand-card-slot:active { cursor: grabbing; }
+.hand-card-slot:first-child { margin-left: 0; }
+.hand-card-slot:hover { margin-left: -6px; z-index: 5; }
+.hand-card-slot:has(.card--selected) { z-index: 6; }
 
 /* ─── My strip ────────────────────────────────────────────────────────────── */
 .my-strip {
@@ -904,4 +912,46 @@ body {
 
   /* Even smaller played cards so all 7 fit on the narrowest phones */
   .trick-card-slot .card { width: 42px; height: 61px; }
+}
+
+/* ─── Rummy meld zones ────────────────────────────────────────────────────── */
+.meld-zone {
+  border: 2px dashed var(--gold-border);
+  border-radius: var(--radius);
+  padding: 8px;
+  min-width: calc(var(--card-w) * 2.2);
+  background: rgba(0,0,0,0.15);
+}
+.meld-zone--valid { border-color: var(--success); border-style: solid; }
+.meld-zone--invalid { border-color: var(--danger); }
+/* While a hand card is being dragged, pulse every zone so it's clear they're
+   drop targets — the dragged card itself stays visually on the hand row
+   (Reorder.Item locks it to the x axis), so this is the drop-target cue. */
+.meld-zones-row--drop-target .meld-zone {
+  border-color: var(--gold);
+  animation: meld-zone-pulse 1s ease-in-out infinite;
+}
+@keyframes meld-zone-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--gold-rgb), 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(var(--gold-rgb), 0); }
+}
+.meld-zone__label {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--cream-muted);
+  font-size: 0.8rem;
+  text-align: left;
+  padding: 2px 4px 6px;
+  cursor: pointer;
+}
+.meld-zone__cards { display: flex; gap: 4px; flex-wrap: wrap; min-height: var(--card-h); }
+.meld-zone__slot {
+  width: var(--card-w);
+  height: var(--card-h);
+  border: 1px dashed var(--gold-border);
+  border-radius: var(--radius);
+  background: rgba(255,255,255,0.03);
+  cursor: pointer;
 }
