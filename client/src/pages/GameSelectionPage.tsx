@@ -14,17 +14,11 @@ interface MiniCardData {
 interface GameCardConfig {
   cards: MiniCardData[];
   fanClass: string;
-  bgClass: string;
-  ribbonClass: string;
-  gemClass: string;
 }
 
 const GAME_CARDS: Record<string, GameCardConfig> = {
   'bid-club': {
     fanClass: 'fan-5',
-    bgClass: 'medallion__inner--wine',
-    ribbonClass: 'medallion__title-banner--wine',
-    gemClass: 'medallion__gemstone--ruby',
     cards: [
       { rank: 'A', suit: '♥', color: 'red' },
       { rank: 'K', suit: '♥', color: 'red' },
@@ -35,9 +29,6 @@ const GAME_CARDS: Record<string, GameCardConfig> = {
   },
   rummy: {
     fanClass: 'fan-5',
-    bgClass: 'medallion__inner--green',
-    ribbonClass: 'medallion__title-banner--green',
-    gemClass: 'medallion__gemstone--emerald',
     cards: [
       { rank: 'A', suit: '♠', color: 'black' },
       { rank: 'K', suit: '♠', color: 'black' },
@@ -46,11 +37,8 @@ const GAME_CARDS: Record<string, GameCardConfig> = {
       { rank: 'A', suit: '♦', color: 'red' },
     ],
   },
-  mindi: {
+  thoso: {
     fanClass: 'fan-4',
-    bgClass: 'medallion__inner--blue',
-    ribbonClass: 'medallion__title-banner--blue',
-    gemClass: 'medallion__gemstone--sapphire',
     cards: [
       { rank: 'A', suit: '♣', color: 'black' },
       { rank: 'K', suit: '♣', color: 'black' },
@@ -103,6 +91,8 @@ export function GameSelectionPage() {
               <div
                 key={game.id}
                 className="medallion"
+                data-game={game.id}
+                data-status={game.status}
                 onClick={() => handleCardClick(game)}
                 role="button"
                 tabIndex={0}
@@ -118,7 +108,7 @@ export function GameSelectionPage() {
                   {/* Metallic Ring Shine Element (contained strictly within circular gold ring) */}
                   <div className="medallion__ring-shine" />
 
-                  <div className={`medallion__inner ${cardData.bgClass}`}>
+                  <div className="medallion__inner">
                     {/* Fanned Mini Playing Cards */}
                     <div className={`medallion__cards ${cardData.fanClass}`}>
                       {cardData.cards.map((card, i) => (
@@ -128,14 +118,14 @@ export function GameSelectionPage() {
                   </div>
 
                   {/* Bottom Gemstone Clasp */}
-                  <div className={`medallion__gemstone ${cardData.gemClass}`} />
+                  <div className="medallion__gemstone" />
                 </div>
 
                 {/* 2. Overlapping Notched Ribbon Title + Connected Player Count Chip */}
                 <div className="medallion__ribbon-stack">
                   {/* Overlapping Angled Notched Title Banner Ribbon with crisp gold drop-shadow border */}
                   <div className="medallion__title-banner-wrapper">
-                    <div className={`medallion__title-banner ${cardData.ribbonClass}`}>
+                    <div className="medallion__title-banner">
                       <h2 className="medallion__title-text">{game.name}</h2>
                     </div>
                   </div>

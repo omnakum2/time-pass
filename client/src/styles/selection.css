@@ -8,9 +8,10 @@
   align-items: center;
   justify-content: center;
   padding: 40px 20px 60px;
+  /* Neutral warm-charcoal ground + subtle GOLD glow so every game colour pops */
   background:
-    radial-gradient(ellipse at 50% 35%, rgba(110, 30, 45, 0.4) 0%, transparent 70%),
-    linear-gradient(180deg, #0E0508 0%, #1A0A10 50%, #10060B 100%);
+    radial-gradient(ellipse at 50% 32%, rgba(233, 184, 74, 0.07) 0%, transparent 68%),
+    linear-gradient(180deg, var(--lounge-ground) 0%, var(--lounge-surface) 48%, var(--lounge-ground) 100%);
   background-attachment: fixed;
   position: relative;
   overflow: hidden;
@@ -98,6 +99,19 @@
   user-select: none;
   padding-bottom: 10px;
   transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Gentle fade/rise entrance on load (see @keyframes medallion-enter).
+     fill-mode `backwards` keeps the pre-start hidden state but does NOT
+     retain the end transform, so :hover lift still works after it finishes. */
+  animation: medallion-enter 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.medallion:nth-child(1) { animation-delay: 0.05s; }
+.medallion:nth-child(2) { animation-delay: 0.12s; }
+.medallion:nth-child(3) { animation-delay: 0.19s; }
+
+@keyframes medallion-enter {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .medallion:hover {
@@ -108,6 +122,44 @@
   transform: translateY(-2px) scale(0.98);
 }
 
+/* ── Coming-soon (locked) medallions ─────────────────────────────────────── */
+/* Desaturate + dim the whole disc so the active game reads as the live one. */
+.medallion[data-status="coming-soon"] .medallion__ring {
+  filter: grayscale(0.45) brightness(0.72);
+}
+
+/* Not clickable-into → smaller, flatter hover lift. */
+.medallion[data-status="coming-soon"]:hover {
+  transform: translateY(-3px);
+}
+
+/* "COMING SOON" badge — gold-outlined pill over the lower part of the ring.
+   Attached to the (unfiltered) .medallion so its gold stays bright. */
+.medallion[data-status="coming-soon"]::after {
+  content: "COMING SOON";
+  position: absolute;
+  top: 138px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 4px 12px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--metal);
+  background: linear-gradient(180deg, rgba(21, 18, 15, 0.92) 0%, rgba(21, 18, 15, 0.82) 100%);
+  border: 1.5px solid var(--metal-deep);
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(233, 184, 74, 0.25);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .medallion { animation: none; }
+}
+
 /* ── Circular Gold Ring Frame ────────────────────────────────────────────── */
 .medallion__ring {
   position: relative;
@@ -116,8 +168,8 @@
   border-radius: 50%;
   background: conic-gradient(
     from 0deg,
-    #9E6F13 0deg, #F3CF7A 45deg, #FFF5D0 90deg, #F3CF7A 135deg,
-    #9E6F13 180deg, #F3CF7A 225deg, #FFF5D0 270deg, #F3CF7A 315deg, #9E6F13 360deg
+    var(--metal-deep) 0deg, var(--metal) 45deg, var(--metal) 90deg, var(--metal) 135deg,
+    var(--metal-deep) 180deg, var(--metal) 225deg, var(--metal) 270deg, var(--metal) 315deg, var(--metal-deep) 360deg
   );
   padding: 6px;
   box-shadow:
@@ -179,19 +231,8 @@
   align-items: center;
   justify-content: center;
   position: relative;
+  background: radial-gradient(circle at 45% 35%, var(--game-primary) 0%, var(--game-deep) 65%, var(--game-deep) 100%);
   box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.8);
-}
-
-.medallion__inner--wine {
-  background: radial-gradient(circle at 45% 35%, #5C1827 0%, #340A14 65%, #1D040A 100%);
-}
-
-.medallion__inner--green {
-  background: radial-gradient(circle at 45% 35%, #1B5831 0%, #0C361D 65%, #051F0F 100%);
-}
-
-.medallion__inner--blue {
-  background: radial-gradient(circle at 45% 35%, #183B61 0%, #0A223B 65%, #041221 100%);
 }
 
 /* ── Fanned Playing Cards Inside Medallion ───────────────────────────────── */
@@ -304,19 +345,10 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 2px solid #F3CF7A;
+  border: 2px solid var(--metal);
+  background: var(--game-gem);
   z-index: 10;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.7);
-}
-
-.medallion__gemstone--ruby {
-  background: radial-gradient(circle at 35% 35%, #FF5252 0%, #D32F2F 60%, #7B1FA2 100%);
-}
-.medallion__gemstone--emerald {
-  background: radial-gradient(circle at 35% 35%, #69F0AE 0%, #00C853 60%, #1B5E20 100%);
-}
-.medallion__gemstone--sapphire {
-  background: radial-gradient(circle at 35% 35%, #448AFF 0%, #2979FF 60%, #0D47A1 100%);
 }
 
 /* ── OVERLAPPING ANGLED NOTCHED TITLE RIBBON ─────────────────────────────── */
@@ -331,10 +363,10 @@
 
 .medallion__title-banner-wrapper {
   filter:
-    drop-shadow(0px 2px 0px #F3CF7A)
-    drop-shadow(0px -2px 0px #F3CF7A)
-    drop-shadow(2px 0px 0px #F3CF7A)
-    drop-shadow(-2px 0px 0px #F3CF7A)
+    drop-shadow(0px 2px 0px var(--metal))
+    drop-shadow(0px -2px 0px var(--metal))
+    drop-shadow(2px 0px 0px var(--metal))
+    drop-shadow(-2px 0px 0px var(--metal))
     drop-shadow(0px 8px 16px rgba(0, 0, 0, 0.85));
 }
 
@@ -343,6 +375,7 @@
   min-width: 210px;
   padding: 8px 24px;
   text-align: center;
+  background: linear-gradient(180deg, var(--game-primary) 0%, var(--game-deep) 60%, var(--game-deep) 100%);
   clip-path: polygon(
     14px 0%, calc(100% - 14px) 0%,
     100% 50%,
@@ -351,19 +384,6 @@
   );
   overflow: hidden;
   transition: transform 0.3s ease;
-}
-
-/* Ribbon Color Variants */
-.medallion__title-banner--wine {
-  background: linear-gradient(180deg, #7C1A2E 0%, #420A13 60%, #29040A 100%);
-}
-
-.medallion__title-banner--green {
-  background: linear-gradient(180deg, #1F6B3A 0%, #0E3D1F 60%, #062612 100%);
-}
-
-.medallion__title-banner--blue {
-  background: linear-gradient(180deg, #1B4E7A 0%, #0E2942 60%, #051626 100%);
 }
 
 /* Metallic Shine Sweep Effect on Title Banner Ribbon on Hover */
@@ -413,7 +433,7 @@
   margin-top: -3px; /* Connected directly under title banner */
   padding: 4px 18px;
   background: linear-gradient(180deg, #2A170A 0%, #140A04 100%);
-  border: 1.5px solid #D4A338;
+  border: 1.5px solid var(--metal-deep);
   border-top: none;
   border-radius: 0 0 10px 10px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
@@ -423,7 +443,7 @@
 }
 
 .medallion__player-text {
-  color: #F3CF7A;
+  color: var(--metal);
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 1px;
@@ -432,13 +452,34 @@
 
 .medallion__player-icon {
   font-size: 0.7rem;
-  color: #E9B84A;
+  color: var(--metal);
 }
 
 /* ── Responsive Scaling ──────────────────────────────────────────────────── */
 @media (max-width: 768px) {
+  /* Horizontal scroll-snap carousel (8-Ball-Pool feel) instead of wrapping. */
   .game-cards-row {
     gap: 28px;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: visible;
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 24px;
+    /* generous vertical padding so the ribbon/chip/badge + hover lift never clip */
+    padding: 18px 24px 22px;
+    scrollbar-width: none;         /* Firefox */
+    -ms-overflow-style: none;      /* old Edge */
+  }
+  .game-cards-row::-webkit-scrollbar {
+    display: none;                 /* Chrome / Safari */
+  }
+  .medallion {
+    flex: 0 0 auto;
+    scroll-snap-align: center;
+  }
+  .medallion[data-status="coming-soon"]::after {
+    top: 115px;
   }
   .medallion__ring {
     width: 175px;
@@ -461,6 +502,14 @@
   }
   .game-cards-row {
     gap: 20px;
+    scroll-padding: 0 16px;
+    padding: 16px 16px 20px;
+  }
+  .medallion[data-status="coming-soon"]::after {
+    top: 89px;
+    font-size: 0.54rem;
+    padding: 3px 10px;
+    letter-spacing: 1px;
   }
   .medallion__ring {
     width: 135px;

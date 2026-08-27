@@ -18,8 +18,9 @@ export type GamePhase = 'LOBBY' | 'DEALING' | 'TRUMP_SELECT' | 'BIDDING' | 'PUSH
 export interface Announcement {
   title: string;
   subtitle?: string;
-  icon?: 'crown' | 'swords' | 'flame'; // client Icon key (intros show no icon)
-  variant?: 'intro' | 'stakes' | 'summit' | 'lastStand';
+  multiplier?: number; // shown as ×N (stakes change / Summit / Last Stand); absent for mode intros
+  icon?: 'crown' | 'swords' | 'trendingUp' | 'trendingDown'; // client Icon key (intros show no icon)
+  variant: 'intro' | 'stakesUp' | 'stakesDown' | 'summit' | 'lastStand';
 }
 
 // ─── Game modes ──────────────────────────────────────────────────────────────
@@ -29,7 +30,7 @@ export type GameMode = 'classic' | 'upDown' | 'blind' | 'revolvingTrump';
 export interface GameModeInfo { id: GameMode; label: string; short: string; desc: string; }
 
 export const GAME_MODES: GameModeInfo[] = [
-  { id: 'classic', label: 'Classic',   short: 'Classic',   desc: 'Random trump each round — the original game.' },
+  { id: 'classic', label: 'Classic',   short: 'Classic',   desc: 'The original game, with a random trump each round.' },
   { id: 'upDown',  label: 'Up & Down', short: 'Up & Down', desc: 'Climb 1→7→1 with rising stakes, a ×3 Summit, and a ×10 Last Stand.' },
   { id: 'blind',   label: 'Blind Bid', short: 'Blind',     desc: 'Bid blind, then lock (×2) or push (×3).' },
   { id: 'revolvingTrump', label: 'Revolving Trump', short: 'Rev. Trump', desc: 'The first bidder picks the trump each round.' },
@@ -77,8 +78,8 @@ export function trumpLabel(cfg: TrumpConfig): string {
 export function trumpInfo(cfg: TrumpConfig): string {
   switch (cfg.kind) {
     case 'suit':      return 'This suit beats every other suit.';
-    case 'noTrump':   return 'No trump — the highest card of the led suit wins.';
-    case 'lowCard':   return 'No trump — the lowest card of the led suit wins.';
+    case 'noTrump':   return 'No trump: the highest card of the led suit wins.';
+    case 'lowCard':   return 'No trump: the lowest card of the led suit wins.';
     case 'ak47':      return 'Every A, K, 4 and 7 is a trump.';
     case 'oneTrump':  return `Every ${cfg.rank ?? '?'} is a trump.`;
     case 'kingQueen': return 'Every King and Queen is a trump.';
@@ -109,6 +110,7 @@ export interface RoundScore {
   won: number;
   delta: number;
   total: number;
+  multiplier: number; // score multiplier applied this round for this player (Up & Down tier, or Blind lock ×2 / push ×3)
 }
 
 // ─── Scoreboard ──────────────────────────────────────────────────────────────
@@ -142,6 +144,7 @@ export interface GameState {
   roomExpiresInMs: number | null; // ms until a finished room auto-closes (null unless in GAME_OVER)
   mode: GameMode; // the room's game mode
   announcement: Announcement | null; // banner to show during the DEALING window (mode intro / Up & Down milestone)
+  pushStatus: Record<string, 'locked' | 'pushed'> | null; // Blind Bid PUSH phase: each decided player's choice (null otherwise)
 }
 
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
@@ -149,6 +152,7 @@ export interface GameState {
 export interface MsgCreateRoom {
   type: 'createRoom';
   name: string;
+  game?: string; // registry game id (e.g. 'bid-club'); defaults to 'bid-club'
   maxPlayers?: number; // 2–7, defaults to 7
   mode?: GameMode; // defaults to 'classic'
 }
@@ -203,6 +207,12 @@ export interface MsgPushBid {
   push: boolean; // true = raise blind bid by 1 (×3), false = lock it (×2)
 }
 
+export interface MsgUpdateRoomSettings {
+  type: 'updateRoomSettings';
+  maxPlayers?: number; // 2–7; server clamps and blocks below seated count
+  mode?: GameMode;
+}
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
@@ -214,7 +224,8 @@ export type ClientMessage =
   | MsgLeaveRoom
   | MsgQuickMessage
   | MsgSelectTrump
-  | MsgPushBid;
+  | MsgPushBid
+  | MsgUpdateRoomSettings;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 
@@ -266,7 +277,8 @@ export type ErrorCode =
   | 'INVALID_BID'
   | 'CARD_NOT_IN_HAND'
   | 'ILLEGAL_CARD'
-  | 'INVALID_TRUMP';
+  | 'INVALID_TRUMP'
+  | 'INVALID_SETTINGS';
 
 export interface MsgError {
   type: 'error';
@@ -295,17 +307,27 @@ export type ServerMessage =
 
 // ─── Quick chat messages (predefined, tap-to-send) ──────────────────────────
 
-export interface QuickMessage { id: string; text: string; }
+export interface QuickMessage { id: string; text: string; tab: 'default' | 'meme'; }
 
 export const QUICK_MESSAGES: QuickMessage[] = [
-  { id: 'play-fast',   text: 'Play Fast' },
-  { id: 'nice-move',   text: 'Nice Move' },
-  { id: 'my-game',     text: 'My Game' },
-  { id: 'better-luck', text: 'Better Luck Next Time' },
-  { id: 'good-game',   text: 'Good Game' },
-  { id: 'hurry-up',    text: 'Hurry Up!' },
-  { id: 'oh-shit',     text: 'Oh Shit!' },
-  { id: 'thinking',    text: 'Thinking' },
-  { id: 'thank-you',   text: 'Thank You' },
-  { id: 'close-one',   text: 'Close One!' }
+  { id: 'play-fast',   text: 'Play Fast',       tab: 'default' },
+  { id: 'nice-move',   text: 'Nice Move',       tab: 'default' },
+  { id: 'my-game',     text: 'My Game',         tab: 'default' },
+  { id: 'better-luck', text: 'Better Luck',     tab: 'default' },
+  { id: 'good-game',   text: 'Good Game',       tab: 'default' },
+  { id: 'hurry-up',    text: 'Hurry Up!',       tab: 'default' },
+  { id: 'oh-shit',     text: 'Oh Shit!',        tab: 'default' },
+  { id: 'thinking',    text: 'Thinking',        tab: 'default' },
+  { id: 'thank-you',   text: 'Thank You',       tab: 'default' },
+  { id: 'close-one',   text: 'Close One!',      tab: 'default' },
+  { id: 'm-jaldi',     text: 'Jaldi jaldi',     tab: 'meme' },
+  { id: 'm-masti',     text: 'Masti nahi.',     tab: 'meme' },
+  { id: 'm-sahi',      text: 'Sahi baat hai.',  tab: 'meme' },
+  { id: 'm-shanti',    text: 'Shanti rakho!',   tab: 'meme' },
+  { id: 'm-mataji',    text: 'Hey Maa Mataji!', tab: 'meme' },
+  { id: 'm-babuchak',  text: 'A Babuchak.',     tab: 'meme' },
+  { id: 'm-sabass',    text: 'Sabass jethiya.', tab: 'meme' },
+  { id: 'm-band',      text: 'Aye, band kar!',  tab: 'meme' },
+  { id: 'm-kya',       text: 'Kya karu?',       tab: 'meme' },
+  { id: 'm-jethalal',  text: 'Ae Pagal Aurat!', tab: 'meme' }
 ];

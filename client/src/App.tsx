@@ -1,5 +1,6 @@
-import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
+import { GAMES } from 'shared';
 import { useGameStore } from './store/gameStore';
 import { Header } from './components/Header';
 import { GameSelectionPage } from './pages/GameSelectionPage';
@@ -15,17 +16,16 @@ export default function App() {
   const phase = gameState?.phase;
   return (
     <div className="app-shell">
+      <ThemeSync />
       <Header />
       <ErrorToast />
       <main className="app-main">
         <Suspense fallback={<div className="page"><p>Loading…</p></div>}>
           <Routes>
             <Route path="/" element={<GameSelectionPage />} />
-            <Route path="/bid-club" element={<HomePage />} />
-            <Route path="/bid-club/guide" element={<GuidePage />} />
-            <Route path="/guide" element={<GuidePage />} />
-            <Route path="/bid-club/room/:roomId" element={<RoomRouter phase={phase} hasGameOver={!!gameOver} />} />
-            <Route path="/room/:roomId" element={<RoomRouter phase={phase} hasGameOver={!!gameOver} />} />
+            <Route path="/:game" element={<GameGate><HomePage /></GameGate>} />
+            <Route path="/:game/guide" element={<GameGate><GuidePage /></GameGate>} />
+            <Route path="/:game/room/:roomId" element={<GameGate><RoomRouter phase={phase} hasGameOver={!!gameOver} /></GameGate>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
@@ -38,4 +38,26 @@ function RoomRouter({ phase, hasGameOver }: { phase: string | undefined; hasGame
   if (hasGameOver) return <WinnerPage />;
   if (!phase || phase === 'LOBBY') return <LobbyPage />;
   return <GamePage />;
+}
+
+function GameGate({ children }: { children: JSX.Element }) {
+  const { game } = useParams();
+  const ok = GAMES.some(g => g.id === game && g.status === 'active');
+  return ok ? children : <Navigate to="/" replace />;
+}
+
+function ThemeSync() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const seg = pathname.split('/')[1];
+    const game =
+      seg === 'bid-club' ? 'bid-club' :
+      seg === 'rummy' ? 'rummy' :
+      seg === 'thoso' ? 'thoso' :
+      null;
+    const root = document.documentElement;
+    if (game) root.setAttribute('data-game', game);
+    else root.removeAttribute('data-game'); // lounge / neutral
+  }, [pathname]);
+  return null;
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { NAME_MIN_LEN, NAME_MAX_LEN, GAME_MODES, GameMode } from 'shared';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import { NAME_MIN_LEN, NAME_MAX_LEN, GameMode } from 'shared';
 import { sendMsg, reconnectSession } from '../net/socket';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
@@ -8,6 +8,7 @@ import { STORAGE_KEYS } from '../constants';
 import { Button } from '../components/Button';
 import { Field } from '../components/Field';
 import { Surface } from '../components/Surface';
+import { RoomSettings } from '../components/RoomSettings';
 
 export function HomePage() {
   const [name, setName] = useState(storage.getPlayer()?.name ?? '');
@@ -20,6 +21,7 @@ export function HomePage() {
   const { connected, roomId, gameState, reconnectFailed } = useGameStore();
   const rejoinAttempt = useRef(false);
   const navigate = useNavigate();
+  const { game = 'bid-club' } = useParams();
 
   // If we arrived here via an invite link (redirected from the lobby), pick up
   // the pending room id + host name and drop straight into the join view.
@@ -37,7 +39,7 @@ export function HomePage() {
 
   // If already in a room, redirect
   if (roomId && gameState) {
-    navigate(`/bid-club/room/${roomId}`, { replace: true });
+    navigate(`/${game}/room/${roomId}`, { replace: true });
   }
 
   const saveName = useCallback(() => {
@@ -52,15 +54,15 @@ export function HomePage() {
   const fireCreate = useCallback(() => {
     const n = saveName();
     if (!n) return;
-    sendMsg({ type: 'createRoom', name: n, maxPlayers, mode: gameMode });
+    sendMsg({ type: 'createRoom', name: n, game, maxPlayers, mode: gameMode });
     // Navigate will happen when we receive 'joined' + 'state'
     const unsub = useGameStore.subscribe((s) => {
       if (s.roomId) {
-        navigate(`/bid-club/room/${s.roomId}`);
+        navigate(`/${game}/room/${s.roomId}`);
         unsub();
       }
     });
-  }, [saveName, maxPlayers, gameMode, navigate]);
+  }, [saveName, game, maxPlayers, gameMode, navigate]);
 
   const fireJoin = useCallback(() => {
     const n = saveName();
@@ -77,11 +79,11 @@ export function HomePage() {
     }
     const unsub = useGameStore.subscribe((s) => {
       if (s.roomId) {
-        navigate(`/room/${s.roomId}`);
+        navigate(`/${game}/room/${s.roomId}`);
         unsub();
       }
     });
-  }, [saveName, roomCode, navigate]);
+  }, [saveName, game, roomCode, navigate]);
 
   // Click handlers: fire immediately when connected, otherwise queue a single
   // pending action. Extra clicks are ignored while something is pending.
@@ -136,7 +138,7 @@ export function HomePage() {
               share the room link, and invite two to seven friends. Each round you predict exactly
               how many hands you&rsquo;ll make, then play to hit your number. Miss it and you
               will lose the points. Seven rounds, a shifting trump, one winner.{' '}
-              New here? Read our <Link className="home-seo__link" to="/guide">Guide</Link> to learn how to play.
+              New here? Read our <Link className="home-seo__link" to="/bid-club/guide">Guide</Link> to learn how to play.
             </p>
           </section>
         </div>
@@ -158,42 +160,13 @@ export function HomePage() {
                 autoFocus
                 onKeyDown={e => e.key === 'Enter' ? handleCreate() : undefined}
               />
-              <div className="flex-col gap-sm">
-                <label className="field-label">
-                  Number of players (2-7)
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <input
-                    type="range"
-                    min={2} max={7} step={1}
-                    value={maxPlayers}
-                    onChange={e => setMaxPlayers(Number(e.target.value))}
-                    style={{ flex: 1, accentColor: 'var(--gold)' }}
-                  />
-                  <span style={{
-                    minWidth: 32, textAlign: 'center',
-                    fontWeight: 700, fontSize: '1.2rem', color: 'var(--gold)',
-                  }}>
-                    {maxPlayers}
-                  </span>
-                </div>
-              </div>
-              <div className="flex-col gap-sm">
-                <label className="field-label">Game mode</label>
-                <div className="mode-picker">
-                  {GAME_MODES.map(m => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      className={`mode-option${gameMode === m.id ? ' mode-option--active' : ''}`}
-                      onClick={() => setGameMode(m.id)}
-                    >
-                      <span className="mode-option__label">{m.label}</span>
-                      <span className="mode-option__desc">{m.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <RoomSettings
+                maxPlayers={maxPlayers}
+                minPlayers={2}
+                mode={gameMode}
+                onCommitMaxPlayers={setMaxPlayers}
+                onSelectMode={setGameMode}
+              />
               <div className="flex-col gap-sm">
                 <Button
                   variant="primary"

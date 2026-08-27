@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
@@ -7,12 +7,16 @@ import { StandingsTable } from '../components/StandingsTable';
 import { Delta } from '../components/Delta';
 import { Button } from '../components/Button';
 import { Surface } from '../components/Surface';
+import { Modal } from '../components/Modal';
+import { Scoreboard } from '../components/Scoreboard';
+import { Icon } from '../components/Icon';
 import { STORAGE_KEYS, CONFETTI_COLORS } from '../constants';
 import { useSecondsRemaining } from '../hooks/useSecondsRemaining';
 
 export function WinnerPage() {
   const { gameOver, playerId, gameState, reset, roomClosed } = useGameStore();
   const navigate = useNavigate();
+  const [boardOpen, setBoardOpen] = useState(false);
 
   const isHost = gameState?.hostId === playerId;
 
@@ -128,6 +132,18 @@ export function WinnerPage() {
           </tbody>
         </StandingsTable>
 
+        {gameState && (
+          <button
+            type="button"
+            className="winner-board-btn"
+            onClick={() => setBoardOpen(true)}
+            title="View full scoreboard"
+          >
+            <Icon name="table" size={15} />
+            Full scoreboard
+          </button>
+        )}
+
         {roomClosed ? (
           <>
             <p className="hint">This game has ended and the room has closed.</p>
@@ -142,7 +158,7 @@ export function WinnerPage() {
         ) : isHost ? (
           <>
             {hostChanged && (
-              <p className="hint">The previous host left — you're the host now.</p>
+              <p className="hint">The previous host left, so you're the host now.</p>
             )}
             {secsLeft != null && (
               <p className="tag-faint" style={{ margin: 0 }}>Room closes in {secsLeft}s</p>
@@ -163,6 +179,12 @@ export function WinnerPage() {
           </>
         )}
       </Surface>
+
+      {gameState && (
+        <Modal open={boardOpen} onClose={() => setBoardOpen(false)} title="Scoreboard">
+          <Scoreboard gameState={gameState} />
+        </Modal>
+      )}
     </div>
   );
 }

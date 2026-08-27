@@ -5,7 +5,7 @@ export interface GameInfo {
   players: string;
   route: string;
   status: 'active' | 'coming-soon';
-  icon: 'bid-club' | 'rummy' | 'mindi';
+  icon: 'bid-club' | 'rummy' | 'thoso';
 }
 
 export const GAMES: GameInfo[] = [
@@ -28,12 +28,12 @@ export const GAMES: GameInfo[] = [
     icon: 'rummy',
   },
   {
-    id: 'mindi',
-    name: 'Mindi',
-    description: 'Capture the tens & lead your team to victory',
-    players: '4 Players',
-    route: '/mindi',
+    id: 'thoso',
+    name: 'Thoso',
+    description: 'Sweep the cards & shed your hand to win',
+    players: '2–4 Players',
+    route: '/thoso',
     status: 'coming-soon',
-    icon: 'mindi',
+    icon: 'thoso',
   },
 ];

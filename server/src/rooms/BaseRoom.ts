@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
-import { Player, ErrorCode } from 'shared';
+import { Player, ErrorCode, Card } from 'shared';
 import { RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS, LOBBY_RECONNECT_WINDOW_MS, QUICK_MSG_THROTTLE_MS } from '../constants';
 import { sendMessage, clampPlayers } from '../helpers';
 import { QUICK_MESSAGES } from 'shared';
@@ -9,14 +9,14 @@ export interface Seat {
   player: Player;
   token: string;
   ws: WebSocket | null;
-  hand: any[];
+  hand: Card[];
   reconnectTimer: ReturnType<typeof setTimeout> | null;
   lastQuickMsgAt?: number;
 }
 
 export abstract class BaseRoom {
   readonly id: string;
-  readonly maxPlayers: number;
+  maxPlayers: number; // mutable: a game (e.g. BidClub host settings) can change capacity in the lobby
   protected seats: Seat[] = [];
   protected hostId: string | null = null;
   protected emptyRoomTimer: ReturnType<typeof setTimeout> | null = null;
@@ -54,7 +54,8 @@ export abstract class BaseRoom {
   }
 
   protected reassignHostToConnected(): void {
-    const next = this.seats.find(s => s.player.status === 'online');
+    const next = this.seats.find(s => s.player.status === 'online')
+              ?? this.seats.find(s => s.player.status === 'reconnecting');
     if (next && next.player.id !== this.hostId) {
       this.hostId = next.player.id;
       this.broadcastState();
@@ -80,11 +81,12 @@ export abstract class BaseRoom {
 
   quickMessage(playerId: string, msgId: string): void {
     const seat = this.getSeat(playerId);
-    if (!seat || !QUICK_MESSAGES.some(q => q.id === msgId)) return;
+    const item = QUICK_MESSAGES.find(q => q.id === msgId);
+    if (!seat || !item) return;
     const now = Date.now();
     if (seat.lastQuickMsgAt && now - seat.lastQuickMsgAt < QUICK_MSG_THROTTLE_MS) return;
     seat.lastQuickMsgAt = now;
-    this.broadcast({ type: 'quickMessage', playerId, id: msgId });
+    this.broadcast({ type: 'quickMessage', senderId: playerId, text: item.text });
   }
 
   startEmptyRoomTimer(): void {

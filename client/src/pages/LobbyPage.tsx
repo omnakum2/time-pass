@@ -4,12 +4,15 @@ import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
 import { STORAGE_KEYS, COPY_FEEDBACK_MS } from '../constants';
 import { useSecondsRemaining } from '../hooks/useSecondsRemaining';
+import { sendMsg } from '../net/socket';
 import { Surface } from '../components/Surface';
+import { Button } from '../components/Button';
 import { Icon } from '../components/Icon';
+import { RoomSettings } from '../components/RoomSettings';
 import { GAME_MODES } from 'shared';
 
 export function LobbyPage() {
-  const { roomId: urlRoomId } = useParams<{ roomId: string }>();
+  const { roomId: urlRoomId, game = 'bid-club' } = useParams<{ roomId: string; game: string }>();
   const { gameState, playerId, roomId, connected, reconnectFailed } = useGameStore();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
@@ -27,8 +30,8 @@ export function LobbyPage() {
     const host = new URLSearchParams(window.location.search).get('host');
     sessionStorage.setItem(STORAGE_KEYS.pendingRoomId, urlRoomId);
     if (host) sessionStorage.setItem(STORAGE_KEYS.pendingHost, host);
-    navigate('/', { replace: true });
-  }, [roomId, urlRoomId, connected, reconnectFailed, navigate]);
+    navigate(`/${game}`, { replace: true });
+  }, [roomId, urlRoomId, connected, reconnectFailed, game, navigate]);
 
   // Locally tick down the countdown coming from the server.
   const countdownMs = gameState?.countdownMs ?? null;
@@ -45,9 +48,10 @@ export function LobbyPage() {
   }
 
   const { players, hostId } = gameState;
+  const isHost = hostId === playerId;
   const hostName = players.find(p => p.id === hostId)?.name ?? '';
   const displayRoomId = roomId ?? urlRoomId ?? '';
-  const joinUrl = `${window.location.origin}/room/${displayRoomId}?host=${encodeURIComponent(hostName)}`;
+  const joinUrl = `${window.location.origin}/${game}/room/${displayRoomId}?host=${encodeURIComponent(hostName)}`;
 
   // The invite link only works for other people if the app is being served from a
   // routable address. On localhost the link points at the recipient's own machine.
@@ -120,6 +124,20 @@ export function LobbyPage() {
           </p>
         </div>
 
+        {isHost ? (
+          <RoomSettings
+            maxPlayers={gameState.maxPlayers}
+            minPlayers={Math.max(2, players.length)}
+            mode={gameState.mode}
+            onCommitMaxPlayers={(n) => sendMsg({ type: 'updateRoomSettings', maxPlayers: n })}
+            onSelectMode={(m) => sendMsg({ type: 'updateRoomSettings', mode: m })}
+          />
+        ) : (
+          <p className="text-center muted">
+            {GAME_MODES.find(m => m.id === gameState.mode)?.label ?? ''} · Players: {players.length} / {gameState.maxPlayers}
+          </p>
+        )}
+
         <div className="flex-col gap-sm">
           <p className="hint">
             Players ({players.length}/{gameState.maxPlayers})
@@ -145,6 +163,17 @@ export function LobbyPage() {
           <p className="text-center muted">
             Waiting for players ({players.length}/{gameState.maxPlayers})
           </p>
+        )}
+
+        {isHost && (
+          <Button
+            variant="primary"
+            block
+            onClick={() => sendMsg({ type: 'startGame' })}
+            disabled={players.length < 2}
+          >
+            Start Game
+          </Button>
         )}
       </Surface>
     </div>

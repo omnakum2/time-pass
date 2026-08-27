@@ -5,7 +5,7 @@ import { createServer, IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Room } from './room';
 import { ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES } from 'shared';
-import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS } from './constants';
+import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS, HEARTBEAT_MS } from './constants';
 import { sendMessage, sendError, sanitizeName, clampPlayers, validateMessage, randomRoomCode } from './helpers';
 
 // ─── Environment-specific settings (from process.env) ──────────────────────
@@ -27,6 +27,12 @@ function clientIp(req: IncomingMessage): string {
 
 const rooms = new Map<string, Room>();
 let draining = false; // during shutdown drain: reject new rooms, let existing ones finish
+
+// Game-factory: maps a registry game id to its Room constructor.
+// Add a new game by adding an entry here (and its Room class import).
+const ROOM_FACTORIES: Record<string, (id: string, maxPlayers: number, mode: GameMode) => Room> = {
+  'bid-club': (id, maxPlayers, mode) => new Room(id, maxPlayers, mode),
+};
 
 // Generate a unique room code (retries on the rare collision).
 function generateRoomId(): string {
@@ -79,9 +85,16 @@ const wss = new WebSocketServer({
 const connByIp = new Map<string, number>();
 const rate = new WeakMap<WebSocket, { count: number; windowStart: number }>();
 
+// Heartbeat liveness: true = a pong was seen since the last ping (see heartbeat loop below)
+const alive = new WeakMap<WebSocket, boolean>();
+
 wss.on('connection', (ws, req) => {
   const ip = clientIp(req);
   connByIp.set(ip, (connByIp.get(ip) ?? 0) + 1);
+
+  // Heartbeat liveness: a fresh socket is alive; each pong marks it alive again.
+  alive.set(ws, true);
+  ws.on('pong', () => alive.set(ws, true));
 
   ws.on('close', () => {
     const left = (connByIp.get(ip) ?? 1) - 1;
@@ -130,7 +143,10 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       const roomId = generateRoomId();
       const maxPlayers = clampPlayers(typeof msg.maxPlayers === 'number' ? msg.maxPlayers : MAX_PLAYERS);
       const mode: GameMode = GAME_MODES.some(m => m.id === msg.mode) ? (msg.mode as GameMode) : 'classic';
-      const room = new Room(roomId, maxPlayers, mode);
+      const game = typeof msg.game === 'string' ? msg.game : 'bid-club';
+      const factory = ROOM_FACTORIES[game];
+      if (!factory) { sendError(ws, 'JOIN_FAILED'); return; } // unknown or not-yet-available game
+      const room = factory(roomId, maxPlayers, mode);
       room.onDestroy = () => { rooms.delete(roomId); };
       rooms.set(roomId, room);
 
@@ -221,6 +237,14 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       break;
     }
 
+    case 'updateRoomSettings': {
+      const r = getRoom(ws);
+      if (!r) return;
+      const err = r.room.updateRoomSettings(r.playerId, msg.maxPlayers, msg.mode);
+      if (err) sendError(ws, err);
+      break;
+    }
+
     case 'leaveRoom': {
       releaseOldSeat(ws);
       break;
@@ -238,6 +262,18 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
 }
 
 httpServer.listen(PORT);
+
+// WebSocket heartbeat: ping every idle socket so proxies/NAT (Render/Cloudflare)
+// can't silently drop it, and reap any socket that missed the previous ping.
+const heartbeat = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (alive.get(ws) === false) { ws.terminate(); return; } // missed the previous ping → dead → reap
+    if (ws.readyState !== WebSocket.OPEN) return; // skip a mid-close (replaced/closing) socket
+    alive.set(ws, false);
+    ws.ping();
+  });
+}, HEARTBEAT_MS);
+wss.on('close', () => clearInterval(heartbeat));
 
 // Graceful shutdown for clean redeploys: stop accepting new rooms, let active
 // rooms drain (up to DRAIN_MAX_MS), then close sockets + servers and exit.

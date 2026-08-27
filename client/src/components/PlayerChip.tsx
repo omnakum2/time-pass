@@ -15,9 +15,10 @@ interface Props {
   running?: boolean;
   isMe?: boolean;
   totalScore?: number;
+  pushChoice?: 'locked' | 'pushed';
 }
 
-export function PlayerChip({ player, bid, tricksWon, isActive, phase, remainingMs, fullMs, startKey, running, isMe, totalScore }: Props) {
+export function PlayerChip({ player, bid, tricksWon, isActive, phase, remainingMs, fullMs, startKey, running, isMe, totalScore, pushChoice }: Props) {
   const bubble = useGameStore(s => s.activeBubbles[player.id]);
   return (
     <div className={`player-chip${isActive ? ' player-chip--active' : ''}${isMe ? ' player-chip--me' : ''}`}>
@@ -44,12 +45,23 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, remainingM
       {totalScore !== undefined && (
         <div className="player-chip__total">
           Score: <Delta value={totalScore} />
+          {(phase === 'PUSH' || pushChoice) && (
+            <>
+              {' · '}
+              <span
+                className={`player-chip__push${pushChoice ? '' : ' player-chip__push--deciding'}`}
+                title={pushChoice === 'locked' ? 'Locked ×2' : pushChoice === 'pushed' ? 'Pushed ×3' : 'Deciding'}
+              >
+                {pushChoice === 'locked' ? '×2' : pushChoice === 'pushed' ? '×3' : '?'}
+              </span>
+            </>
+          )}
         </div>
       )}
 
       {player.status !== 'online' && (
         <div className="player-chip__disconnected">
-          {player.status === 'reconnecting' ? 'reconnecting…' : 'disconnected'}
+          {player.status === 'reconnecting' ? 'reconnecting…' : 'left'}
         </div>
       )}
     </div>

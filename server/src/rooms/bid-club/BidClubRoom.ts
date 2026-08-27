@@ -2,13 +2,13 @@ import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import {
   Card, GameMode, GamePhase, GameState, Player, RoundScore,
-  Suit, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, MsgGameOver, ErrorCode, Announcement,
+  Suit, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, MsgGameOver, ErrorCode, QUICK_MESSAGES, Announcement,
   roundsForMode, deal, pickTrump, firstBidderSeat,
-  legalMoves, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, ROUNDS, SUITS, RANK_ORDER
+  legalMoves, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, isSummitRound, isLastStandRound, ROUNDS, SUITS, RANK_ORDER, GAME_MODES
 } from 'shared';
 import {
   BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS,
-  GAME_OVER_TTL_MS, COUNTDOWN_MS, DISCONNECTED_AUTO_MOVE_MS, TRICK_DISPLAY_MS, ROUND_END_DELAY_MS,
+  GAME_OVER_TTL_MS, COUNTDOWN_MS, NPC_AUTO_MOVE_MS, TRICK_DISPLAY_MS, ROUND_END_DELAY_MS,
   LOBBY_RECONNECT_WINDOW_MS, QUICK_MSG_THROTTLE_MS, ANNOUNCE_MS, PUSH_TIMEOUT_MS,
 } from '../../constants';
 import { sendMessage, clampPlayers } from '../../helpers';
@@ -16,10 +16,6 @@ import { BaseRoom, Seat } from '../BaseRoom';
 
 export class BidClubRoom extends BaseRoom {
   private phase: GamePhase = 'LOBBY';
-
-  getPhase(): GamePhase {
-    return this.phase;
-  }
 
   // Round state
   private mode: GameMode = 'classic';
@@ -69,6 +65,9 @@ export class BidClubRoom extends BaseRoom {
     return (from + 1) % this.seats.length;
   }
 
+  // Remove a seat (BaseRoom handles filter + reindex + host promotion); then do the
+  // BidClub-specific extras: drop the scoreboard row and cancel a pending lobby
+  // countdown if the room is no longer full.
   protected override removeSeat(playerId: string): void {
     super.removeSeat(playerId);
     this.scoreboard.delete(playerId);
@@ -107,11 +106,19 @@ export class BidClubRoom extends BaseRoom {
     const seat = this.getSeatByToken(token);
     if (!seat) return null;
     seat.reconnectTimer = this.clearTimer(seat.reconnectTimer);
+    // FIX 9: one active connection per seat — close any older, different socket.
     if (seat.ws && seat.ws !== ws) { try { seat.ws.close(1000, 'replaced'); } catch { /* ignore */ } }
     seat.ws = ws;
     seat.player.status = 'online';
+    // If the host left/went offline while we were away, take over so the room isn't left
+    // host-less (host-only actions: rematch, room settings). The caller broadcasts.
+    const host = this.hostId ? this.getSeat(this.hostId) : undefined;
+    if (!host || host.player.status === 'offline') this.hostId = seat.player.id;
     this.cancelEmptyRoomTimer();
 
+    // Resume the turn timer WITHOUT extending the deadline. If the game was paused
+    // (everyone had dropped), restore the frozen remaining time first. A refresh can
+    // never buy more time — the turn's deadline is fixed for its whole duration.
     if (this.phase === 'BIDDING' || this.phase === 'PLAYING' || this.phase === 'TRUMP_SELECT') {
       if (this.turnPausedRemainingMs != null) {
         this.turnExpiresAt = Date.now() + this.turnPausedRemainingMs;
@@ -122,24 +129,38 @@ export class BidClubRoom extends BaseRoom {
     return seat;
   }
 
-  disconnect(playerId: string, closingWs?: WebSocket): void {
+  // `immediate` (opts) = an explicit in-game Leave: a real exit, so skip the reconnecting
+  // grace and go straight to 'offline'. A tab-close / refresh (the default) keeps the grace.
+  disconnect(playerId: string, closingWs?: WebSocket, opts?: { immediate?: boolean }): void {
     const seat = this.getSeat(playerId);
     if (!seat) return;
+    // FIX 1: ignore a stale/late close from a socket that's no longer this seat's
+    // (e.g. after a fresh reconnect replaced it). Internal callers pass no ws.
     if (closingWs !== undefined && seat.ws !== closingWs) return;
 
+    const immediate = opts?.immediate === true;
+    seat.reconnectTimer = this.clearTimer(seat.reconnectTimer);
     seat.ws = null;
-    seat.player.status = 'reconnecting';
+    seat.player.status = immediate ? 'offline' : 'reconnecting';
 
     if (this.phase === 'LOBBY') {
-      seat.reconnectTimer = setTimeout(() => {
-        seat.reconnectTimer = null;
-        if (seat.player.status !== 'online') {
-          this.removeSeat(playerId);
-          this.broadcastState();
-          if (this.isEmpty) this.startEmptyRoomTimer();
-        }
-      }, LOBBY_RECONNECT_WINDOW_MS);
+      // FIX 4: don't drop the seat on a refresh; give a short window to reconnect.
+      if (!immediate) {
+        seat.reconnectTimer = setTimeout(() => {
+          seat.reconnectTimer = null;
+          if (seat.player.status !== 'online') {
+            this.removeSeat(playerId);
+            this.broadcastState();
+            if (this.isEmpty) this.startEmptyRoomTimer();
+          }
+        }, LOBBY_RECONNECT_WINDOW_MS);
+      }
+    } else if (immediate) {
+      // Explicit in-game leave — hand off host now (no grace window).
+      if (playerId === this.hostId) this.reassignHostToConnected();
     } else {
+      // In-game drop: start the reconnect window. When the grace fully expires and the
+      // player is still gone, mark them offline and hand off host if needed.
       seat.reconnectTimer = setTimeout(() => {
         seat.reconnectTimer = null;
         if (seat.player.status !== 'online') {
@@ -149,19 +170,33 @@ export class BidClubRoom extends BaseRoom {
         }
       }, RECONNECT_WINDOW_MS);
 
+      // A finished room is destroyed on its short GAME_OVER TTL, which elapses well
+      // before the 60s reconnect window — so if the host drops here, hand off now so a
+      // remaining player can still start a rematch.
       if (this.phase === 'GAME_OVER' && playerId === this.hostId) {
         this.reassignHostToConnected();
       }
     }
 
+    // Turn timer: if the room just emptied mid-turn, freeze the remaining time so it
+    // doesn't tick away while nobody can act (reconnect() restores it). Otherwise, an
+    // explicit leave on the leaver's OWN turn resolves fast instead of waiting the full
+    // budget — matching how an already-offline seat is auto-moved. A normal drop leaves
+    // the turn's fixed deadline untouched.
     if (this.isEmpty && this.turnExpiresAt != null) {
       this.turnPausedRemainingMs = Math.max(0, this.turnExpiresAt - Date.now());
       this.turnExpiresAt = null;
       this.cancelTurnTimer();
+    } else if (immediate &&
+               this.currentTurnPlayerId() === playerId &&
+               (this.phase === 'BIDDING' || this.phase === 'PLAYING' || this.phase === 'TRUMP_SELECT')) {
+      this.turnExpiresAt = Date.now() + NPC_AUTO_MOVE_MS;
+      this.armTurnTimer();
     }
 
     this.broadcastState();
 
+    // Check if room is empty
     if (this.isEmpty) {
       this.startEmptyRoomTimer();
     }
@@ -171,13 +206,17 @@ export class BidClubRoom extends BaseRoom {
     const seat = this.getSeat(playerId);
     if (!seat) return;
 
+    // In-game leave: an explicit Leave is a real exit — reuse disconnect's teardown but
+    // skip the reconnecting grace (immediate: true → straight to 'offline'). Seat/turn/bid
+    // indices stay intact (hard removal mid-round would corrupt state); the seat auto-plays
+    // to the end and beginTurn fast-forwards its future turns because it's 'offline'.
     if (this.phase !== 'LOBBY' && this.phase !== 'GAME_OVER') {
-      this.disconnect(playerId);
+      this.disconnect(playerId, undefined, { immediate: true });
       return;
     }
 
     seat.reconnectTimer = this.clearTimer(seat.reconnectTimer);
-    this.removeSeat(playerId);
+    this.removeSeat(playerId); // remove the seat entirely
 
     this.broadcastState();
 
@@ -193,19 +232,54 @@ export class BidClubRoom extends BaseRoom {
     if (this.phase !== 'LOBBY') return 'WRONG_PHASE';
     if (this.seats.length < 2) return 'NOT_ENOUGH_PLAYERS';
 
-    this.cancelCountdown();
+    this.cancelCountdown(); // a manual start supersedes any pending lobby countdown
     this.previousTrump = undefined;
     this.roundIndex = 0;
     this.startRound();
     return null;
   }
 
+  // Host-only lobby settings edit: change capacity and/or mode before a match starts.
+  updateRoomSettings(requesterId: string, maxPlayers?: number, mode?: GameMode): ErrorCode | null {
+    if (requesterId !== this.hostId) return 'NOT_HOST';
+    if (this.phase !== 'LOBBY') return 'WRONG_PHASE';
+    if (maxPlayers !== undefined) {
+      if (!Number.isFinite(maxPlayers)) return 'INVALID_SETTINGS';
+      const clamped = clampPlayers(maxPlayers);           // clamps to [2,7]
+      if (clamped < this.seats.length) return 'INVALID_SETTINGS'; // can't drop below seated players
+      this.maxPlayers = clamped;
+    }
+    if (mode !== undefined) {
+      if (!GAME_MODES.some(m => m.id === mode)) return 'INVALID_SETTINGS';
+      this.mode = mode;
+      this.rounds = roundsForMode(mode);
+    }
+    // A host settings edit always cancels a pending auto-start countdown — the host is
+    // actively configuring; they'll press Start manually, or a fresh join re-arms the
+    // normal full-room countdown.
+    this.cancelCountdown();
+    this.broadcastState();
+    return null;
+  }
+
+  // "Play Again" returns everyone to the LOBBY (rather than dealing at once) so the
+  // host can adjust settings before starting the next match. The host presses Start
+  // manually, or a fresh join re-triggers the normal full-room countdown.
   restartGame(requesterId: string): ErrorCode | null {
     if (requesterId !== this.hostId) return 'NOT_HOST';
     if (this.phase !== 'GAME_OVER') return 'WRONG_PHASE';
 
+    // A rematch cancels the pending game-over cleanup
     this.cancelGameOverTimer();
 
+    // Prune ghost seats: a player who dropped mid-game and won't return ('offline')
+    // would otherwise linger as a phantom lobby player counting toward capacity/Start.
+    // Keep 'online' and 'reconnecting' seats. removeSeat mutates this.seats (host
+    // reassign + reindex + scoreboard delete), so collect the ids first.
+    const gone = this.seats.filter(s => s.player.status === 'offline').map(s => s.player.id);
+    gone.forEach(id => this.removeSeat(id));
+
+    // reset per-match state
     this.previousTrump = undefined;
     this.roundIndex = 0;
     this.scoreboard = new Map(this.seats.map(s => [s.player.id, []]));
@@ -213,13 +287,28 @@ export class BidClubRoom extends BaseRoom {
     this.tricksWon = new Map();
     this.currentTrick = [];
     this.leadSuit = null;
-    this.startRound();
+    // clear each surviving seat's hand + null out the finished game's stale round state
+    this.seats.forEach(s => { s.hand = []; });
+    this.trump = null;
+    this.trumpConfig = null;
+    this.currentRound = null;
+    this.lastRoundResult = null;
+    // clear the round announcement + blind-push tracking
+    this.announcement = null;
+    this.pushed.clear();
+    this.pushDecided.clear();
+    // clear the stored game-over so a reconnect won't re-show the winner screen
+    this.lastGameOver = null;
+
+    // Return to the lobby; do NOT deal or start the countdown here.
+    this.phase = 'LOBBY';
+    this.broadcastState();
     return null;
   }
 
   private maybeStartCountdown(): void {
     if (this.phase !== 'LOBBY') return;
-    if (this.seats.length < this.maxPlayers) return;
+    if (this.seats.length < this.maxPlayers) return; // only when full
     if (this.countdownTimer) clearTimeout(this.countdownTimer);
     this.countdownEndsAt = Date.now() + COUNTDOWN_MS;
     this.countdownTimer = setTimeout(() => {
@@ -245,10 +334,11 @@ export class BidClubRoom extends BaseRoom {
 
   // ─── Round lifecycle ──────────────────────────────────────────────────────
 
-  private isLastStand(): boolean {
-    return this.mode === 'upDown' && this.roundIndex === this.rounds.length - 1;
-  }
-
+  /**
+   * Seat of the trailing (lowest-total) player — picks the trump at Last Stand.
+   * Ties break by rotational seat order from this round's first bidder (deterministic,
+   * never name-based, so it can't always fall to the same seat).
+   */
   private lowestScoreSeatIndex(): number {
     const total = (s: Seat) => latestTotal(this.scoreboard.get(s.player.id) ?? []);
     const min = Math.min(...this.seats.map(total));
@@ -267,6 +357,8 @@ export class BidClubRoom extends BaseRoom {
     this.tricksWon = new Map(this.seats.map(s => [s.player.id, 0]));
     this.currentTrick = [];
     this.leadSuit = null;
+    this.trump = null;        // clear last round's trump so the DEALING/announcement window
+    this.trumpConfig = null;  // never shows a stale trump — beginRoundPlay sets the new one
     this.pushed = new Set();
     this.pushDecided = new Set();
     this.pushTimer = this.clearTimer(this.pushTimer);
@@ -279,7 +371,9 @@ export class BidClubRoom extends BaseRoom {
     this.trickLeaderSeatIndex = firstSeat;
     this.currentTurnSeatIndex = firstSeat;
 
-    this.announcement = announcementFor(this.mode, this.roundIndex, this.currentRound, this.rounds.length);
+    // A round may open with an announcement banner (mode intro / Up & Down milestone):
+    // hold the DEALING phase for ANNOUNCE_MS, then begin play. Ordinary rounds start at once.
+    this.announcement = announcementFor(this.mode, this.roundIndex, this.rounds);
     if (this.announcement) {
       this.cancelTurnTimer();
       this.turnExpiresAt = null;
@@ -290,14 +384,19 @@ export class BidClubRoom extends BaseRoom {
     }
   }
 
+  // Clear the announcement banner and open the round (trump-select or bidding).
   private beginRoundPlay(): void {
     this.announcement = null;
-    const isSummit = this.mode === 'upDown' && this.currentRound === 7;
-    const lastStand = this.isLastStand();
+
+    // Trump is player-chosen on: Revolving Trump (every round), and Up & Down's
+    // Summit (7-card round) + Last Stand (final round).
+    const isSummit = isSummitRound(this.mode, this.currentRound!);
+    const lastStand = isLastStandRound(this.mode, this.roundIndex, this.rounds.length);
     if (this.mode === 'revolvingTrump' || isSummit || lastStand) {
       this.trump = null;
       this.trumpConfig = null;
       this.phase = 'TRUMP_SELECT';
+      // Last Stand: the trailing (lowest-score) player calls it; otherwise the first bidder.
       this.currentTurnSeatIndex = lastStand ? this.lowestScoreSeatIndex() : this.bidderSeatIndex;
     } else {
       const t = pickTrump(this.previousTrump);
@@ -307,16 +406,18 @@ export class BidClubRoom extends BaseRoom {
       this.phase = 'BIDDING';
       this.currentTurnSeatIndex = this.bidderSeatIndex;
     }
-    this.beginTurn();
-    this.broadcastState();
+    this.beginTurn();        // set the turn deadline BEFORE broadcasting…
+    this.broadcastState();   // …so the state carries the fresh countdown
   }
 
-  // ─── Trump selection ──────────────────────────────────────────────────────
+  // ─── Trump selection (Revolving Trump) ────────────────────────────────────
 
   selectTrump(playerId: string, kind: TrumpKind, suit?: Suit): ErrorCode | null {
     if (this.phase !== 'TRUMP_SELECT') return 'WRONG_PHASE';
     if (this.currentTurnPlayerId() !== playerId) return 'NOT_YOUR_TURN';
-    if (this.isLastStand() && kind !== 'suit' && kind !== 'noTrump') return 'INVALID_TRUMP';
+    // Last Stand offers only two choices: a trump suit or No Trump.
+    // Up & Down's trump rounds (Summit + Last Stand) offer only a suit or No Trump — no specials.
+    if (this.mode === 'upDown' && kind !== 'suit' && kind !== 'noTrump') return 'INVALID_TRUMP';
     const cfg = this.buildTrumpConfig(kind, suit);
     if (!cfg) return 'INVALID_TRUMP';
     this.applyTrump(cfg);
@@ -342,7 +443,7 @@ export class BidClubRoom extends BaseRoom {
     this.trump = cfg.kind === 'suit' ? (cfg.suit ?? null) : null;
     this.previousTrump = this.trump;
     this.phase = 'BIDDING';
-    this.currentTurnSeatIndex = this.bidderSeatIndex;
+    this.currentTurnSeatIndex = this.bidderSeatIndex; // bidding always opens with the first bidder (the Last Stand picker may differ)
     this.beginTurn();
     this.broadcastState();
   }
@@ -364,6 +465,7 @@ export class BidClubRoom extends BaseRoom {
   private advanceBidder(): void {
     this.cancelTurnTimer();
 
+    // Find next player who hasn't bid
     let next = this.nextSeatIndex(this.currentTurnSeatIndex);
     let steps = 0;
     while (this.bids.get(this.seats[next].player.id) !== null && steps < this.seats.length) {
@@ -371,8 +473,10 @@ export class BidClubRoom extends BaseRoom {
       steps++;
     }
 
+    // Check if all bids placed
     const allBid = [...this.bids.values()].every(b => b !== null);
     if (allBid) {
+      // Blind Bid reveals hands and offers a lock/push before play; others start playing.
       if (this.mode === 'blind') this.startPushPhase();
       else this.startPlaying();
     } else {
@@ -383,20 +487,20 @@ export class BidClubRoom extends BaseRoom {
   }
 
   private startPlaying(): void {
-    this.currentTurnSeatIndex = this.trickLeaderSeatIndex;
+    this.currentTurnSeatIndex = this.trickLeaderSeatIndex; // first bidder leads first trick
     this.phase = 'PLAYING';
     this.beginTurn();
     this.broadcastState();
   }
 
-  // ─── Push ─────────────────────────────────────────────────────────────────
+  // ─── Push (Blind Bid: lock ×2, or raise the bid by 1 for ×3) ───────────────
 
   private startPushPhase(): void {
     this.phase = 'PUSH';
     this.cancelTurnTimer();
     this.pushed = new Set();
     this.pushDecided = new Set();
-    this.turnExpiresAt = Date.now() + PUSH_TIMEOUT_MS;
+    this.turnExpiresAt = Date.now() + PUSH_TIMEOUT_MS; // drives the client countdown ring
     this.pushTimer = setTimeout(() => this.finishPush(), PUSH_TIMEOUT_MS);
     this.broadcastState();
   }
@@ -405,12 +509,12 @@ export class BidClubRoom extends BaseRoom {
     if (this.phase !== 'PUSH') return 'WRONG_PHASE';
     const seat = this.getSeat(playerId);
     if (!seat) return 'NOT_IN_ROOM';
-    if (this.pushDecided.has(playerId)) return null;
+    if (this.pushDecided.has(playerId)) return null; // already decided — ignore repeats
     this.pushDecided.add(playerId);
     const bid = this.bids.get(playerId) ?? 0;
     if (push && bid < (this.currentRound ?? 0)) {
       this.pushed.add(playerId);
-      this.bids.set(playerId, bid + 1);
+      this.bids.set(playerId, bid + 1); // raise the contract by one
     }
     if (this.pushDecided.size >= this.seats.length) this.finishPush();
     else this.broadcastState();
@@ -419,6 +523,7 @@ export class BidClubRoom extends BaseRoom {
 
   private finishPush(): void {
     this.pushTimer = this.clearTimer(this.pushTimer);
+    // Anyone who didn't decide simply LOCKs (stays out of `pushed`).
     this.startPlaying();
   }
 
@@ -438,6 +543,7 @@ export class BidClubRoom extends BaseRoom {
     const legal = legalMoves(seat.hand, this.leadSuit);
     if (!legal.find(c => c.id === cardId)) return 'ILLEGAL_CARD';
 
+    // Play the card
     seat.hand.splice(cardIndex, 1);
     if (this.currentTrick.length === 0) {
       this.leadSuit = card.suit;
@@ -447,6 +553,7 @@ export class BidClubRoom extends BaseRoom {
     this.cancelTurnTimer();
 
     if (this.currentTrick.length === this.seats.length) {
+      // Trick complete
       this.resolveTrick();
     } else {
       this.currentTurnSeatIndex = this.nextSeatIndex(this.currentTurnSeatIndex);
@@ -465,12 +572,14 @@ export class BidClubRoom extends BaseRoom {
     const prevTrick = [...this.currentTrick];
     this.currentTrick = [];
     this.leadSuit = null;
-    this.turnExpiresAt = null;
+    this.turnExpiresAt = null; // brief trick-display gap has no live countdown
     this.trickLeaderSeatIndex = winnerSeat.player.seatIndex;
     this.currentTurnSeatIndex = this.trickLeaderSeatIndex;
 
+    // Broadcast the completed trick state briefly, then continue
     this.broadcastState(prevTrick);
 
+    // Check if round is over (no cards left)
     if (this.seats[0].hand.length === 0) {
       setTimeout(() => this.endRound(), TRICK_DISPLAY_MS);
     } else {
@@ -485,28 +594,40 @@ export class BidClubRoom extends BaseRoom {
     this.phase = 'ROUND_SCORING';
     const roundNum = this.currentRound!;
 
+    // Compute deltas
     const perPlayer: MsgRoundResult['perPlayer'] = [];
+    // Last Stand's ×10 is a comeback: only the trailing (lowest-total) player(s) earn it.
+    const lastStand = isLastStandRound(this.mode, this.roundIndex, this.rounds.length);
+    const minTotal = lastStand
+      ? Math.min(...this.seats.map(s => latestTotal(this.scoreboard.get(s.player.id) ?? [])))
+      : 0;
     for (const seat of this.seats) {
       const pid = seat.player.id;
       const bid = this.bids.get(pid) ?? 0;
       const won = this.tricksWon.get(pid) ?? 0;
-      const mult = this.mode === 'blind'
-        ? (this.pushed.has(pid) ? 3 : 2)
-        : roundMultiplier(this.mode, this.roundIndex, this.rounds.length, roundNum);
-      const delta = scoreRound(bid, won) * mult;
       const rows = this.scoreboard.get(pid) ?? [];
       const prevTotal = latestTotal(rows);
+      // Blind Bid: lock ×2 / push ×3 per player. Last Stand: ×10 only for the trailing
+      // player(s); everyone else ×1. Otherwise the Up & Down round multiplier.
+      const perPlayerMultiplier = this.mode === 'blind'
+        ? (this.pushed.has(pid) ? 3 : 2)
+        : lastStand
+        ? (prevTotal === minTotal ? 10 : 1)
+        : roundMultiplier(this.mode, this.roundIndex, this.rounds.length, roundNum);
+      const delta = scoreRound(bid, won) * perPlayerMultiplier;
       const total = prevTotal + delta;
-      rows.push({ round: roundNum, bid, won, delta, total });
+      rows.push({ round: roundNum, bid, won, delta, total, multiplier: perPlayerMultiplier });
       this.scoreboard.set(pid, rows);
       perPlayer.push({ playerId: pid, name: seat.player.name, bid, won, delta, total });
     }
 
+    // Broadcast round result
     const msg: MsgRoundResult = { type: 'roundResult', round: roundNum, perPlayer };
     this.lastRoundResult = msg;
     this.broadcast(msg);
     this.broadcastState();
 
+    // Advance to next round or end game
     setTimeout(() => {
       this.roundIndex++;
       if (this.roundIndex < this.rounds.length) {
@@ -535,7 +656,7 @@ export class BidClubRoom extends BaseRoom {
   private finishGame(winners: string[], finalScores: Record<string, number>, playerNames: Record<string, string>): void {
     this.phase = 'GAME_OVER';
     this.lastGameOver = { type: 'gameOver', winners, finalScores, playerNames };
-    this.startGameOverTimer();
+    this.startGameOverTimer(); // set gameOverExpiresAt FIRST so the state carries roomExpiresInMs (drives the "Room closes in Xs" countdown)
     this.broadcast(this.lastGameOver);
     this.broadcastState();
   }
@@ -550,19 +671,24 @@ export class BidClubRoom extends BaseRoom {
 
   // ─── Timers ───────────────────────────────────────────────────────────────
 
+  // Begin a NEW turn: fix its absolute deadline once, then arm the auto-move timer.
+  // A just-refreshed ('reconnecting') seat still gets the full budget; only a clearly
+  // gone ('offline') seat is fast-forwarded so the table doesn't wait on someone absent.
   private beginTurn(): void {
     this.cancelTurnTimer();
     this.turnPausedRemainingMs = null;
-    if (this.isEmpty) { this.turnExpiresAt = null; return; }
+    if (this.isEmpty) { this.turnExpiresAt = null; return; } // nobody to act → paused
     const currentSeat = this.seats[this.currentTurnSeatIndex];
     const offline = currentSeat?.player.status === 'offline';
     const duration = offline
-      ? DISCONNECTED_AUTO_MOVE_MS
+      ? NPC_AUTO_MOVE_MS
       : ((this.phase === 'BIDDING' || this.phase === 'TRUMP_SELECT') ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS);
     this.turnExpiresAt = Date.now() + duration;
     this.armTurnTimer();
   }
 
+  // (Re)arm the auto-move timer to the REMAINING time of the current deadline. Never
+  // extends it — used on reconnect/resume so a refresh can't reset or lengthen a turn.
   private armTurnTimer(): void {
     this.cancelTurnTimer();
     if (this.turnExpiresAt == null) return;
@@ -620,8 +746,14 @@ export class BidClubRoom extends BaseRoom {
     const tricksWonObj = Object.fromEntries(this.tricksWon);
     const scoreboardObj = Object.fromEntries(this.scoreboard);
 
+    // Use last trick briefly so clients can show the completed trick
     const trickToShow = lastTrick ?? this.currentTrick;
     const turnActive = this.phase === 'BIDDING' || this.phase === 'PLAYING' || this.phase === 'TRUMP_SELECT' || this.phase === 'PUSH';
+    // Blind decisions stay visible through PLAYING too (they define the round's ×2/×3).
+    const pushStatus: Record<string, 'locked' | 'pushed'> | null =
+      (this.phase === 'PUSH' || (this.phase === 'PLAYING' && this.mode === 'blind'))
+        ? Object.fromEntries([...this.pushDecided].map(pid => [pid, this.pushed.has(pid) ? 'pushed' : 'locked']))
+        : null;
 
     return {
       phase: this.phase,
@@ -652,6 +784,7 @@ export class BidClubRoom extends BaseRoom {
       roomExpiresInMs: this.gameOverExpiresAt ? Math.max(0, this.gameOverExpiresAt - Date.now()) : null,
       mode: this.mode,
       announcement: this.announcement,
+      pushStatus,
     };
   }
 
@@ -667,6 +800,9 @@ export class BidClubRoom extends BaseRoom {
     sendMessage(ws, { type: 'state', state });
   }
 
+  // On reconnect, re-send the one-shot messages the client needs for the current phase.
+  // They were broadcast once, so a returning player would otherwise miss them and land on
+  // the wrong screen (e.g. GAME_OVER state with no winner payload → blank game view).
   resendPhaseExtras(ws: WebSocket): void {
     if (this.phase === 'GAME_OVER') {
       if (this.lastGameOver) sendMessage(ws, this.lastGameOver);
@@ -674,4 +810,6 @@ export class BidClubRoom extends BaseRoom {
       if (this.lastRoundResult) sendMessage(ws, this.lastRoundResult);
     }
   }
+
+  getPhase(): GamePhase { return this.phase; }
 }

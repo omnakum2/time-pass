@@ -9,6 +9,7 @@ import { sendMsg } from '../net/socket';
  */
 export function QuickMessages() {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<'default' | 'meme'>('default');
 
   const send = (id: string) => {
     sendMsg({ type: 'quickMessage', id });
@@ -21,7 +22,20 @@ export function QuickMessages() {
         <>
           <div className="quick-messages__backdrop" onClick={() => setOpen(false)} />
           <div className="quick-messages__menu" role="menu">
-            {QUICK_MESSAGES.map(m => (
+            <div className="quick-messages__tabs" role="tablist">
+              {(['default', 'meme'] as const).map(t => (
+                <button
+                  key={t}
+                  className={`quick-messages__tab${tab === t ? ' quick-messages__tab--active' : ''}`}
+                  role="tab"
+                  aria-selected={tab === t}
+                  onClick={() => setTab(t)}
+                >
+                  {t === 'default' ? 'Default' : 'Meme'}
+                </button>
+              ))}
+            </div>
+            {QUICK_MESSAGES.filter(m => m.tab === tab).map(m => (
               <button
                 key={m.id}
                 className="quick-messages__item"

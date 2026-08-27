@@ -22,7 +22,7 @@ export function PushPanel({ bid, cards, remainingMs, fullMs, startKey, running, 
       </div>
       <p className="push-panel__hint">
         Your blind bid is <strong>{bid}</strong>. Lock it (<strong>×2</strong>), or push to{' '}
-        <strong>{bid + 1}</strong> (<strong>×3</strong>) — bigger reward, bigger risk.
+        <strong>{bid + 1}</strong> (<strong>×3</strong>): bigger reward, bigger risk.
       </p>
       <div className="push-panel__buttons">
         <Button variant="primary" onClick={() => onDecide(false)}>Lock · ×2</Button>

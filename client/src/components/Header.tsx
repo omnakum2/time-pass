@@ -65,7 +65,7 @@ export function Header() {
               Guide
             </button>
           ) : (
-            <Link className="app-header__link" to="/guide">
+            <Link className="app-header__link" to="/bid-club/guide">
               Guide
             </Link>
           )}
