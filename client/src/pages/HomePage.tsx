@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { NAME_MIN_LEN, NAME_MAX_LEN, GameMode } from 'shared';
+import { NAME_MIN_LEN, NAME_MAX_LEN, GameMode, GAMES } from 'shared';
 import { sendMsg, reconnectSession } from '../net/socket';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
@@ -11,9 +11,11 @@ import { Surface } from '../components/Surface';
 import { RoomSettings } from '../components/RoomSettings';
 
 export function HomePage() {
+  const { game = 'bid-club' } = useParams();
+  const g = GAMES.find(x => x.id === game) ?? GAMES[0];
   const [name, setName] = useState(storage.getPlayer()?.name ?? '');
   const [roomCode, setRoomCode] = useState('');
-  const [maxPlayers, setMaxPlayers] = useState(7);
+  const [maxPlayers, setMaxPlayers] = useState(g.maxPlayers);
   const [mode, setMode] = useState<'landing' | 'create' | 'join'>('landing');
   const [gameMode, setGameMode] = useState<GameMode>('classic');
   const [pendingHost, setPendingHost] = useState('');
@@ -21,7 +23,6 @@ export function HomePage() {
   const { connected, roomId, gameState, reconnectFailed } = useGameStore();
   const rejoinAttempt = useRef(false);
   const navigate = useNavigate();
-  const { game = 'bid-club' } = useParams();
 
   // If we arrived here via an invite link (redirected from the lobby), pick up
   // the pending room id + host name and drop straight into the join view.
@@ -126,7 +127,7 @@ export function HomePage() {
       {mode === 'landing' ? (
         <div className="landing">
           <div className="text-center">
-            <h1 className="brand-title">Bid Club</h1>
+            <h1 className="brand-title">{g.name}</h1>
           </div>
           <div className="home-actions">
             <Button variant="primary" onClick={() => setMode('create')}>Start</Button>
@@ -134,11 +135,12 @@ export function HomePage() {
           </div>
           <section className="home-seo">
             <p>
-              Bid Club is a real-time multiplayer Hand-taking card game. Create a room,
-              share the room link, and invite two to seven friends. Each round you predict exactly
-              how many hands you&rsquo;ll make, then play to hit your number. Miss it and you
-              will lose the points. Seven rounds, a shifting trump, one winner.{' '}
-              New here? Read our <Link className="home-seo__link" to="/bid-club/guide">Guide</Link> to learn how to play.
+              {g.description}
+              {game === 'bid-club' && (
+                <>
+                  {' '}New here? Read our <Link className="home-seo__link" to={`/${game}/guide`}>Guide</Link> to learn how to play.
+                </>
+              )}
             </p>
           </section>
         </div>
@@ -147,7 +149,7 @@ export function HomePage() {
           {mode === 'create' && (
             <>
               <div className="text-center">
-                <h1 className="brand-title brand-title--card">Bid Club</h1>
+                <h1 className="brand-title brand-title--card">{g.name}</h1>
               </div>
               <Field
                 label="Your name"
@@ -163,7 +165,9 @@ export function HomePage() {
               <RoomSettings
                 maxPlayers={maxPlayers}
                 minPlayers={2}
+                maxAllowed={g.maxPlayers}
                 mode={gameMode}
+                showModes={g.hasModes}
                 onCommitMaxPlayers={setMaxPlayers}
                 onSelectMode={setGameMode}
               />
@@ -188,7 +192,7 @@ export function HomePage() {
           {mode === 'join' && (
             <>
               <div className="text-center">
-                <h1 className="brand-title brand-title--card">Bid Club</h1>
+                <h1 className="brand-title brand-title--card">{g.name}</h1>
               </div>
               <Field
                 label="Your name"

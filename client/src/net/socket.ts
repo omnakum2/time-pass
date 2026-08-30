@@ -1,5 +1,6 @@
 import { ClientMessage, ServerMessage } from 'shared';
 import { useGameStore } from '../store/gameStore';
+import { useThosoStore } from '../store/thosoStore';
 import { storage } from '../storage';
 import { WS_DEFAULT_PORT, RECONNECT_BASE_MS, RECONNECT_MAX_MS, RECONNECT_EXP_CAP } from '../constants';
 
@@ -89,6 +90,9 @@ function dispatch(msg: ServerMessage): void {
       break;
     case 'state':
       store.setState(msg.state);
+      break;
+    case 'thosoState':
+      useThosoStore.getState().setThosoState(msg.state);
       break;
     case 'roundResult':
       store.setRoundResult(msg);

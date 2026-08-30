@@ -71,6 +71,12 @@ export function validateMessage(msg: ClientMessage): ErrorCode | null {
       return (msg.maxPlayers === undefined || typeof msg.maxPlayers === 'number')
         && (msg.mode === undefined || typeof msg.mode === 'string')
         ? null : 'INVALID_SETTINGS';
+    case 'thosoDraw':
+      return null;
+    case 'thosoTransfer':
+      return typeof msg.cardId === 'string' && typeof msg.toPlayerId === 'string' ? null : 'BAD_MESSAGE';
+    case 'thosoPlay':
+      return typeof msg.cardId === 'string' ? null : 'BAD_MESSAGE';
     case 'startGame':
     case 'restartGame':
     case 'leaveRoom':

@@ -6,6 +6,8 @@ export interface GameInfo {
   route: string;
   status: 'active' | 'coming-soon';
   icon: 'bid-club' | 'rummy' | 'thoso';
+  hasModes: boolean;  // whether the game offers selectable modes at room creation
+  maxPlayers: number; // upper bound for the room's player-count slider
 }
 
 export const GAMES: GameInfo[] = [
@@ -17,6 +19,8 @@ export const GAMES: GameInfo[] = [
     route: '/bid-club',
     status: 'active',
     icon: 'bid-club',
+    hasModes: true,
+    maxPlayers: 7,
   },
   {
     id: 'rummy',
@@ -26,14 +30,18 @@ export const GAMES: GameInfo[] = [
     route: '/rummy',
     status: 'coming-soon',
     icon: 'rummy',
+    hasModes: false,
+    maxPlayers: 6,
   },
   {
     id: 'thoso',
     name: 'Thoso',
     description: 'Sweep the cards & shed your hand to win',
-    players: '2–4 Players',
+    players: '2–6 Players',
     route: '/thoso',
-    status: 'coming-soon',
+    status: 'active',
     icon: 'thoso',
+    hasModes: false,
+    maxPlayers: 6,
   },
 ];

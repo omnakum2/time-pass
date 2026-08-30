@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { storage } from '../storage';
-import { STORAGE_KEYS, COPY_FEEDBACK_MS } from '../constants';
 import { useSecondsRemaining } from '../hooks/useSecondsRemaining';
+import { useCopyInvite } from '../hooks/useCopyInvite';
+import { useJoinViaLinkRedirect } from '../hooks/useJoinViaLinkRedirect';
 import { sendMsg } from '../net/socket';
 import { Surface } from '../components/Surface';
 import { Button } from '../components/Button';
@@ -13,29 +13,21 @@ import { GAME_MODES } from 'shared';
 
 export function LobbyPage() {
   const { roomId: urlRoomId, game = 'bid-club' } = useParams<{ roomId: string; game: string }>();
-  const { gameState, playerId, roomId, connected, reconnectFailed } = useGameStore();
-  const navigate = useNavigate();
-  const [copied, setCopied] = useState(false);
+  const { gameState, playerId, roomId, reconnectFailed } = useGameStore();
 
-  // If someone navigates directly to /room/:id without being in a room,
-  // show a join prompt via the home page logic
-  useEffect(() => {
-    if (roomId || !urlRoomId || !connected) return;
-    // If we already hold a session for THIS room, an auto-reconnect is in flight — wait
-    // for it instead of bouncing to the join prompt (unless that reconnect just failed).
-    const session = storage.getSession();
-    const mineForThisRoom = session?.roomId?.toUpperCase() === urlRoomId.toUpperCase();
-    if (mineForThisRoom && !reconnectFailed) return;
-    // Genuine newcomer (or the reconnect failed): go home with the code (and host) pre-filled.
-    const host = new URLSearchParams(window.location.search).get('host');
-    sessionStorage.setItem(STORAGE_KEYS.pendingRoomId, urlRoomId);
-    if (host) sessionStorage.setItem(STORAGE_KEYS.pendingHost, host);
-    navigate(`/${game}`, { replace: true });
-  }, [roomId, urlRoomId, connected, reconnectFailed, game, navigate]);
+  // Someone landing directly on /:game/room/:id without being in the room → stash the
+  // code and bounce home to enter a name + join (waits out an in-flight reconnect).
+  useJoinViaLinkRedirect(game, urlRoomId);
 
   // Locally tick down the countdown coming from the server.
   const countdownMs = gameState?.countdownMs ?? null;
   const secondsLeft = useSecondsRemaining(countdownMs);
+
+  // Invite link (null-safe so the copy hook can run before the loading early-return).
+  const displayRoomId = roomId ?? urlRoomId ?? '';
+  const hostName = gameState ? (gameState.players.find(p => p.id === gameState.hostId)?.name ?? '') : '';
+  const joinUrl = `${window.location.origin}/${game}/room/${displayRoomId}?host=${encodeURIComponent(hostName)}`;
+  const { copied, copy } = useCopyInvite(joinUrl);
 
   if (!gameState || !playerId) {
     const s = storage.getSession();
@@ -49,49 +41,10 @@ export function LobbyPage() {
 
   const { players, hostId } = gameState;
   const isHost = hostId === playerId;
-  const hostName = players.find(p => p.id === hostId)?.name ?? '';
-  const displayRoomId = roomId ?? urlRoomId ?? '';
-  const joinUrl = `${window.location.origin}/${game}/room/${displayRoomId}?host=${encodeURIComponent(hostName)}`;
 
   // The invite link only works for other people if the app is being served from a
   // routable address. On localhost the link points at the recipient's own machine.
   const onLocalhost = /^(localhost|127\.0\.0\.1|\[?::1\]?)$/.test(window.location.hostname);
-
-  const markCopied = () => {
-    setCopied(true);
-    setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
-  };
-
-  const copyUrl = async () => {
-    // Preferred path: async Clipboard API — but it only exists in a secure context
-    // (https or http://localhost), so it's undefined when hosting over http://<LAN-IP>.
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(joinUrl);
-        markCopied();
-        return;
-      }
-    } catch {
-      /* fall through to the legacy path below */
-    }
-    // Fallback for non-secure origins: hidden textarea + execCommand('copy').
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = joinUrl;
-      ta.setAttribute('readonly', '');
-      ta.style.position = 'fixed';
-      ta.style.top = '-1000px';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      ta.setSelectionRange(0, ta.value.length);
-      const ok = document.execCommand('copy');
-      document.body.removeChild(ta);
-      if (ok) markCopied();
-    } catch {
-      /* clipboard genuinely unavailable — the user can still select the code manually */
-    }
-  };
 
   return (
     <div className="page">
@@ -112,7 +65,7 @@ export function LobbyPage() {
             </span>
             <button
               className="icon-btn"
-              onClick={copyUrl}
+              onClick={copy}
               title="Copy invite link"
               aria-label="Copy invite link"
             >

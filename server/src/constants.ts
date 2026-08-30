@@ -23,6 +23,8 @@ export const QUICK_MSG_THROTTLE_MS = 1_500;      // min gap between a seat's qui
 export const ANNOUNCE_MS = 5_000;                // how long a round-start announcement banner holds before play
 export const PUSH_TIMEOUT_MS = 30_000;           // Blind Bid: time to lock/push before auto-lock
 export const HEARTBEAT_MS = 25_000;           // WebSocket ping interval — keeps idle connections warm + reaps dead ones
+export const THOSO_MAX_PLAYERS = 6;           // Thoso: max players per room (min 2 from shared MIN_PLAYERS)
+export const PENALTY_REVEAL_MS = 5_000;       // Thoso: how long a missed-transfer penalty reveal shows the received cards privately
 
 // ─── 2. Error messages ───────────────────────────────────────────────────────
 export const ERROR_MESSAGES: Record<ErrorCode, string> = {

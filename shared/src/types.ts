@@ -147,6 +147,34 @@ export interface GameState {
   pushStatus: Record<string, 'locked' | 'pushed'> | null; // Blind Bid PUSH phase: each decided player's choice (null otherwise)
 }
 
+// ─── Redacted Thoso state (sent to each client) ──────────────────────────────
+
+export interface ThosoState {
+  game: 'thoso';
+  phase: 'LOBBY' | 'TRANSFER' | 'PLAYING' | 'GAME_OVER';
+  roomId: string;
+  players: Player[];
+  hostId: string;
+  maxPlayers: number;
+  drawPileCount: number;                 // cards left in the central draw pile (Phase 1)
+  pileTops: Record<string, Card | null>; // Phase 1: every player's face-up pile TOP card (public)
+  drawnCard: Card | null;                // Phase 1: current player's just-drawn face-up card awaiting a transfer decision (public; null when none pending)
+  penaltyReveal: Card[] | null;          // Phase 1: the cards THIS player just received as a missed-transfer penalty (private, shown ~5s); null otherwise
+  handCounts: Record<string, number>;    // Phase 2: per-player hand size (not incl. your own detail)
+  yourHand: Card[];                       // Phase 2: your own full hand (empty in Phase 1 — only your top card is visible, via pileTops)
+  currentTurn: string | null;
+  ledSuit: Suit | null;                   // Phase 2: current round's led suit
+  mustLeadAceOfSpades: boolean;           // Phase 2: true during the opening lead, until the Ace of Spades has been played
+  currentTrick: TrickCard[];              // Phase 2: cards played so far this round
+  finishedRanks: { playerId: string; rank: number }[]; // finishing order (1 = first out)
+  turnTimeoutMs: number;
+  turnExpiresAt: number | null;
+  turnRemainingMs: number | null;
+  countdownMs: number | null;
+  roomExpiresInMs: number | null;
+  announcement: Announcement | null;
+}
+
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
 
 export interface MsgCreateRoom {
@@ -213,6 +241,23 @@ export interface MsgUpdateRoomSettings {
   mode?: GameMode;
 }
 
+// ─── Thoso client messages ──────────────────────────────────────────────────
+
+export interface MsgThosoDraw {
+  type: 'thosoDraw'; // draw one card from the central pile (Phase 1)
+}
+
+export interface MsgThosoTransfer {
+  type: 'thosoTransfer';
+  cardId: string;       // card from own pile or the just-drawn card
+  toPlayerId: string;   // eligible recipient (Phase 1)
+}
+
+export interface MsgThosoPlay {
+  type: 'thosoPlay';
+  cardId: string; // Phase 2; the server decides whether it's a follow or a Thoso
+}
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
@@ -225,7 +270,10 @@ export type ClientMessage =
   | MsgQuickMessage
   | MsgSelectTrump
   | MsgPushBid
-  | MsgUpdateRoomSettings;
+  | MsgUpdateRoomSettings
+  | MsgThosoDraw
+  | MsgThosoTransfer
+  | MsgThosoPlay;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 
@@ -239,6 +287,11 @@ export interface MsgJoined {
 export interface MsgState {
   type: 'state';
   state: GameState;
+}
+
+export interface MsgThosoState {
+  type: 'thosoState';
+  state: ThosoState; // Thoso rooms send this instead of MsgState
 }
 
 export interface MsgRoundResult {
@@ -299,6 +352,7 @@ export interface MsgQuickMessageBroadcast {
 export type ServerMessage =
   | MsgJoined
   | MsgState
+  | MsgThosoState
   | MsgRoundResult
   | MsgGameOver
   | MsgError

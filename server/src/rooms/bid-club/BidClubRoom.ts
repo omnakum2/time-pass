@@ -2,14 +2,13 @@ import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import {
   Card, GameMode, GamePhase, GameState, Player, RoundScore,
-  Suit, TrumpKind, TrumpConfig, TrickCard, ServerMessage, MsgRoundResult, MsgGameOver, ErrorCode, QUICK_MESSAGES, Announcement,
+  Suit, TrumpKind, TrumpConfig, TrickCard, MsgRoundResult, MsgGameOver, ErrorCode, Announcement,
   roundsForMode, deal, pickTrump, firstBidderSeat,
-  legalMoves, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, isSummitRound, isLastStandRound, ROUNDS, SUITS, RANK_ORDER, GAME_MODES
+  legalMoves, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, isSummitRound, isLastStandRound, ROUNDS, SUITS, RANK_ORDER, GAME_MODES, ClientMessage
 } from 'shared';
 import {
-  BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS,
-  GAME_OVER_TTL_MS, COUNTDOWN_MS, NPC_AUTO_MOVE_MS, TRICK_DISPLAY_MS, ROUND_END_DELAY_MS,
-  LOBBY_RECONNECT_WINDOW_MS, QUICK_MSG_THROTTLE_MS, ANNOUNCE_MS, PUSH_TIMEOUT_MS,
+  BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, NPC_AUTO_MOVE_MS, TRICK_DISPLAY_MS, ROUND_END_DELAY_MS,
+  ANNOUNCE_MS, PUSH_TIMEOUT_MS,
 } from '../../constants';
 import { sendMessage, clampPlayers } from '../../helpers';
 import { BaseRoom, Seat } from '../BaseRoom';
@@ -30,17 +29,9 @@ export class BidClubRoom extends BaseRoom {
   private currentTrick: TrickCard[] = [];
   private leadSuit: Suit | null = null;
   private trickLeaderSeatIndex = 0;
-  private currentTurnSeatIndex = 0;
   private bidderSeatIndex = 0; // first bidder seat for this round
   private scoreboard: Map<string, RoundScore[]> = new Map();
 
-  private turnTimer: ReturnType<typeof setTimeout> | null = null;
-  private turnExpiresAt: number | null = null;         // absolute epoch ms the current turn auto-resolves
-  private turnPausedRemainingMs: number | null = null; // frozen turn time while the room is empty (paused)
-  private gameOverTimer: ReturnType<typeof setTimeout> | null = null;
-  private gameOverExpiresAt: number | null = null;
-  private countdownTimer: ReturnType<typeof setTimeout> | null = null;
-  private countdownEndsAt: number | null = null;
   private lastGameOver: MsgGameOver | null = null;       // re-sent if a player reconnects during GAME_OVER
   private lastRoundResult: MsgRoundResult | null = null;  // re-sent if a player reconnects during ROUND_SCORING
 
@@ -57,12 +48,9 @@ export class BidClubRoom extends BaseRoom {
 
   // ─── Seat helpers ─────────────────────────────────────────────────────────
 
-  private currentTurnPlayerId(): string {
-    return this.seats[this.currentTurnSeatIndex]?.player.id ?? '';
-  }
-
-  private nextSeatIndex(from: number): number {
-    return (from + 1) % this.seats.length;
+  // Live-turn phases — drives the shared reconnect/disconnect turn-timer resume.
+  protected isTurnPhase(): boolean {
+    return this.phase === 'BIDDING' || this.phase === 'PLAYING' || this.phase === 'TRUMP_SELECT';
   }
 
   // Remove a seat (BaseRoom handles filter + reindex + host promotion); then do the
@@ -100,129 +88,6 @@ export class BidClubRoom extends BaseRoom {
     this.cancelEmptyRoomTimer();
     this.maybeStartCountdown();
     return seat;
-  }
-
-  reconnect(ws: WebSocket, token: string): Seat | null {
-    const seat = this.getSeatByToken(token);
-    if (!seat) return null;
-    seat.reconnectTimer = this.clearTimer(seat.reconnectTimer);
-    // FIX 9: one active connection per seat — close any older, different socket.
-    if (seat.ws && seat.ws !== ws) { try { seat.ws.close(1000, 'replaced'); } catch { /* ignore */ } }
-    seat.ws = ws;
-    seat.player.status = 'online';
-    // If the host left/went offline while we were away, take over so the room isn't left
-    // host-less (host-only actions: rematch, room settings). The caller broadcasts.
-    const host = this.hostId ? this.getSeat(this.hostId) : undefined;
-    if (!host || host.player.status === 'offline') this.hostId = seat.player.id;
-    this.cancelEmptyRoomTimer();
-
-    // Resume the turn timer WITHOUT extending the deadline. If the game was paused
-    // (everyone had dropped), restore the frozen remaining time first. A refresh can
-    // never buy more time — the turn's deadline is fixed for its whole duration.
-    if (this.phase === 'BIDDING' || this.phase === 'PLAYING' || this.phase === 'TRUMP_SELECT') {
-      if (this.turnPausedRemainingMs != null) {
-        this.turnExpiresAt = Date.now() + this.turnPausedRemainingMs;
-        this.turnPausedRemainingMs = null;
-      }
-      this.armTurnTimer();
-    }
-    return seat;
-  }
-
-  // `immediate` (opts) = an explicit in-game Leave: a real exit, so skip the reconnecting
-  // grace and go straight to 'offline'. A tab-close / refresh (the default) keeps the grace.
-  disconnect(playerId: string, closingWs?: WebSocket, opts?: { immediate?: boolean }): void {
-    const seat = this.getSeat(playerId);
-    if (!seat) return;
-    // FIX 1: ignore a stale/late close from a socket that's no longer this seat's
-    // (e.g. after a fresh reconnect replaced it). Internal callers pass no ws.
-    if (closingWs !== undefined && seat.ws !== closingWs) return;
-
-    const immediate = opts?.immediate === true;
-    seat.reconnectTimer = this.clearTimer(seat.reconnectTimer);
-    seat.ws = null;
-    seat.player.status = immediate ? 'offline' : 'reconnecting';
-
-    if (this.phase === 'LOBBY') {
-      // FIX 4: don't drop the seat on a refresh; give a short window to reconnect.
-      if (!immediate) {
-        seat.reconnectTimer = setTimeout(() => {
-          seat.reconnectTimer = null;
-          if (seat.player.status !== 'online') {
-            this.removeSeat(playerId);
-            this.broadcastState();
-            if (this.isEmpty) this.startEmptyRoomTimer();
-          }
-        }, LOBBY_RECONNECT_WINDOW_MS);
-      }
-    } else if (immediate) {
-      // Explicit in-game leave — hand off host now (no grace window).
-      if (playerId === this.hostId) this.reassignHostToConnected();
-    } else {
-      // In-game drop: start the reconnect window. When the grace fully expires and the
-      // player is still gone, mark them offline and hand off host if needed.
-      seat.reconnectTimer = setTimeout(() => {
-        seat.reconnectTimer = null;
-        if (seat.player.status !== 'online') {
-          seat.player.status = 'offline';
-          if (playerId === this.hostId) this.reassignHostToConnected();
-          this.broadcastState();
-        }
-      }, RECONNECT_WINDOW_MS);
-
-      // A finished room is destroyed on its short GAME_OVER TTL, which elapses well
-      // before the 60s reconnect window — so if the host drops here, hand off now so a
-      // remaining player can still start a rematch.
-      if (this.phase === 'GAME_OVER' && playerId === this.hostId) {
-        this.reassignHostToConnected();
-      }
-    }
-
-    // Turn timer: if the room just emptied mid-turn, freeze the remaining time so it
-    // doesn't tick away while nobody can act (reconnect() restores it). Otherwise, an
-    // explicit leave on the leaver's OWN turn resolves fast instead of waiting the full
-    // budget — matching how an already-offline seat is auto-moved. A normal drop leaves
-    // the turn's fixed deadline untouched.
-    if (this.isEmpty && this.turnExpiresAt != null) {
-      this.turnPausedRemainingMs = Math.max(0, this.turnExpiresAt - Date.now());
-      this.turnExpiresAt = null;
-      this.cancelTurnTimer();
-    } else if (immediate &&
-               this.currentTurnPlayerId() === playerId &&
-               (this.phase === 'BIDDING' || this.phase === 'PLAYING' || this.phase === 'TRUMP_SELECT')) {
-      this.turnExpiresAt = Date.now() + NPC_AUTO_MOVE_MS;
-      this.armTurnTimer();
-    }
-
-    this.broadcastState();
-
-    // Check if room is empty
-    if (this.isEmpty) {
-      this.startEmptyRoomTimer();
-    }
-  }
-
-  leaveRoom(playerId: string): void {
-    const seat = this.getSeat(playerId);
-    if (!seat) return;
-
-    // In-game leave: an explicit Leave is a real exit — reuse disconnect's teardown but
-    // skip the reconnecting grace (immediate: true → straight to 'offline'). Seat/turn/bid
-    // indices stay intact (hard removal mid-round would corrupt state); the seat auto-plays
-    // to the end and beginTurn fast-forwards its future turns because it's 'offline'.
-    if (this.phase !== 'LOBBY' && this.phase !== 'GAME_OVER') {
-      this.disconnect(playerId, undefined, { immediate: true });
-      return;
-    }
-
-    seat.reconnectTimer = this.clearTimer(seat.reconnectTimer);
-    this.removeSeat(playerId); // remove the seat entirely
-
-    this.broadcastState();
-
-    if (this.seats.length === 0) {
-      this.startEmptyRoomTimer();
-    }
   }
 
   // ─── Lobby ────────────────────────────────────────────────────────────────
@@ -306,25 +171,7 @@ export class BidClubRoom extends BaseRoom {
     return null;
   }
 
-  private maybeStartCountdown(): void {
-    if (this.phase !== 'LOBBY') return;
-    if (this.seats.length < this.maxPlayers) return; // only when full
-    if (this.countdownTimer) clearTimeout(this.countdownTimer);
-    this.countdownEndsAt = Date.now() + COUNTDOWN_MS;
-    this.countdownTimer = setTimeout(() => {
-      this.countdownTimer = null;
-      this.countdownEndsAt = null;
-      this.beginGame();
-    }, COUNTDOWN_MS);
-    this.broadcastState();
-  }
-
-  private cancelCountdown(): void {
-    this.countdownTimer = this.clearTimer(this.countdownTimer);
-    this.countdownEndsAt = null;
-  }
-
-  private beginGame(): void {
+  protected beginGame(): void {
     if (this.phase !== 'LOBBY') return;
     if (this.seats.length < 2) { this.cancelCountdown(); return; }
     this.previousTrump = undefined;
@@ -687,20 +534,7 @@ export class BidClubRoom extends BaseRoom {
     this.armTurnTimer();
   }
 
-  // (Re)arm the auto-move timer to the REMAINING time of the current deadline. Never
-  // extends it — used on reconnect/resume so a refresh can't reset or lengthen a turn.
-  private armTurnTimer(): void {
-    this.cancelTurnTimer();
-    if (this.turnExpiresAt == null) return;
-    const ms = Math.max(0, this.turnExpiresAt - Date.now());
-    this.turnTimer = setTimeout(() => { this.autoAction(); }, ms);
-  }
-
-  private cancelTurnTimer(): void {
-    this.turnTimer = this.clearTimer(this.turnTimer);
-  }
-
-  private autoAction(): void {
+  protected autoAction(): void {
     if (this.phase === 'TRUMP_SELECT') { this.applyTrump({ kind: 'suit', suit: SUITS[Math.floor(Math.random() * SUITS.length)] }); return; }
     const playerId = this.currentTurnPlayerId();
     if (this.phase === 'BIDDING') {
@@ -714,21 +548,6 @@ export class BidClubRoom extends BaseRoom {
         }
       }
     }
-  }
-
-  private startGameOverTimer(): void {
-    this.cancelGameOverTimer();
-    this.gameOverExpiresAt = Date.now() + GAME_OVER_TTL_MS;
-    this.gameOverTimer = setTimeout(() => {
-      this.gameOverTimer = null;
-      this.broadcast({ type: 'roomClosed' });
-      this.onDestroy?.();
-    }, GAME_OVER_TTL_MS);
-  }
-
-  private cancelGameOverTimer(): void {
-    this.gameOverTimer = this.clearTimer(this.gameOverTimer);
-    this.gameOverExpiresAt = null;
   }
 
   // ─── State broadcast ──────────────────────────────────────────────────────
@@ -812,4 +631,17 @@ export class BidClubRoom extends BaseRoom {
   }
 
   getPhase(): GamePhase { return this.phase; }
+
+  handleGameMessage(playerId: string, msg: ClientMessage): ErrorCode | null {
+    switch (msg.type) {
+      case 'startGame':          return this.startGame(playerId);
+      case 'placeBid':           return this.placeBid(playerId, msg.bid);
+      case 'selectTrump':        return this.selectTrump(playerId, msg.kind, msg.suit);
+      case 'playCard':           return this.playCard(playerId, msg.cardId);
+      case 'pushBid':            return this.pushBid(playerId, msg.push);
+      case 'restartGame':        return this.restartGame(playerId);
+      case 'updateRoomSettings': return this.updateRoomSettings(playerId, msg.maxPlayers, msg.mode);
+      default:                   return null; // not a message this game handles
+    }
+  }
 }
