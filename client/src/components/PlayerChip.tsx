@@ -61,7 +61,7 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, remainingM
 
       {player.status !== 'online' && (
         <div className="player-chip__disconnected">
-          {player.status === 'reconnecting' ? 'reconnecting…' : 'disconnected'}
+          {player.status === 'reconnecting' ? 'reconnecting…' : 'left'}
         </div>
       )}
     </div>

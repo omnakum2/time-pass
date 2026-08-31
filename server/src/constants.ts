@@ -10,19 +10,21 @@ export const MAX_CONN_PER_IP = 30;            // concurrent connections per IP
 export const RATE_LIMIT_PER_SEC = 25;         // messages / second / connection
 export const BID_TIMEOUT_MS = 30_000;         // time to bid before an auto-bid of 0
 export const PLAY_TIMEOUT_MS = 30_000;        // time to play before an auto-play of a legal card
-export const RECONNECT_WINDOW_MS = 60_000;    // grace period for a disconnected player to return
-export const EMPTY_ROOM_DESTROY_MS = 120_000; // keep an empty room this long before destroying it
+export const RECONNECT_WINDOW_MS = 20_000;    // grace period for a disconnected player to return
+export const EMPTY_ROOM_DESTROY_MS = 20_000;  // keep an empty room this long before destroying it
 export const GAME_OVER_TTL_MS = 60_000;       // keep a finished room this long before it auto-closes (rematch cancels it)
 export const COUNTDOWN_MS = 5_000;            // lobby auto-start countdown once the room is full
-export const DISCONNECTED_AUTO_MOVE_MS = 500; // auto-move delay for a disconnected player's seat
+export const NPC_AUTO_MOVE_MS = 2_000;        // auto-move delay for a left player's (NPC) seat
 export const TRICK_DISPLAY_MS = 1_500;        // how long a completed trick is shown
 export const ROUND_END_DELAY_MS = 3_000;      // pause after round scoring before the next round
-export const LOBBY_RECONNECT_WINDOW_MS = 15_000; // grace for a lobby player to return after a refresh
+export const LOBBY_RECONNECT_WINDOW_MS = 20_000; // grace for a lobby player to return after a refresh
 export const DRAIN_MAX_MS = 60_000;              // max wait for active rooms to empty during shutdown drain
 export const QUICK_MSG_THROTTLE_MS = 1_500;      // min gap between a seat's quick-chat messages
 export const ANNOUNCE_MS = 5_000;                // how long a round-start announcement banner holds before play
 export const PUSH_TIMEOUT_MS = 30_000;           // Blind Bid: time to lock/push before auto-lock
 export const HEARTBEAT_MS = 25_000;           // WebSocket ping interval — keeps idle connections warm + reaps dead ones
+export const THOSO_MAX_PLAYERS = 6;           // Thoso: max players per room (min 2 from shared MIN_PLAYERS)
+export const PENALTY_REVEAL_MS = 5_000;       // Thoso: how long a missed-transfer penalty reveal shows the received cards privately
 
 // ─── 2. Error messages ───────────────────────────────────────────────────────
 export const ERROR_MESSAGES: Record<ErrorCode, string> = {

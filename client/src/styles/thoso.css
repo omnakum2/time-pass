@@ -1,0 +1,164 @@
+/* ─── Thoso-specific styling ───────────────────────────────────────────────────
+   Layered on top of the shared Bid Club table shell (index.css). Sapphire theming
+   comes for free from the `data-game="thoso"` tokens (styles/theme.css). Only the
+   Phase-1/Phase-2 pieces that differ from Bid Club live here. */
+
+/* ─── Pile stack (a face-up top card over hidden buried cards) ─────────────────*/
+.thoso-pile { display: inline-flex; }
+/* Re-derive --card-h alongside every local --card-w override. --card-h is declared
+   on :root as calc(var(--card-w) * 1.45); inheritance keeps the ROOT height even
+   when a descendant shrinks --card-w, which otherwise stretches the card tall/thin
+   (same trap the trick-card media query calls out). Co-declaring both keeps the
+   1:1.45 ratio, so chip piles render as small, undistorted thumbnails. */
+.thoso-pile--sm { --card-w: 32px; --card-h: calc(var(--card-w) * 1.45); }
+.thoso-pile--md { --card-w: 54px; --card-h: calc(var(--card-w) * 1.45); }
+.thoso-pile--interactive { cursor: pointer; }
+
+.thoso-stack { position: relative; display: inline-flex; }
+.thoso-stack--static { pointer-events: none; }        /* static display — no hover/tap */
+.thoso-stack__top { position: relative; z-index: 1; }
+.thoso-stack__layer {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  border-radius: 8px;
+  background: #ece7db;
+  border: 1px solid #cfc9bb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  z-index: 0;
+}
+.thoso-stack__layer--a { transform: translate(2px, 3px); }
+.thoso-stack__layer--b { transform: translate(4px, 6px); opacity: 0.9; }
+
+/* Empty pile placeholder — a dashed card outline. */
+.thoso-pile--empty { line-height: 0; }
+.thoso-empty {
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: 8px;
+  border: 1px dashed rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ─── Player chip additions (finished / transfer target / count) ───────────────*/
+/* A fixed, centered slot for the pile thumbnail so the stack sits cleanly UNDER the
+   name (never overlapping it) and every chip keeps a consistent height. The min-height
+   comfortably clears the sm card (≈46px) plus its down-right shadow-layer offset. */
+.thoso-chip__region {
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 4px; min-height: 56px; padding-bottom: 6px;
+}
+
+.thoso-chip--finished { opacity: 0.5; }
+.thoso-chip__finished-badge {
+  margin-top: 3px;
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 0.4px;
+  color: var(--gold);
+  background: rgba(var(--gold-rgb), 0.14);
+  border: 1px solid var(--gold-border);
+  border-radius: 20px; padding: 1px 8px;
+}
+
+/* A selectable transfer target — clickable, with a soft affordance on hover.
+   NO eligibility hint (transfers are a skill): every opponent looks the same. */
+.thoso-chip--target { cursor: pointer; }
+.thoso-chip--target:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(var(--gold-rgb), 0.28); }
+
+/* ─── Illegal-transfer wobble (spec-defined) ──────────────────────────────────*/
+@keyframes thoso-shake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-6px); }
+  75%      { transform: translateX(6px); }
+}
+.reject { animation: thoso-shake .3s; }
+
+/* ─── Phase 1 centre — draw pile + drawn card ─────────────────────────────────*/
+.thoso-center {
+  position: relative; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+  gap: clamp(20px, 6vw, 56px); flex-wrap: wrap;
+  width: 100%;
+  /* Bottom padding lifts the pieces clear of the absolute .trick-status ribbon and
+     keeps them off the felt edges. */
+  padding: 4px 12px 20px;
+}
+.thoso-drawpile-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.thoso-drawpile {
+  --card-w: 54px;
+  --card-h: calc(var(--card-w) * 1.45);
+  position: relative;
+  width: var(--card-w); height: var(--card-h);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: #eaf1ff; font-weight: 800; font-size: 1.1rem;
+  background:
+    repeating-linear-gradient(45deg,
+      color-mix(in srgb, var(--game-deep) 92%, #000 8%) 0 7px,
+      color-mix(in srgb, var(--game-felt-deep) 94%, #000 6%) 7px 14px);
+  border: 1px solid rgba(var(--gold-rgb), 0.45);
+  box-shadow:
+    inset 0 0 0 3px rgba(var(--gold-rgb), 0.14),
+    4px 5px 0 -1px rgba(0, 0, 0, 0.28),          /* faux stack behind */
+    2px 3px 0 -1px rgba(0, 0, 0, 0.22),
+    0 6px 16px rgba(0, 0, 0, 0.5);
+}
+.thoso-drawpile__count {
+  background: rgba(0, 0, 0, 0.42);
+  border-radius: 20px; padding: 2px 9px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.thoso-drawn { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.thoso-drawn__label,
+.thoso-my-pile__label {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.5px;
+  text-transform: uppercase; color: rgba(234, 242, 255, 0.85);
+}
+
+/* ─── Phase 2 centre — play area ──────────────────────────────────────────────*/
+.thoso-play-area {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  width: 100%;
+  /* Keep the trick off the felt edges and clear of the status ribbon. */
+  padding: 4px 12px 18px;
+}
+.thoso-trick {
+  display: flex; align-items: flex-start; justify-content: center;
+  gap: 10px; flex-wrap: wrap;
+}
+
+/* ─── My area (bottom) ────────────────────────────────────────────────────────*/
+/* Draw button now lives HERE (below "Your pile"), turn-gated in TSX — not in the
+   felt centre where it overlapped the draw pile. */
+.thoso-my-pile { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 4px 0 6px; }
+/* Pile card + Draw button sit SIDE BY SIDE (button to the right of the pile). */
+.thoso-my-pile__row { display: flex; align-items: center; gap: 14px; }
+.thoso-draw-btn { flex-shrink: 0; }
+
+/* Phase 2 hand: fan up to ~7, then scroll horizontally (spec). */
+.thoso-hand-scroll {
+  max-width: 100%; overflow-x: auto; overflow-y: hidden;
+  padding: 6px 8px 4px;
+  display: flex; justify-content: center;
+}
+.thoso-hand-scroll .hand-cards { flex-wrap: nowrap; }
+
+/* ─── Private missed-transfer penalty reveal (the cards you received, ~5s) ─────*/
+.thoso-penalty-reveal {
+  position: fixed; top: 96px; left: 50%; transform: translateX(-50%);
+  z-index: 88; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 12px 18px; border-radius: 14px;
+  background: linear-gradient(180deg, rgba(20,10,10,0.96), rgba(10,5,5,0.96));
+  border: 1px solid var(--gold-border);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+  animation: thoso-penalty-reveal-pop .25s ease-out;
+}
+.thoso-penalty-reveal__label {
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.4px;
+  text-transform: uppercase; color: var(--gold);
+}
+.thoso-penalty-reveal__cards { display: flex; gap: 6px; --card-w: 40px; --card-h: calc(var(--card-w) * 1.45); }
+@keyframes thoso-penalty-reveal-pop {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.94); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}

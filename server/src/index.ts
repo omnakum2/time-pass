@@ -3,9 +3,10 @@ dotenv.config(); // load .env into process.env before anything reads it
 
 import { createServer, IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { Room } from './room';
+import { Room, BaseRoom } from './room';
+import { ThosoRoom } from './rooms/thoso/ThosoRoom';
 import { ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES } from 'shared';
-import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS, HEARTBEAT_MS } from './constants';
+import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS, HEARTBEAT_MS, THOSO_MAX_PLAYERS } from './constants';
 import { sendMessage, sendError, sanitizeName, clampPlayers, validateMessage, randomRoomCode } from './helpers';
 
 // ─── Environment-specific settings (from process.env) ──────────────────────
@@ -25,8 +26,15 @@ function clientIp(req: IncomingMessage): string {
   return req.socket.remoteAddress ?? 'unknown';
 }
 
-const rooms = new Map<string, Room>();
+const rooms = new Map<string, BaseRoom>();
 let draining = false; // during shutdown drain: reject new rooms, let existing ones finish
+
+// Game-factory: maps a registry game id to its Room constructor.
+// Add a new game by adding an entry here (and its Room class import).
+const ROOM_FACTORIES: Record<string, (id: string, maxPlayers: number, mode: GameMode) => BaseRoom> = {
+  'bid-club': (id, maxPlayers, mode) => new Room(id, maxPlayers, mode),
+  'thoso': (id, maxPlayers) => new ThosoRoom(id, Math.min(maxPlayers, THOSO_MAX_PLAYERS)),
+};
 
 // Generate a unique room code (retries on the rare collision).
 function generateRoomId(): string {
@@ -46,7 +54,7 @@ function releaseOldSeat(ws: WebSocket): void {
 }
 
 // Resolve the room + player for a socket that should already be seated.
-function getRoom(ws: WebSocket): { room: Room; playerId: string } | null {
+function getRoom(ws: WebSocket): { room: BaseRoom; playerId: string } | null {
   const ctx = wsContext.get(ws);
   if (!ctx) return null;
   const room = rooms.get(ctx.roomId);
@@ -137,7 +145,10 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       const roomId = generateRoomId();
       const maxPlayers = clampPlayers(typeof msg.maxPlayers === 'number' ? msg.maxPlayers : MAX_PLAYERS);
       const mode: GameMode = GAME_MODES.some(m => m.id === msg.mode) ? (msg.mode as GameMode) : 'classic';
-      const room = new Room(roomId, maxPlayers, mode);
+      const game = typeof msg.game === 'string' ? msg.game : 'bid-club';
+      const factory = ROOM_FACTORIES[game];
+      if (!factory) { sendError(ws, 'JOIN_FAILED'); return; } // unknown or not-yet-available game
+      const room = factory(roomId, maxPlayers, mode);
       room.onDestroy = () => { rooms.delete(roomId); };
       rooms.set(roomId, room);
 
@@ -180,62 +191,6 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       break;
     }
 
-    case 'startGame': {
-      const r = getRoom(ws);
-      if (!r) { sendError(ws, 'NOT_IN_ROOM'); return; }
-      const err = r.room.startGame(r.playerId);
-      if (err) sendError(ws, err);
-      break;
-    }
-
-    case 'placeBid': {
-      const r = getRoom(ws);
-      if (!r) return;
-      const err = r.room.placeBid(r.playerId, msg.bid);
-      if (err) sendError(ws, err);
-      break;
-    }
-
-    case 'selectTrump': {
-      const r = getRoom(ws);
-      if (!r) return;
-      const err = r.room.selectTrump(r.playerId, msg.kind, msg.suit);
-      if (err) sendError(ws, err);
-      break;
-    }
-
-    case 'playCard': {
-      const r = getRoom(ws);
-      if (!r) return;
-      const err = r.room.playCard(r.playerId, msg.cardId);
-      if (err) sendError(ws, err);
-      break;
-    }
-
-    case 'pushBid': {
-      const r = getRoom(ws);
-      if (!r) return;
-      const err = r.room.pushBid(r.playerId, msg.push);
-      if (err) sendError(ws, err);
-      break;
-    }
-
-    case 'restartGame': {
-      const r = getRoom(ws);
-      if (!r) return;
-      const err = r.room.restartGame(r.playerId);
-      if (err) sendError(ws, err);
-      break;
-    }
-
-    case 'updateRoomSettings': {
-      const r = getRoom(ws);
-      if (!r) return;
-      const err = r.room.updateRoomSettings(r.playerId, msg.maxPlayers, msg.mode);
-      if (err) sendError(ws, err);
-      break;
-    }
-
     case 'leaveRoom': {
       releaseOldSeat(ws);
       break;
@@ -248,7 +203,12 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       break;
     }
 
-    // No default: validateMessage() has already rejected any unknown message type.
+    default: {
+      const r = getRoom(ws);
+      if (!r) { sendError(ws, 'NOT_IN_ROOM'); return; }
+      const err = r.room.handleGameMessage(r.playerId, msg);
+      if (err) sendError(ws, err);
+    }
   }
 }
 

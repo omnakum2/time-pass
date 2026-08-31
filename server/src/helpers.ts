@@ -50,7 +50,9 @@ export function randomRoomCode(): string {
 export function validateMessage(msg: ClientMessage): ErrorCode | null {
   switch (msg.type) {
     case 'createRoom':
-      return typeof msg.name === 'string' ? null : 'INVALID_NAME';
+      return typeof msg.name === 'string'
+        && (msg.game === undefined || typeof msg.game === 'string')
+        ? null : 'INVALID_NAME';
     case 'joinRoom':
       return typeof msg.name === 'string' && typeof msg.roomId === 'string' ? null : 'INVALID_NAME';
     case 'reconnect':
@@ -69,6 +71,12 @@ export function validateMessage(msg: ClientMessage): ErrorCode | null {
       return (msg.maxPlayers === undefined || typeof msg.maxPlayers === 'number')
         && (msg.mode === undefined || typeof msg.mode === 'string')
         ? null : 'INVALID_SETTINGS';
+    case 'thosoDraw':
+      return null;
+    case 'thosoTransfer':
+      return typeof msg.cardId === 'string' && typeof msg.toPlayerId === 'string' ? null : 'BAD_MESSAGE';
+    case 'thosoPlay':
+      return typeof msg.cardId === 'string' ? null : 'BAD_MESSAGE';
     case 'startGame':
     case 'restartGame':
     case 'leaveRoom':

@@ -9,9 +9,10 @@ interface Props {
   onClick?: () => void;
   layoutId?: string;
   style?: React.CSSProperties;
+  mini?: boolean;
 }
 
-export function CardView({ card, disabled, selected, played, onClick, layoutId, style }: Props) {
+export function CardView({ card, disabled, selected, played, onClick, layoutId, style, mini }: Props) {
   const isRed = isRedSuit(card.suit);
   const cls = [
     'card',
@@ -20,6 +21,26 @@ export function CardView({ card, disabled, selected, played, onClick, layoutId, 
     selected ? 'card--selected' : '',
     played ? 'card--played' : '',
   ].filter(Boolean).join(' ');
+
+  if (mini) {
+    return (
+      <motion.div
+        className={cls}
+        layoutId={layoutId}
+        onClick={disabled ? undefined : onClick}
+        style={style}
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+        whileHover={!disabled ? { y: -8 } : undefined}
+        whileTap={!disabled ? { scale: 0.96 } : undefined}
+      >
+        <span style={{ fontWeight: 800, lineHeight: 1.05, textAlign: 'center', fontSize: '1em' }}>
+          {card.rank}<br />{SUIT_SYMBOL[card.suit]}
+        </span>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div

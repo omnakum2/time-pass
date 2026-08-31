@@ -1,0 +1,81 @@
+/* Theme tokens — the ONLY place colors/hex are defined. Retune here to re-theme. */
+:root{
+  /* Platform / lounge neutrals */
+  --lounge-ground:#15120F;
+  --lounge-surface:#201C17;
+  --lounge-surface-2:#2A241D;
+  --lounge-line:#3A3226;
+  --metal:#E9B84A;
+  --metal-deep:#B8862F;
+  --ink:#F1EADC;
+  --ink-dim:#AA9F8B;
+  --ink-mute:#736A5A;
+
+  /* Per-game theme tokens — neutral defaults (used by the lounge chrome) */
+  --game-primary:var(--metal);
+  --game-deep:var(--lounge-surface);
+  --game-felt:var(--lounge-surface);
+  --game-felt-deep:var(--lounge-ground);
+  --game-gem:var(--metal);
+
+  /* Shared surface (panels, .surface, .input, mode options, announcement
+     banner, error toast, modal, scoreboard) — neutral lounge default. Each
+     game overrides these below; index.css repoints --card-1/2 at them. */
+  --surface:#211C16;
+  --surface-2:#17130F;
+
+  /* in-game page background gradient — neutral (lounge) default */
+  --page-1:#201B15;
+  --page-2:#17130F;
+  --page-3:#0E0B08;
+
+  /* top nav bar (.app-header) — neutral lounge default */
+  --header-1:rgba(30,25,20,0.98);
+  --header-2:rgba(16,13,10,0.98);
+}
+
+/* Per-game palettes. The selector is attribute-only (no :root) so it applies
+   BOTH on the root element (in-game, one game) AND on an individual .medallion
+   element in the lounge (many games at once). */
+[data-game="bid-club"]{
+  --game-primary:#D14257;
+  --game-deep:#5E1A28;
+  --game-felt:#1E7B46;
+  --game-felt-deep:#14532E;
+  --game-gem:#D14257;
+  --surface:#4A1F2B;      /* original wine — Bid Club surface unchanged */
+  --surface-2:#2E1720;
+  --page-1:#3B1F1B;
+  --page-2:#5A2233;
+  --page-3:#7A3B1E;
+  --header-1:rgba(46,23,30,0.96);  /* original wine header — unchanged */
+  --header-2:rgba(30,15,20,0.96);
+}
+[data-game="rummy"]{
+  --game-primary:#25B07A;
+  --game-deep:#0C4D38;
+  --game-felt:#0C5C40;
+  --game-felt-deep:#063324;
+  --game-gem:#25B07A;
+  --surface:#123528;      /* emerald */
+  --surface-2:#0C2A1E;
+  --page-1:#0F3527;
+  --page-2:#0C4D38;
+  --page-3:#0C3A2A;
+  --header-1:rgba(16,44,33,0.98);  /* emerald */
+  --header-2:rgba(8,26,19,0.98);
+}
+[data-game="thoso"]{
+  --game-primary:#4A82F0;
+  --game-deep:#17346F;
+  --game-felt:#1E3F8F;
+  --game-felt-deep:#0F2350;
+  --game-gem:#4A82F0;
+  --surface:#17264A;      /* sapphire */
+  --surface-2:#0F1B36;
+  --page-1:#14264A;
+  --page-2:#17346F;
+  --page-3:#122A55;
+  --header-1:rgba(20,34,60,0.98);  /* sapphire */
+  --header-2:rgba(10,18,38,0.98);
+}
