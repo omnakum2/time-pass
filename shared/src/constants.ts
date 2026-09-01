@@ -16,7 +16,7 @@ export const NAME_MAX_LEN = 20;
 // ─── 2. Card data ────────────────────────────────────────────────────────────
 export const RANK_ORDER: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 export const SUITS: Suit[] = ['D', 'C', 'H', 'S'];
-export const SUIT_ORDER: Suit[] = ['S', 'H', 'D', 'C'];
+export const SUIT_ORDER: Suit[] = ['S', 'H', 'C', 'D'];
 export const RED_SUITS: ReadonlySet<Suit> = new Set<Suit>(['D', 'H']);
 export const SUIT_SYMBOL: Record<Suit, string> = { D: '♦', C: '♣', H: '♥', S: '♠' };
 export const SUIT_NAME: Record<Suit, string> = { D: 'Diamonds', C: 'Clubs', H: 'Hearts', S: 'Spades' };

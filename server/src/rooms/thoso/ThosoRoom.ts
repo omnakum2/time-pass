@@ -7,7 +7,7 @@ import {
 } from 'shared';
 import {
   PLAY_TIMEOUT_MS, NPC_AUTO_MOVE_MS, ANNOUNCE_MS,
-  THOSO_MAX_PLAYERS, PENALTY_REVEAL_MS,
+  THOSO_MAX_PLAYERS, PENALTY_REVEAL_MS, TRICK_DISPLAY_MS,
 } from '../../constants';
 import { sendMessage, clampPlayers } from '../../helpers';
 import { BaseRoom, Seat } from '../BaseRoom';
@@ -40,6 +40,8 @@ export class ThosoRoom extends BaseRoom {
   private openingLeadPending = false;                         // Phase-2: the A♠ opening lead is still owed
   private penaltyReveal: { playerId: string; cards: Card[] } | null = null; // private missed-transfer reveal
   private penaltyRevealTimer: ReturnType<typeof setTimeout> | null = null;
+  private roundResolving = false;                             // Phase-2: a completed round is held on screen before clearing
+  private roundHoldTimer: ReturnType<typeof setTimeout> | null = null;
 
   private announcement: Announcement | null = null;    // banner (phase intro / THOSO! / penalty)
   private announcementTimer: ReturnType<typeof setTimeout> | null = null;
@@ -163,6 +165,8 @@ export class ThosoRoom extends BaseRoom {
     this.openingLeadPending = false;
     this.penaltyReveal = null;
     this.penaltyRevealTimer = this.clearTimer(this.penaltyRevealTimer);
+    this.roundHoldTimer = this.clearTimer(this.roundHoldTimer);
+    this.roundResolving = false;
     this.finishedRanks = [];
     this.playersInRound = 0;
     this.currentTurnSeatIndex = 0;
@@ -378,6 +382,7 @@ export class ThosoRoom extends BaseRoom {
       });
       this.checkFinished(seat); // the thoso may have shed the player's last card
       if (this.maybeEndGame()) return null;
+      this.currentTrick.push({ playerId, card }); // show the off-suit thoso card during the hold
       const leaderIdx = !this.isFinished(playerId)
         ? seat.player.seatIndex
         : this.nextActiveSeatIndex(seat.player.seatIndex);
@@ -414,10 +419,22 @@ export class ThosoRoom extends BaseRoom {
   }
 
   private endRoundAndLead(leaderSeatIndex: number): void {
-    this.currentTrick = [];
-    this.ledSuit = null;
-    if (this.maybeEndGame()) return;
-    this.startPlayRound(leaderSeatIndex);
+    // Hold the completed round on screen briefly (mirrors BidClubRoom.resolveTrick) so
+    // players can see who played what. Keep currentTrick + ledSuit populated during the
+    // hold; there's no live turn (turnExpiresAt null). Then clear + lead the next round.
+    this.roundResolving = true;
+    this.turnExpiresAt = null;
+    this.cancelTurnTimer();
+    this.broadcastState();
+    this.roundHoldTimer = this.clearTimer(this.roundHoldTimer);
+    this.roundHoldTimer = setTimeout(() => {
+      this.roundHoldTimer = null;
+      this.roundResolving = false;
+      this.currentTrick = [];
+      this.ledSuit = null;
+      if (this.maybeEndGame()) return;
+      this.startPlayRound(leaderSeatIndex);
+    }, TRICK_DISPLAY_MS);
   }
 
   private startPlayRound(leaderSeatIndex: number): void {
@@ -457,6 +474,8 @@ export class ThosoRoom extends BaseRoom {
     this.turnPausedRemainingMs = null;
     this.penaltyRevealTimer = this.clearTimer(this.penaltyRevealTimer);
     this.penaltyReveal = null;
+    this.roundHoldTimer = this.clearTimer(this.roundHoldTimer);
+    this.roundResolving = false;
     this.startGameOverTimer(); // set gameOverExpiresAt FIRST so state carries roomExpiresInMs
     this.broadcastState();
   }
@@ -574,6 +593,7 @@ export class ThosoRoom extends BaseRoom {
       ledSuit: this.ledSuit,
       mustLeadAceOfSpades: this.openingLeadPending && this.ledSuit === null,
       currentTrick: this.currentTrick,
+      roundResolving: this.roundResolving,
       finishedRanks: this.finishedRanks,
       turnTimeoutMs: PLAY_TIMEOUT_MS,
       turnExpiresAt: turnActive ? this.turnExpiresAt : null,

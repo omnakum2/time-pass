@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { Player, legalPlays } from 'shared';
+import { Player, legalPlays, SUIT_ORDER, RANK_ORDER, highestLedSuitPlayer } from 'shared';
 import { useThosoStore } from '../store/thosoStore';
 import { useGameStore } from '../store/gameStore';
 import { sendMsg } from '../net/socket';
@@ -243,6 +243,13 @@ export function ThosoRoomPage() {
   const legalIds = isMyTurn && tablePhase === 'PLAYING'
     ? legalPlays(state.yourHand, state.ledSuit, state.mustLeadAceOfSpades).map(c => c.id)
     : [];
+
+  // Phase-2 hand shown suit-grouped (♠♥♣♦) then rank 2→A. legalIds is id-based and
+  // layoutId keeps framer-motion animations correct regardless of render order.
+  const sortedHand = [...state.yourHand].sort((a, b) => {
+    const s = SUIT_ORDER.indexOf(a.suit) - SUIT_ORDER.indexOf(b.suit);
+    return s !== 0 ? s : RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
+  });
   const playCard = (cardId: string) => {
     if (!isMyTurn || tablePhase !== 'PLAYING' || !legalIds.includes(cardId)) return;
     if (selectedCardId === cardId) {
@@ -257,6 +264,12 @@ export function ThosoRoomPage() {
   const statusText = isMyTurn ? 'Your turn' : (currentTurn ? `Waiting for ${activeName}…` : '');
 
   const canTargetTransfer = isMyTurn && tablePhase === 'TRANSFER' && selectedCardId != null;
+
+  // While a completed Phase-2 round is held on screen, highlight who won it — they
+  // lead next, or pick the trick up on a thoso (an off-suit card was played).
+  const roundWinnerId = state.roundResolving && state.ledSuit ? highestLedSuitPlayer(state.currentTrick, state.ledSuit) : null;
+  const wasThoso = state.roundResolving && state.ledSuit ? state.currentTrick.some(tc => tc.card.suit !== state.ledSuit) : false;
+  const roundBadgeText = wasThoso ? 'Picks up' : 'Leads';
 
   return (
     <>
@@ -296,6 +309,7 @@ export function ThosoRoomPage() {
                   selectable={canTargetTransfer && rankOf(p.id) === undefined}
                   reject={rejectId === p.id}
                   onSelect={() => attemptTransfer(p.id)}
+                  roundBadge={p.id === roundWinnerId ? roundBadgeText : undefined}
                 />
               ))}
             </div>
@@ -367,7 +381,11 @@ export function ThosoRoomPage() {
               fullMs={turnTimeoutMs}
               startKey={timerKey}
               running={timerRunning}
+              roundBadge={playerId === roundWinnerId ? roundBadgeText : undefined}
             />
+            {tablePhase === 'TRANSFER' && isMyTurn && !selectedCardId && (
+              <span className="tag-faint">Tap your card, then an opponent to transfer — or Draw</span>
+            )}
             {tablePhase === 'TRANSFER' && selectedCardId && (
               <span className="tag-faint">Tap an opponent to transfer</span>
             )}
@@ -411,7 +429,7 @@ export function ThosoRoomPage() {
               <div className="thoso-hand-scroll">
                 <div className="hand-cards">
                   <AnimatePresence>
-                    {state.yourHand.map(card => (
+                    {sortedHand.map(card => (
                       <CardView
                         key={card.id}
                         card={card}

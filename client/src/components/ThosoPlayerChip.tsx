@@ -25,6 +25,8 @@ interface Props {
   /** Shake once — an illegal transfer was rejected by the server. */
   reject?: boolean;
   onSelect?: () => void;
+  /** Small pill shown while a finished round is held (e.g. 'Leads' / 'Picks up'). */
+  roundBadge?: string;
 }
 
 /**
@@ -35,7 +37,7 @@ interface Props {
  */
 export function ThosoPlayerChip({
   player, isMe, isActive, finishedRank, phase, pileTop, showCardRegion,
-  remainingMs, fullMs, startKey, running, selectable, reject, onSelect,
+  remainingMs, fullMs, startKey, running, selectable, reject, onSelect, roundBadge,
 }: Props) {
   const finished = finishedRank !== undefined;
   const cls = [
@@ -63,6 +65,10 @@ export function ThosoPlayerChip({
         {player.name}
         {isMe && <span className="tag-faint" style={{ marginLeft: 4 }}>(you)</span>}
       </div>
+
+      {roundBadge && !finished && (
+        <div className="thoso-chip__round-badge">{roundBadge}</div>
+      )}
 
       {showCardRegion && !finished && phase === 'TRANSFER' && (
         <div className="thoso-chip__region">

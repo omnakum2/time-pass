@@ -166,6 +166,7 @@ export interface ThosoState {
   ledSuit: Suit | null;                   // Phase 2: current round's led suit
   mustLeadAceOfSpades: boolean;           // Phase 2: true during the opening lead, until the Ace of Spades has been played
   currentTrick: TrickCard[];              // Phase 2: cards played so far this round
+  roundResolving: boolean;                // true while a completed Phase-2 round is held on screen before clearing
   finishedRanks: { playerId: string; rank: number }[]; // finishing order (1 = first out)
   turnTimeoutMs: number;
   turnExpiresAt: number | null;
