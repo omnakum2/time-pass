@@ -3,30 +3,37 @@ import { useGameStore } from '../store/gameStore';
 import { TOAST_DISMISS_MS } from '../constants';
 import { Icon } from './Icon';
 
-export function ErrorToast() {
+interface ErrorToastProps {
+  message?: string | null;
+  onClose?: () => void;
+}
+
+export function ErrorToast({ message, onClose }: ErrorToastProps = {}) {
   const { error, clearError } = useGameStore();
 
-  useEffect(() => {
-    if (!error) return;
-    const t = setTimeout(clearError, TOAST_DISMISS_MS);
-    return () => clearTimeout(t);
-  }, [error, clearError]);
+  const handleClose = onClose ?? clearError;
+  const activeMessage = message ?? (error ? (error.message || 'Something went wrong.') : '');
+  const visible = Boolean(message || error);
 
-  const msg = error ? (error.message || 'Something went wrong.') : '';
+  useEffect(() => {
+    if (!visible) return;
+    const t = setTimeout(handleClose, TOAST_DISMISS_MS);
+    return () => clearTimeout(t);
+  }, [visible, handleClose]);
 
   return (
     <div
-      className={`error-toast${error ? ' error-toast--visible' : ''}`}
+      className={`error-toast${visible ? ' error-toast--visible' : ''}`}
       role="alert"
       aria-live="assertive"
-      onClick={clearError}
+      onClick={handleClose}
     >
-      <span className="error-toast__msg">{msg}</span>
+      <span className="error-toast__msg">{activeMessage}</span>
       <button
         type="button"
         className="error-toast__close"
         aria-label="Dismiss"
-        onClick={(e) => { e.stopPropagation(); clearError(); }}
+        onClick={(e) => { e.stopPropagation(); handleClose(); }}
       >
         <Icon name="close" size={16} />
       </button>
