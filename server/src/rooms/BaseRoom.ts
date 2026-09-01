@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { Player, ErrorCode, Card, ClientMessage } from 'shared';
+import { Player, ErrorCode, Card, ClientMessage, ServerMessage } from 'shared';
 import {
   RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS, LOBBY_RECONNECT_WINDOW_MS, QUICK_MSG_THROTTLE_MS,
   NPC_AUTO_MOVE_MS, GAME_OVER_TTL_MS, COUNTDOWN_MS,
@@ -82,7 +82,7 @@ export abstract class BaseRoom {
     }
   }
 
-  broadcast(msg: any): void {
+  broadcast(msg: ServerMessage): void {
     this.forEachOpenSeat(seat => {
       sendMessage(seat.ws!, msg);
     });

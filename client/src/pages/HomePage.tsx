@@ -136,7 +136,7 @@ export function HomePage() {
           <section className="home-seo">
             <p>
               {g.description}
-              {game === 'bid-club' && (
+              {g.hasGuide && (
                 <>
                   {' '}New here? Read our <Link className="home-seo__link" to={`/${game}/guide`}>Guide</Link> to learn how to play.
                 </>

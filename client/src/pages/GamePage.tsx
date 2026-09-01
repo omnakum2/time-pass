@@ -1,8 +1,9 @@
 import { useRef, useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Suit, Player } from 'shared';
-import { legalMoves, SUIT_ORDER, RANK_ORDER, isHandHiddenForBid } from 'shared';
+import { legalMoves, isHandHiddenForBid } from 'shared';
 import { useGameStore } from '../store/gameStore';
+import { sortHand } from '../format';
 import { sendMsg } from '../net/socket';
 import { getTotal } from '../lib/helpers';
 import { CardView } from '../components/CardView';
@@ -15,7 +16,7 @@ import { RoundResultOverlay } from '../components/RoundResultOverlay';
 import { QuickMessages } from '../components/QuickMessages';
 import { Announcement } from '../components/Announcement';
 import { PushPanel } from '../components/PushPanel';
-import { URGENT_LEAD_MS } from '../constants';
+import { useUrgentTurn } from '../hooks/useUrgentTurn';
 
 // ─── GamePage ─────────────────────────────────────────────────────────────────
 
@@ -24,7 +25,6 @@ export function GamePage() {
   const prevTurnRef = useRef<string>('');
   const prevTrickEmptyRef = useRef(true);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
-  const [urgent, setUrgent] = useState(false);
 
   // Derived turn values — computed null-safely so all hooks run before any early return
   const phase = gameState?.phase ?? '';
@@ -47,14 +47,12 @@ export function GamePage() {
   }
   prevTrickEmptyRef.current = trickEmpty;
 
-  useEffect(() => {
-    setUrgent(false);
-    if (timerRunning && (phase === 'BIDDING' || phase === 'PLAYING' || phase === 'TRUMP_SELECT') && currentTurn) {
-      const lead = Math.max(0, turnRemainingMs - URGENT_LEAD_MS);
-      const id = setTimeout(() => setUrgent(true), lead);
-      return () => clearTimeout(id);
-    }
-  }, [timerKey, timerRunning, turnRemainingMs, phase, currentTurn]);
+  const urgent = useUrgentTurn(
+    timerKey,
+    timerRunning,
+    turnRemainingMs,
+    (phase === 'BIDDING' || phase === 'PLAYING' || phase === 'TRUMP_SELECT') && !!currentTurn,
+  );
 
   // Blind Bid: whether I've locked/pushed this round. Reset when the PUSH phase ends.
   const [pushDecided, setPushDecided] = useState(false);
@@ -80,10 +78,7 @@ export function GamePage() {
     : [];
 
   // Sort hand: by suit order then rank
-  const sortedHand = [...yourHand].sort((a, b) => {
-    const si = SUIT_ORDER.indexOf(a.suit) - SUIT_ORDER.indexOf(b.suit);
-    return si !== 0 ? si : RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
-  });
+  const sortedHand = sortHand(yourHand);
 
   const handleCardClick = (cardId: string) => {
     if (!isMyTurn || phase !== 'PLAYING') return;

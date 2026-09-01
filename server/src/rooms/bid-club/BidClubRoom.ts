@@ -504,7 +504,7 @@ export class BidClubRoom extends BaseRoom {
     this.phase = 'GAME_OVER';
     this.lastGameOver = { type: 'gameOver', winners, finalScores, playerNames };
     this.startGameOverTimer(); // set gameOverExpiresAt FIRST so the state carries roomExpiresInMs (drives the "Room closes in Xs" countdown)
-    this.broadcast(this.lastGameOver);
+    if (this.lastGameOver) this.broadcast(this.lastGameOver);
     this.broadcastState();
   }
 

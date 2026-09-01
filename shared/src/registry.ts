@@ -8,6 +8,7 @@ export interface GameInfo {
   icon: 'bid-club' | 'rummy' | 'thoso';
   hasModes: boolean;  // whether the game offers selectable modes at room creation
   maxPlayers: number; // upper bound for the room's player-count slider
+  hasGuide: boolean;  // whether a standalone /:game/guide page exists
 }
 
 export const GAMES: GameInfo[] = [
@@ -21,6 +22,7 @@ export const GAMES: GameInfo[] = [
     icon: 'bid-club',
     hasModes: true,
     maxPlayers: 7,
+    hasGuide: true,
   },
   {
     id: 'rummy',
@@ -32,6 +34,7 @@ export const GAMES: GameInfo[] = [
     icon: 'rummy',
     hasModes: false,
     maxPlayers: 6,
+    hasGuide: false,
   },
   {
     id: 'thoso',
@@ -43,5 +46,6 @@ export const GAMES: GameInfo[] = [
     icon: 'thoso',
     hasModes: false,
     maxPlayers: 6,
+    hasGuide: true,
   },
 ];

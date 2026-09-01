@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { Surface } from '../components/Surface';
 import { Button } from '../components/Button';
+import { GAME_COMPONENTS } from '../games';
 
 type Lang = 'en' | 'gu';
 
@@ -410,6 +411,11 @@ export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean 
 
 export function GuidePage() {
   const navigate = useNavigate();
+  // The Guide is game-aware via the component registry: /thoso/guide shows Thoso's
+  // (English-only) rules, everything else falls back to the Bid Club guide. Same page
+  // shell either way. `showHomeLink` is ignored by guides that don't accept it.
+  const { game } = useParams();
+  const Guide = GAME_COMPONENTS[game ?? '']?.Guide ?? GuideContent;
 
   return (
     <div className="guide-page">
@@ -421,7 +427,7 @@ export function GuidePage() {
       >
         Go Back
       </Button>
-      <GuideContent showHomeLink />
+      <Guide showHomeLink />
     </div>
   );
 }

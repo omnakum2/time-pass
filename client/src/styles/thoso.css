@@ -49,25 +49,31 @@
 }
 
 .thoso-chip--finished { opacity: 0.5; }
-.thoso-chip__finished-badge {
+
+/* Shared badge shell — the structural props both chip badges have in common. Each
+   badge below layers on only its own colour, font-size, and (round-only) uppercasing. */
+.thoso-chip__finished-badge,
+.thoso-chip__round-badge {
   margin-top: 3px;
-  font-size: 0.62rem; font-weight: 800; letter-spacing: 0.4px;
-  color: var(--gold);
-  background: rgba(var(--gold-rgb), 0.14);
-  border: 1px solid var(--gold-border);
+  font-weight: 800; letter-spacing: 0.4px;
   border-radius: 20px; padding: 1px 8px;
 }
 
-/* Round-winner pill shown while a finished round is held on screen (sapphire body,
-   gold rim) — reads as "won this round; leads / picks up next". */
+.thoso-chip__finished-badge {
+  font-size: 0.62rem;
+  color: var(--gold);
+  background: rgba(var(--gold-rgb), 0.14);
+  border: 1px solid var(--gold-border);
+}
+
+/* Round-winner pill shown while a finished round is held on screen (game-primary
+   body, gold rim) — reads as "won this round; leads / picks up next". */
 .thoso-chip__round-badge {
-  margin-top: 3px;
-  font-size: 0.6rem; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+  font-size: 0.6rem; text-transform: uppercase;
   color: #eaf1ff;
-  background: rgba(74, 130, 240, 0.3);
+  background: color-mix(in srgb, var(--game-primary) 30%, transparent);
   border: 1px solid rgba(var(--gold-rgb), 0.5);
-  border-radius: 20px; padding: 1px 8px;
-  box-shadow: 0 0 8px rgba(74, 130, 240, 0.35);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--game-primary) 35%, transparent);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 

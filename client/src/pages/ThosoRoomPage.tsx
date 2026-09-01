@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { Player, legalPlays, SUIT_ORDER, RANK_ORDER, highestLedSuitPlayer } from 'shared';
+import { Player, legalPlays, highestLedSuitPlayer, GAMES } from 'shared';
 import { useThosoStore } from '../store/thosoStore';
 import { useGameStore } from '../store/gameStore';
 import { sendMsg } from '../net/socket';
-import { storage } from '../storage';
-import { STORAGE_KEYS } from '../constants';
-import { ordinal } from '../format';
+import { ordinal, sortHand } from '../format';
+import { fireWinnerConfetti } from '../confetti';
 import { useSecondsRemaining } from '../hooks/useSecondsRemaining';
 import { useCopyInvite } from '../hooks/useCopyInvite';
 import { useJoinViaLinkRedirect } from '../hooks/useJoinViaLinkRedirect';
+import { useLeaveRoom } from '../hooks/useLeaveRoom';
+import { useUrgentTurn } from '../hooks/useUrgentTurn';
 import { CardView } from '../components/CardView';
 import { Announcement } from '../components/Announcement';
 import { StandingsTable } from '../components/StandingsTable';
@@ -20,6 +21,7 @@ import { Surface } from '../components/Surface';
 import { Button } from '../components/Button';
 import { QuickMessages } from '../components/QuickMessages';
 import { Icon } from '../components/Icon';
+import { RoomSettings } from '../components/RoomSettings';
 import '../styles/thoso.css';
 
 /** Opponents in clockwise seat order starting just after me. */
@@ -38,19 +40,30 @@ function seatOrderedOpponents(players: Player[], playerId: string): Player[] {
 
 export function ThosoRoomPage() {
   const { state } = useThosoStore();
-  const { playerId, roomId, reset } = useGameStore();
+  const { playerId, roomId } = useGameStore();
   const error = useGameStore(s => s.error);
-  const navigate = useNavigate();
+  const roomClosed = useGameStore(s => s.roomClosed);
+  const leaveRoom = useLeaveRoom();
   const { game = 'thoso', roomId: urlRoomId } = useParams<{ game: string; roomId: string }>();
+
+  // Player-count upper bound comes from the game registry (Thoso = 6).
+  const maxAllowed = GAMES.find(g => g.id === game)?.maxPlayers ?? 6;
 
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const pendingTargetRef = useRef<string | null>(null);
+  const confettiFiredRef = useRef(false);
 
   // Null-safe turn primitives so all hooks run before any early return.
   const phase = state?.phase ?? 'LOBBY';
   const currentTurn = state?.currentTurn ?? null;
   const drawnCardId = state?.drawnCard?.id ?? null;
+
+  // Null-safe turn-timer primitives (also consumed by the urgent effect below).
+  const turnRemainingMs = state?.turnRemainingMs ?? 0;
+  const turnExpiresAt = state?.turnExpiresAt ?? null;
+  const timerKey = String(turnExpiresAt ?? 'none');
+  const timerRunning = turnExpiresAt != null;
 
   const countdownSecs = useSecondsRemaining(state?.countdownMs ?? null);
   const closeSecs = useSecondsRemaining(state?.roomExpiresInMs ?? null);
@@ -68,6 +81,26 @@ export function ThosoRoomPage() {
     const t = setTimeout(() => setRejectId(null), 350);
     return () => clearTimeout(t);
   }, [error]);
+
+  // Winner celebration — mirror WinnerPage: an energetic two-burst confetti pop for
+  // EVERYONE (win or lose) when the game ends. Fires once per game-over (the ref resets
+  // when we leave GAME_OVER, so a rematch pops again). Skipped for reduced-motion.
+  useEffect(() => {
+    if (phase !== 'GAME_OVER') { confettiFiredRef.current = false; return; }
+    if (confettiFiredRef.current) return;
+    confettiFiredRef.current = true;
+    fireWinnerConfetti();
+  }, [phase]);
+
+  // Near-timeout escalation — mirror GamePage: flag the turn "urgent" once the live
+  // countdown drops below URGENT_LEAD_MS so the status line can flash. Reset (and only
+  // re-armed) on a live turn; never during the round-hold (turnExpiresAt == null).
+  const urgent = useUrgentTurn(
+    timerKey,
+    timerRunning,
+    turnRemainingMs,
+    (phase === 'TRANSFER' || phase === 'PLAYING') && !!currentTurn,
+  );
 
   // Fresh/stale visitor to a room link → stash the code and bounce home to enter a name +
   // join. Shared with Bid Club's LobbyPage: it waits out an in-flight reconnect for THIS
@@ -88,15 +121,7 @@ export function ThosoRoomPage() {
   const isMyTurn = currentTurn === playerId;
 
   // ── Leave helper ────────────────────────────────────────────────────────────
-  const handleLeave = () => {
-    sendMsg({ type: 'leaveRoom' });
-    storage.clearSession();
-    sessionStorage.removeItem(STORAGE_KEYS.pendingRoomId);
-    sessionStorage.removeItem(STORAGE_KEYS.pendingHost);
-    useThosoStore.getState().reset();
-    reset();
-    navigate('/', { replace: true });
-  };
+  const handleLeave = leaveRoom;
 
   const isHost = state.hostId === playerId;
 
@@ -130,6 +155,18 @@ export function ThosoRoomPage() {
               ))}
             </ul>
           </div>
+
+          {isHost && (
+            <RoomSettings
+              maxPlayers={state.maxPlayers}
+              minPlayers={2}
+              maxAllowed={maxAllowed}
+              showModes={false}
+              mode={'classic'}
+              onCommitMaxPlayers={(n) => sendMsg({ type: 'updateRoomSettings', maxPlayers: n })}
+              onSelectMode={() => {}}
+            />
+          )}
 
           {state.countdownMs != null ? (
             <p className="card-title card-title--sm">Starting in {countdownSecs ?? 0}…</p>
@@ -190,7 +227,12 @@ export function ThosoRoomPage() {
             </tbody>
           </StandingsTable>
 
-          {isHost ? (
+          {roomClosed ? (
+            <>
+              <p className="hint">This game has ended and the room has closed.</p>
+              <Button variant="primary" block onClick={handleLeave}>Back to Home</Button>
+            </>
+          ) : isHost ? (
             <>
               {closeSecs != null && <p className="tag-faint" style={{ margin: 0 }}>Room closes in {closeSecs}s</p>}
               <Button variant="primary" block onClick={() => sendMsg({ type: 'restartGame' })}>Play Again</Button>
@@ -212,11 +254,9 @@ export function ThosoRoomPage() {
   const opponents = seatOrderedOpponents(state.players, playerId);
   const me = state.players.find(p => p.id === playerId)!;
 
+  // turnRemainingMs / turnExpiresAt / timerKey / timerRunning are computed null-safely
+  // above (before the early return) so the urgent effect can consume them.
   const turnTimeoutMs = state.turnTimeoutMs;
-  const turnRemainingMs = state.turnRemainingMs ?? 0;
-  const turnExpiresAt = state.turnExpiresAt;
-  const timerKey = String(turnExpiresAt ?? 'none');
-  const timerRunning = turnExpiresAt != null;
 
   const rankOf = (id: string) => state.finishedRanks.find(f => f.playerId === id)?.rank;
 
@@ -246,10 +286,7 @@ export function ThosoRoomPage() {
 
   // Phase-2 hand shown suit-grouped (♠♥♣♦) then rank 2→A. legalIds is id-based and
   // layoutId keeps framer-motion animations correct regardless of render order.
-  const sortedHand = [...state.yourHand].sort((a, b) => {
-    const s = SUIT_ORDER.indexOf(a.suit) - SUIT_ORDER.indexOf(b.suit);
-    return s !== 0 ? s : RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
-  });
+  const sortedHand = sortHand(state.yourHand);
   const playCard = (cardId: string) => {
     if (!isMyTurn || tablePhase !== 'PLAYING' || !legalIds.includes(cardId)) return;
     if (selectedCardId === cardId) {
@@ -363,7 +400,7 @@ export function ThosoRoomPage() {
                     </div>
                   )}
 
-                  {statusText && <div className="trick-status">{statusText}</div>}
+                  {statusText && <div className={`trick-status${urgent ? ' trick-status--urgent' : ''}`}>{statusText}</div>}
                 </div>
               </div>
             </div>

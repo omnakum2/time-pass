@@ -1,20 +1,14 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { GAMES } from 'shared';
-import { useGameStore } from './store/gameStore';
 import { Header } from './components/Header';
 import { GameSelectionPage } from './pages/GameSelectionPage';
 import { HomePage } from './pages/HomePage';
-import { LobbyPage } from './pages/LobbyPage';
-import { GamePage } from './pages/GamePage';
-import { ThosoRoomPage } from './pages/ThosoRoomPage';
+import { GAME_COMPONENTS } from './games';
 const GuidePage = lazy(() => import('./pages/GuidePage').then(m => ({ default: m.GuidePage })));
-const WinnerPage = lazy(() => import('./pages/WinnerPage').then(m => ({ default: m.WinnerPage })));
 import { ErrorToast } from './components/ErrorToast';
 
 export default function App() {
-  const { gameState, gameOver } = useGameStore();
-  const phase = gameState?.phase;
   return (
     <div className="app-shell">
       <ThemeSync />
@@ -26,7 +20,7 @@ export default function App() {
             <Route path="/" element={<GameSelectionPage />} />
             <Route path="/:game" element={<GameGate><HomePage /></GameGate>} />
             <Route path="/:game/guide" element={<GameGate><GuidePage /></GameGate>} />
-            <Route path="/:game/room/:roomId" element={<GameGate><RoomForGame phase={phase} hasGameOver={!!gameOver} /></GameGate>} />
+            <Route path="/:game/room/:roomId" element={<GameGate><RoomForGame /></GameGate>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
@@ -35,16 +29,13 @@ export default function App() {
   );
 }
 
-function RoomForGame({ phase, hasGameOver }: { phase: string | undefined; hasGameOver: boolean }) {
+// Per-game in-room root comes from the component registry (Bid Club's own root now
+// encapsulates the former RoomRouter lobby→game→winner phase logic). A future game
+// needs only a GAME_COMPONENTS entry — no edit here.
+function RoomForGame() {
   const { game } = useParams();
-  if (game === 'thoso') return <ThosoRoomPage />;
-  return <RoomRouter phase={phase} hasGameOver={hasGameOver} />;
-}
-
-function RoomRouter({ phase, hasGameOver }: { phase: string | undefined; hasGameOver: boolean }) {
-  if (hasGameOver) return <WinnerPage />;
-  if (!phase || phase === 'LOBBY') return <LobbyPage />;
-  return <GamePage />;
+  const Root = GAME_COMPONENTS[game ?? '']?.RoomRoot;
+  return Root ? <Root /> : <Navigate to="/" replace />;
 }
 
 function GameGate({ children }: { children: JSX.Element }) {
