@@ -2,26 +2,30 @@ import { useRef, useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Suit, Player } from 'shared';
 import { legalMoves, isHandHiddenForBid } from 'shared';
-import { useGameStore } from '../store/gameStore';
+import { useSessionStore } from '../store/sessionStore';
+import { useBidBaaziStore } from '../store/bidbaaziStore';
 import { sortHand } from '../format';
 import { sendMsg } from '../net/socket';
 import { getTotal } from '../lib/helpers';
 import { CardView } from '../components/CardView';
-import { TrickArea } from '../components/TrickArea';
-import { BidPanel } from '../components/BidPanel';
-import { TrumpPicker } from '../components/TrumpPicker';
+import { BidBaaziTrickArea } from '../components/BidBaaziTrickArea';
+import { BidBaaziBidPanel } from '../components/BidBaaziBidPanel';
+import { BidBaaziTrumpPicker } from '../components/BidBaaziTrumpPicker';
 import { PlayerChip } from '../components/PlayerChip';
+import { GameTable } from '../components/GameTable';
+import { Delta } from '../components/Delta';
 import { Popup } from '../components/Popup';
-import { RoundResultOverlay } from '../components/RoundResultOverlay';
+import { BidBaaziRoundResult } from '../components/BidBaaziRoundResult';
 import { QuickMessages } from '../components/QuickMessages';
 import { Announcement } from '../components/Announcement';
-import { PushPanel } from '../components/PushPanel';
+import { BidBaaziPushPanel } from '../components/BidBaaziPushPanel';
 import { useUrgentTurn } from '../hooks/useUrgentTurn';
 
 // ─── GamePage ─────────────────────────────────────────────────────────────────
 
 export function GamePage() {
-  const { gameState, playerId, lastRoundResult } = useGameStore();
+  const { gameState, lastRoundResult } = useBidBaaziStore();
+  const playerId = useSessionStore((s) => s.playerId);
   const prevTurnRef = useRef<string>('');
   const prevTrickEmptyRef = useRef(true);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
@@ -103,19 +107,46 @@ export function GamePage() {
     }
   }
 
-  const chipProps = (p: Player) => ({
-    player: p,
-    bid: bids[p.id] ?? null,
-    tricksWon: tricksWon[p.id] ?? 0,
-    isActive: currentTurn === p.id,
-    phase,
-    remainingMs: turnRemainingMs,
-    fullMs: turnTimeoutMs,
-    startKey: timerKey,
-    running: timerRunning,
-    totalScore: getTotal(scoreboard, p.id),
-    pushChoice: gameState.pushStatus?.[p.id],
-  });
+  // BidBaazi chip middle content — bid/tricks line + score/push total.
+  const chipInfo = (bid: number | null, won: number, totalScore: number, pushChoice?: 'locked' | 'pushed') => (
+    <>
+      <div className="player-chip__stats">
+        {bid !== null ? `Bid ${bid}` : (phase === 'BIDDING' ? 'bidding…' : 'no bid')}
+        {' · '}Won {won}
+      </div>
+      <div className="player-chip__total">
+        Score: <Delta value={totalScore} />
+        {(phase === 'PUSH' || pushChoice) && (
+          <>
+            {' · '}
+            <span
+              className={`player-chip__push${pushChoice ? '' : ' player-chip__push--deciding'}`}
+              title={pushChoice === 'locked' ? 'Locked ×2' : pushChoice === 'pushed' ? 'Pushed ×3' : 'Deciding'}
+            >
+              {pushChoice === 'locked' ? '×2' : pushChoice === 'pushed' ? '×3' : '?'}
+            </span>
+          </>
+        )}
+      </div>
+    </>
+  );
+
+  const chipProps = (p: Player) => {
+    const isMe = p.id === playerId;
+    const isActive = currentTurn === p.id;
+    const pushChoice = gameState.pushStatus?.[p.id];
+    return {
+      player: p,
+      isMe,
+      isActive,
+      showTimer: isActive && (phase === 'PLAYING' || ((phase === 'BIDDING' || phase === 'TRUMP_SELECT') && !isMe)),
+      remainingMs: turnRemainingMs,
+      fullMs: turnTimeoutMs,
+      startKey: timerKey,
+      running: timerRunning,
+      info: chipInfo(bids[p.id] ?? null, tricksWon[p.id] ?? 0, getTotal(scoreboard, p.id), pushChoice),
+    };
+  };
 
   const blindHidden = isHandHiddenForBid(mode, gameState.phase);
 
@@ -136,11 +167,11 @@ export function GamePage() {
       <Announcement announcement={gameState.announcement} />
 
       {/* Round result popup */}
-      <RoundResultOverlay result={lastRoundResult} visible={phase === 'ROUND_SCORING'} />
+      <BidBaaziRoundResult result={lastRoundResult} visible={phase === 'ROUND_SCORING'} />
 
       {/* Push popup — Blind Bid: lock (×2) or push (×3) after the hand is revealed */}
       <Popup visible={phase === 'PUSH' && !pushDecided} title="Lock or Push?">
-        <PushPanel
+        <BidBaaziPushPanel
           bid={myBid ?? 0}
           cards={round ?? 0}
           remainingMs={turnRemainingMs}
@@ -156,7 +187,7 @@ export function GamePage() {
         visible={phase === 'BIDDING' && isMyTurn}
         title={`Round ${round} · How many tricks will you win?`}
       >
-        <BidPanel round={round!} remainingMs={turnRemainingMs} fullMs={turnTimeoutMs} startKey={timerKey} running={timerRunning} />
+        <BidBaaziBidPanel round={round!} remainingMs={turnRemainingMs} fullMs={turnTimeoutMs} startKey={timerKey} running={timerRunning} />
       </Popup>
 
       {/* Trump-select popup — shown when it's MY turn to pick the round's trump */}
@@ -168,7 +199,7 @@ export function GamePage() {
           : "Choose this round's trump"
         }
       >
-        <TrumpPicker
+        <BidBaaziTrumpPicker
           remainingMs={turnRemainingMs}
           fullMs={turnTimeoutMs}
           startKey={timerKey}
@@ -177,41 +208,25 @@ export function GamePage() {
         />
       </Popup>
 
-      <div className="game-area">
-        {/* ── Full-width Game panel ─────────────────────────── */}
-        <div className="game-panel">
-
-          {/* ── Table with players around it ─── */}
-          <div className="table-wrap">
-
-            {/* Opponents in one horizontal row */}
-            <div className="table-top-row">
-              {opponents.map(p => (
-                <PlayerChip key={p.id} {...chipProps(p)} />
-              ))}
-            </div>
-
-            {/* Middle: trick area */}
-            <div className="table-middle-row">
-              <TrickArea trick={currentTrick} players={players} round={round} status={statusText} trumpConfig={trumpConfig} urgent={urgent} mode={mode} />
-            </div>
-          </div>
-
-          {/* ── My status strip ─── */}
-          <div className="my-strip">
+      <GameTable
+        opponents={opponents.map(p => (
+          <PlayerChip key={p.id} {...chipProps(p)} />
+        ))}
+        center={
+          <BidBaaziTrickArea trick={currentTrick} players={players} round={round} status={statusText} trumpConfig={trumpConfig} urgent={urgent} mode={mode} />
+        }
+        myStrip={
+          <>
             <PlayerChip
               player={players.find(p => p.id === playerId)!}
-              bid={myBid}
-              tricksWon={myWon}
+              isMe
               isActive={isMyTurn}
-              phase={phase}
+              showTimer={isMyTurn && phase === 'PLAYING'}
               remainingMs={turnRemainingMs}
               fullMs={turnTimeoutMs}
               startKey={timerKey}
               running={timerRunning}
-              totalScore={getTotal(scoreboard, playerId)}
-              pushChoice={gameState.pushStatus?.[playerId]}
-              isMe
+              info={chipInfo(myBid, myWon, getTotal(scoreboard, playerId), gameState.pushStatus?.[playerId])}
             />
             {selectedCard && (
               <span className="tag-faint" style={{ marginLeft: 8 }}>
@@ -219,33 +234,31 @@ export function GamePage() {
               </span>
             )}
             <QuickMessages />
+          </>
+        }
+        hand={
+          <div className="hand-cards">
+            {blindHidden ? (
+              Array.from({ length: round ?? 0 }).map((_, i) => (
+                <div key={i} className="card card--back" aria-hidden="true" />
+              ))
+            ) : (
+              <AnimatePresence>
+                {sortedHand.map(card => (
+                  <CardView
+                    key={card.id}
+                    card={card}
+                    layoutId={`card-${card.id}`}
+                    disabled={isMyTurn && phase === 'PLAYING' ? !legalIds.includes(card.id) : false}
+                    selected={selectedCard === card.id}
+                    onClick={() => handleCardClick(card.id)}
+                  />
+                ))}
+              </AnimatePresence>
+            )}
           </div>
-
-          {/* ── My hand ─── */}
-          <div className="hand-area">
-            <div className="hand-cards">
-              {blindHidden ? (
-                Array.from({ length: round ?? 0 }).map((_, i) => (
-                  <div key={i} className="card card--back" aria-hidden="true" />
-                ))
-              ) : (
-                <AnimatePresence>
-                  {sortedHand.map(card => (
-                    <CardView
-                      key={card.id}
-                      card={card}
-                      layoutId={`card-${card.id}`}
-                      disabled={isMyTurn && phase === 'PLAYING' ? !legalIds.includes(card.id) : false}
-                      selected={selectedCard === card.id}
-                      onClick={() => handleCardClick(card.id)}
-                    />
-                  ))}
-                </AnimatePresence>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+        }
+      />
     </>
   );
 }

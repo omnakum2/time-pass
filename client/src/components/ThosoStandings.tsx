@@ -6,7 +6,7 @@ import { ordinal } from '../format';
  * In-game rank board for Thoso. Shows the finished ("free") players in finishing
  * order (from `state.finishedRanks`), then — for context — the players still
  * holding cards. Reuses the platform's StandingsTable `lr` variant so it matches
- * Bid Club's Winner standings styling.
+ * BidBaazi's Winner standings styling.
  */
 export function ThosoStandings({ state }: { state: ThosoState }) {
   const { players, finishedRanks } = state;

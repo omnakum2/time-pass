@@ -1,8 +1,8 @@
-import { GameState } from 'shared';
+import { BidBaaziState } from 'shared';
 import { StandingsTable } from './StandingsTable';
 import { Delta } from './Delta';
 
-export function Scoreboard({ gameState }: { gameState: GameState }) {
+export function BidBaaziScoreboard({ gameState }: { gameState: BidBaaziState }) {
   const { players, scoreboard } = gameState;
 
   // Rows are keyed by SEQUENCE INDEX (not round number). Modes that repeat a

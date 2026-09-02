@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { useGameStore } from '../store/gameStore';
+import { useSessionStore } from '../store/sessionStore';
+import { useBidBaaziStore } from '../store/bidbaaziStore';
 import { useThosoStore } from '../store/thosoStore';
 import { sendMsg } from '../net/socket';
 import { storage } from '../storage';
@@ -21,8 +22,9 @@ export function useLeaveRoom(): () => void {
     storage.clearSession();
     sessionStorage.removeItem(STORAGE_KEYS.pendingRoomId);
     sessionStorage.removeItem(STORAGE_KEYS.pendingHost);
+    useSessionStore.getState().reset();
+    useBidBaaziStore.getState().reset();
     useThosoStore.getState().reset();
-    useGameStore.getState().reset();
     navigate('/', { replace: true });
   };
 }

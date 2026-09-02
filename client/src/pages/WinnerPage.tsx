@@ -1,20 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useGameStore } from '../store/gameStore';
+import { useSessionStore } from '../store/sessionStore';
+import { useBidBaaziStore } from '../store/bidbaaziStore';
 import { sendMsg } from '../net/socket';
 import { StandingsTable } from '../components/StandingsTable';
 import { Delta } from '../components/Delta';
-import { Button } from '../components/Button';
-import { Surface } from '../components/Surface';
+import { GameOver } from '../components/GameOver';
 import { Modal } from '../components/Modal';
-import { Scoreboard } from '../components/Scoreboard';
+import { BidBaaziScoreboard } from '../components/BidBaaziScoreboard';
 import { Icon } from '../components/Icon';
-import { fireWinnerConfetti } from '../confetti';
 import { useSecondsRemaining } from '../hooks/useSecondsRemaining';
 import { useLeaveRoom } from '../hooks/useLeaveRoom';
 
 export function WinnerPage() {
-  const { gameOver, playerId, gameState, reset, roomClosed } = useGameStore();
+  const { gameOver, gameState } = useBidBaaziStore();
+  const { playerId, roomClosed } = useSessionStore();
   const navigate = useNavigate();
   const leaveRoom = useLeaveRoom();
   const [boardOpen, setBoardOpen] = useState(false);
@@ -34,18 +34,9 @@ export function WinnerPage() {
   const initialHostId = initialHostIdRef.current;
   const hostChanged = initialHostId != null && currentHostId !== initialHostId;
 
-  const hasWinners = gameOver && gameOver.winners.length > 0;
-
   // Host-only expiry countdown — seeded from the server-broadcast value and ticked
   // down locally each second for display. Hidden once the room has actually closed.
   const secsLeft = useSecondsRemaining(roomClosed ? null : (gameState?.roomExpiresInMs ?? null));
-
-  // Winner celebration — an energetic, two-burst confetti pop for EVERYONE at game
-  // over (win or lose). Skipped for viewers who prefer reduced motion.
-  useEffect(() => {
-    if (!hasWinners) return;
-    fireWinnerConfetti();
-  }, [hasWinners]);
 
   if (!gameOver) return <div className="page"><p>Loading…</p></div>;
 
@@ -64,22 +55,18 @@ export function WinnerPage() {
   const handleLeave = leaveRoom;
 
   return (
-    <div className="winner-page-wrap">
-      <Surface className="winner-card">
-
-        {/* Trophy / icon */}
+    <GameOver
+      icon={
         <div style={{ fontSize: '4rem', lineHeight: 1 }}>
           {isWinner ? '🏆' : '🎉'}
         </div>
-
-        {/* Headline */}
-        <h1 className="card-title card-title--lg">
-          {isWinner
-            ? 'You win!'
-            : `${winnerNames.join(' & ')} win${winners.length > 1 ? '!' : 's!'}`}
-        </h1>
-
-        {/* Full standings table */}
+      }
+      headline={
+        isWinner
+          ? 'You win!'
+          : `${winnerNames.join(' & ')} win${winners.length > 1 ? '!' : 's!'}`
+      }
+      standings={
         <StandingsTable variant="lr">
           <thead>
             <tr>
@@ -105,60 +92,38 @@ export function WinnerPage() {
             })}
           </tbody>
         </StandingsTable>
-
-        {gameState && (
-          <button
-            type="button"
-            className="winner-board-btn"
-            onClick={() => setBoardOpen(true)}
-            title="View full scoreboard"
-          >
-            <Icon name="table" size={15} />
-            Full scoreboard
-          </button>
-        )}
-
-        {roomClosed ? (
-          <>
-            <p className="hint">This game has ended and the room has closed.</p>
-            <Button
-              variant="primary"
-              block
-              onClick={() => { reset(); navigate('/', { replace: true }); }}
+      }
+      extra={
+        <>
+          {gameState && (
+            <button
+              type="button"
+              className="winner-board-btn"
+              onClick={() => setBoardOpen(true)}
+              title="View full scoreboard"
             >
-              Back to Home
-            </Button>
-          </>
-        ) : isHost ? (
-          <>
-            {hostChanged && (
-              <p className="hint">The previous host left, so you're the host now.</p>
-            )}
-            {secsLeft != null && (
-              <p className="tag-faint" style={{ margin: 0 }}>Room closes in {secsLeft}s</p>
-            )}
-            <Button variant="primary" block onClick={handleRematch}>
-              Play Again
-            </Button>
-            <Button variant="secondary" block onClick={handleLeave}>
-              Leave
-            </Button>
-          </>
-        ) : (
-          <>
-            <p className="hint">Waiting for the host to start a rematch…</p>
-            <Button variant="secondary" block onClick={handleLeave}>
-              Leave
-            </Button>
-          </>
-        )}
-      </Surface>
-
-      {gameState && (
-        <Modal open={boardOpen} onClose={() => setBoardOpen(false)} title="Scoreboard">
-          <Scoreboard gameState={gameState} />
-        </Modal>
-      )}
-    </div>
+              <Icon name="table" size={15} />
+              Full scoreboard
+            </button>
+          )}
+          {gameState && (
+            <Modal open={boardOpen} onClose={() => setBoardOpen(false)} title="Scoreboard">
+              <BidBaaziScoreboard gameState={gameState} />
+            </Modal>
+          )}
+        </>
+      }
+      isHost={isHost}
+      roomClosed={roomClosed}
+      hostChanged={hostChanged}
+      secsLeft={secsLeft}
+      onRematch={handleRematch}
+      onLeave={handleLeave}
+      onBackHome={() => {
+        useSessionStore.getState().reset();
+        useBidBaaziStore.getState().reset();
+        navigate('/', { replace: true });
+      }}
+    />
   );
 }

@@ -1,38 +1,27 @@
 import { useState, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { GAMES } from 'shared';
-import { useGameStore } from '../store/gameStore';
-import { useThosoStore } from '../store/thosoStore';
+import { useInGame, useActiveGameId } from '../store/activeGame';
 import { Modal } from './Modal';
 import { GAME_COMPONENTS } from '../games';
 // Fallback guide for a game with no registry entry (defensive — in-game routes are
-// always a known game). GuideContent is the platform-default (Bid Club) guide.
+// always a known game). GuideContent is the platform-default (BidBaazi) guide.
 import { GuideContent } from '../pages/GuidePage';
 import { useLeaveRoom } from '../hooks/useLeaveRoom';
 import logo from '../assets/logo.webp';
 
 export function Header() {
   const location = useLocation();
-  const gameState = useGameStore((s) => s.gameState);
-  const thosoState = useThosoStore((s) => s.state);
-  const phase = gameState?.phase;
-  const thosoPhase = thosoState?.phase;
-  const inGame =
-    phase === 'DEALING' ||
-    phase === 'TRUMP_SELECT' ||
-    phase === 'BIDDING' ||
-    phase === 'PUSH' ||
-    phase === 'PLAYING' ||
-    phase === 'ROUND_SCORING' ||
-    thosoPhase === 'TRANSFER' ||
-    thosoPhase === 'PLAYING' ||
-    thosoPhase === 'GAME_OVER';
+  // Registry-driven in-game detection (activeGame.ts lists the game stores + their
+  // in-game phases) — one place to extend when a new game is added.
+  const inGame = useInGame();
+  const activeGameId = useActiveGameId();
   const [guideOpen, setGuideOpen] = useState(false);
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
 
   const isLoungeHome = location.pathname === '/';
   const seg = location.pathname.split('/')[1] ?? '';
-  // Current game id (bid-club / thoso / …) — the key into the component registry
+  // Current game id (bidbaazi / thoso / …) — the key into the component registry
   // for the game-specific Guide and Scoreboard overlays below.
   const gameId = seg;
   // Registry-driven overlay bodies (both read their own store): the scoreboard
@@ -49,8 +38,8 @@ export function Header() {
   return (
     <>
       <header className="app-header">
-        <Link to="/" className="app-header__brand" title="Bid Club Lounge">
-          <img src={logo} alt="Bid Club" className="app-header__logo" />
+        <Link to="/" className="app-header__brand" title="CardClub Lounge">
+          <img src={logo} alt="CardClub" className="app-header__logo" />
         </Link>
         <nav className="app-header__nav">
           {!inGame && !isLoungeHome && (
@@ -81,7 +70,7 @@ export function Header() {
       </header>
 
       {/* ── Scoreboard overlay (registry-driven) ───────────────── */}
-      {(!!gameState || !!thosoState) && (
+      {!!activeGameId && (
         <Modal open={scoreboardOpen} onClose={() => setScoreboardOpen(false)} title="Scoreboard">
           <p className="scoreboard-overlay__note">The game keeps running while you view scores.</p>
           {Standings && <Standings />}

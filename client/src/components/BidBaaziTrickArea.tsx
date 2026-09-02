@@ -14,7 +14,7 @@ interface Props {
   mode: GameMode;
 }
 
-export function TrickArea({ trick, players, round, status, trumpConfig, urgent, mode }: Props) {
+export function BidBaaziTrickArea({ trick, players, round, status, trumpConfig, urgent, mode }: Props) {
   const modeInfo = GAME_MODES.find(m => m.id === mode);
   const modeShort = modeInfo?.short ?? '';
   const modeLabel = modeInfo?.label ?? '';
@@ -25,7 +25,7 @@ export function TrickArea({ trick, players, round, status, trumpConfig, urgent, 
         {/* Embossed table wordmark — suits over JHATPAT over a flourish */}
         <div className="felt-watermark">
           <div className="felt-watermark__suits">♠ ♥ ♦ ♣</div>
-          <div className="felt-watermark__title">BID CLUB</div>
+          <div className="felt-watermark__title">BID BAAZI</div>
           <div className="felt-watermark__flourish">✦&nbsp;&nbsp;❦&nbsp;&nbsp;✦</div>
         </div>
 

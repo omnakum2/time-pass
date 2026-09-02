@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useGameStore } from '../store/gameStore';
+import { useSessionStore } from '../store/sessionStore';
 import { TOAST_DISMISS_MS } from '../constants';
 import { Icon } from './Icon';
 
@@ -9,7 +9,7 @@ interface ErrorToastProps {
 }
 
 export function ErrorToast({ message, onClose }: ErrorToastProps = {}) {
-  const { error, clearError } = useGameStore();
+  const { error, clearError } = useSessionStore();
 
   const handleClose = onClose ?? clearError;
   const activeMessage = message ?? (error ? (error.message || 'Something went wrong.') : '');

@@ -1,6 +1,14 @@
 import { ClientMessage, ServerMessage } from 'shared';
-import { useGameStore } from '../store/gameStore';
+import { useSessionStore } from '../store/sessionStore';
+import { useBidBaaziStore } from '../store/bidbaaziStore';
 import { useThosoStore } from '../store/thosoStore';
+
+// Per-game state-message dispatch: each game's `*State` server message routes to
+// its own store. Adding a game = add one entry here (plus its case in dispatch()).
+const GAME_STATE_DISPATCH: Record<string, (state: any) => void> = {
+  state:      (s) => useBidBaaziStore.getState().setState(s),
+  thosoState: (s) => useThosoStore.getState().setThosoState(s),
+};
 import { storage } from '../storage';
 import { WS_DEFAULT_PORT, RECONNECT_BASE_MS, RECONNECT_MAX_MS, RECONNECT_EXP_CAP } from '../constants';
 
@@ -44,7 +52,7 @@ export function connect(): void {
   sock.onopen = () => {
     if (ws !== sock) return;
     reconnectAttempts = 0;
-    useGameStore.getState().setConnected(true);
+    useSessionStore.getState().setConnected(true);
 
     // Try to reconnect to existing session
     const session = storage.getSession();
@@ -61,7 +69,7 @@ export function connect(): void {
 
   sock.onclose = () => {
     if (ws !== sock) return; // a newer socket has replaced us — ignore this stale close
-    useGameStore.getState().setConnected(false);
+    useSessionStore.getState().setConnected(false);
     ws = null;
     // Retry indefinitely (until manualClose) with a capped backoff so a
     // cold/slept backend and transient drops self-heal silently.
@@ -81,7 +89,7 @@ export function disconnect(): void {
 }
 
 function dispatch(msg: ServerMessage): void {
-  const store = useGameStore.getState();
+  const store = useSessionStore.getState();
   switch (msg.type) {
     case 'joined':
       reconnecting = false;
@@ -89,16 +97,14 @@ function dispatch(msg: ServerMessage): void {
       store.setSession(msg.playerId, msg.roomId);
       break;
     case 'state':
-      store.setState(msg.state);
-      break;
     case 'thosoState':
-      useThosoStore.getState().setThosoState(msg.state);
+      GAME_STATE_DISPATCH[msg.type]?.(msg.state);
       break;
     case 'roundResult':
-      store.setRoundResult(msg);
+      useBidBaaziStore.getState().setRoundResult(msg);
       break;
     case 'gameOver':
-      store.setGameOver(msg);
+      useBidBaaziStore.getState().setGameOver(msg);
       break;
     case 'roomClosed':
       storage.clearSession();

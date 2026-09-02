@@ -25,7 +25,7 @@ import { BaseRoom, Seat } from '../BaseRoom';
  * pile on the current led-suit leader. Finishing order fills `finishedRanks`; the
  * last player left holding cards is the loser.
  *
- * Room/lobby/connection/turn-timer plumbing mirrors {@link BidClubRoom} exactly.
+ * Room/lobby/connection/turn-timer plumbing mirrors {@link BidBaaziRoom} exactly.
  */
 export class ThosoRoom extends BaseRoom {
   private phase: ThosoState['phase'] = 'LOBBY';
@@ -419,7 +419,7 @@ export class ThosoRoom extends BaseRoom {
   }
 
   private endRoundAndLead(leaderSeatIndex: number): void {
-    // Hold the completed round on screen briefly (mirrors BidClubRoom.resolveTrick) so
+    // Hold the completed round on screen briefly (mirrors BidBaaziRoom.resolveTrick) so
     // players can see who played what. Keep currentTrick + ledSuit populated during the
     // hold; there's no live turn (turnExpiresAt null). Then clear + lead the next round.
     this.roundResolving = true;

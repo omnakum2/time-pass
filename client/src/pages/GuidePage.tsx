@@ -1,18 +1,9 @@
-import { useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
-import { Surface } from '../components/Surface';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/Button';
+import { Guide, type GuideData, type Lang, type GuideSection } from '../components/Guide';
 import { GAME_COMPONENTS } from '../games';
 
-type Lang = 'en' | 'gu';
-
-interface Section {
-  id: string;
-  title: string;
-  body: JSX.Element;
-}
-
-const SECTIONS: Record<Lang, Section[]> = {
+const SECTIONS: Record<Lang, GuideSection[]> = {
   en: [
     {
       id: 'overview',
@@ -20,7 +11,7 @@ const SECTIONS: Record<Lang, Section[]> = {
       body: (
         <>
           <p>
-            Bid Club is a trick-taking prediction game. It runs for 7 rounds, and the
+            BidBaazi is a trick-taking prediction game. It runs for 7 rounds, and the
             number of cards dealt counts down from 7 in the first round to 1 in the last.
           </p>
           <p>
@@ -184,7 +175,7 @@ const SECTIONS: Record<Lang, Section[]> = {
       body: (
         <>
           <p>
-            Bid Club ek trick-taking prediction game che. Aama kul 7 round ni game thai che.
+            BidBaazi ek trick-taking prediction game che. Aama kul 7 round ni game thai che.
           </p>
           <p>
             Dar round ma tame andaajo lagaavo cho ke tame ketla haath jitso, ane
@@ -347,75 +338,26 @@ const SECTIONS: Record<Lang, Section[]> = {
 };
 
 const PAGE_TITLE: Record<Lang, string> = {
-  en: 'How to Play · Bid Club',
-  gu: 'Kem Ramvu · Bid Club',
+  en: 'How to Play · BidBaazi',
+  gu: 'Kem Ramvu · BidBaazi',
+};
+
+const bidBaaziGuideData: GuideData = {
+  title: PAGE_TITLE,
+  sections: SECTIONS,
 };
 
 export function GuideContent({ showHomeLink = false }: { showHomeLink?: boolean }) {
-  const [lang, setLang] = useState<Lang>('en');
-  const sections = SECTIONS[lang];
-
-  return (
-    <>
-      <h1 className="guide-title">{PAGE_TITLE[lang]}</h1>
-      <div className="guide-lang">
-        <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>
-          English
-        </button>
-        <button className={lang === 'gu' ? 'active' : ''} onClick={() => setLang('gu')}>
-          Gujarati
-        </button>
-      </div>
-      <div className="guide-layout">
-        <ol className="guide-toc">
-          {sections.map(({ id, title }) => (
-            <li key={id}>
-              <button
-                className="guide-toc__link"
-                onClick={() =>
-                  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
-                }
-              >
-                {title}
-              </button>
-            </li>
-          ))}
-        </ol>
-        <Surface as="article" className="guide-content">
-          {sections.map(({ id, title, body }) => (
-            <section id={id} key={id} className="guide-section">
-              <h2>{title}</h2>
-              {body}
-            </section>
-          ))}
-          {showHomeLink && (
-            <p className="guide-home-cta">
-              {lang === 'gu' ? (
-                <>
-                  Ramva mate taiyar cho? Room banavva ke join karva mate{' '}
-                  <Link className="home-seo__link" to="/">Home</Link> page par pacha jao.
-                </>
-              ) : (
-                <>
-                  Ready to play? Head back to the{' '}
-                  <Link className="home-seo__link" to="/">Home</Link> page to create or join a room.
-                </>
-              )}
-            </p>
-          )}
-        </Surface>
-      </div>
-    </>
-  );
+  return <Guide data={bidBaaziGuideData} showHomeLink={showHomeLink} />;
 }
 
 export function GuidePage() {
   const navigate = useNavigate();
   // The Guide is game-aware via the component registry: /thoso/guide shows Thoso's
-  // (English-only) rules, everything else falls back to the Bid Club guide. Same page
-  // shell either way. `showHomeLink` is ignored by guides that don't accept it.
+  // rules, everything else falls back to the BidBaazi guide. Same page shell (and the
+  // shared bilingual Guide component) either way. `showHomeLink` is passed through.
   const { game } = useParams();
-  const Guide = GAME_COMPONENTS[game ?? '']?.Guide ?? GuideContent;
+  const GuideComp = GAME_COMPONENTS[game ?? '']?.Guide ?? GuideContent;
 
   return (
     <div className="guide-page">
@@ -427,7 +369,7 @@ export function GuidePage() {
       >
         Go Back
       </Button>
-      <Guide showHomeLink />
+      <GuideComp showHomeLink />
     </div>
   );
 }

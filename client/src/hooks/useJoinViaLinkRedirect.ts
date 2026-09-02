@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useGameStore } from '../store/gameStore';
+import { useSessionStore } from '../store/sessionStore';
 import { storage } from '../storage';
 import { STORAGE_KEYS } from '../constants';
 
@@ -15,7 +15,7 @@ import { STORAGE_KEYS } from '../constants';
  */
 export function useJoinViaLinkRedirect(game: string, urlRoomId: string | undefined): void {
   const navigate = useNavigate();
-  const { roomId, connected, reconnectFailed } = useGameStore();
+  const { roomId, connected, reconnectFailed } = useSessionStore();
 
   useEffect(() => {
     if (roomId || !urlRoomId || !connected) return;

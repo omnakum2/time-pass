@@ -1,2 +1,2 @@
-export { BidClubRoom as Room } from './rooms/bid-club/BidClubRoom';
+export { BidBaaziRoom as Room, BidBaaziRoom } from './rooms/bidbaazi/BidBaaziRoom';
 export { Seat, BaseRoom } from './rooms/BaseRoom';

@@ -35,7 +35,7 @@ export function ThosoCardStack({ card, size = 'sm', interactive = false, selecte
         <div className="thoso-stack__layer thoso-stack__layer--b" aria-hidden />
         <div className="thoso-stack__layer thoso-stack__layer--a" aria-hidden />
         <div className="thoso-stack__top">
-          <CardView card={card} selected={selected} mini={size === 'sm'} />
+          <CardView card={card} selected={selected} size={size === 'sm' ? 'sm' : 'md'} />
         </div>
       </div>
     </div>

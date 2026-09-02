@@ -29,7 +29,7 @@ export default function App() {
   );
 }
 
-// Per-game in-room root comes from the component registry (Bid Club's own root now
+// Per-game in-room root comes from the component registry (BidBaazi's own root now
 // encapsulates the former RoomRouter lobby→game→winner phase logic). A future game
 // needs only a GAME_COMPONENTS entry — no edit here.
 function RoomForGame() {

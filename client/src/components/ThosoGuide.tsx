@@ -1,22 +1,11 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Surface } from './Surface';
+import { Guide, type GuideData, type Lang, type GuideSection } from './Guide';
 
-type Lang = 'en' | 'gu';
-
-interface Section {
-  id: string;
-  title: string;
-  body: JSX.Element;
-}
-
-// Bilingual (English + Gujarati) guide for Thoso. Mirrors Bid Club's GuideContent
-// structure, language toggle and classes (guide-title / guide-lang / guide-layout /
-// guide-toc / guide-content / guide-section) so both guides look identical across
-// games; colours follow the active theme tokens, so no game-specific colours are
-// hardcoded here. The English side is the source of truth for the rules; the
-// Gujarati side matches GuideContent's romanised-Gujarati register.
-const SECTIONS: Record<Lang, Section[]> = {
+// Bilingual (English + Gujarati) guide DATA for Thoso. The shared <Guide> shell renders
+// the language toggle, TOC, layout classes and home-link CTA identically across games;
+// only the per-language page title + sections differ here. Colours follow the active
+// theme tokens, so no game-specific colours are hardcoded. The English side is the
+// source of truth for the rules; the Gujarati side matches BidBaazi's romanised register.
+const SECTIONS: Record<Lang, GuideSection[]> = {
   en: [
     {
       id: 'overview',
@@ -231,60 +220,11 @@ const PAGE_TITLE: Record<Lang, string> = {
   gu: 'Kem Ramvu · Thoso',
 };
 
-export function ThosoGuide({ showHomeLink = false }: { showHomeLink?: boolean }) {
-  const [lang, setLang] = useState<Lang>('en');
-  const sections = SECTIONS[lang];
+const thosoGuideData: GuideData = {
+  title: PAGE_TITLE,
+  sections: SECTIONS,
+};
 
-  return (
-    <>
-      <h1 className="guide-title">{PAGE_TITLE[lang]}</h1>
-      <div className="guide-lang">
-        <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>
-          English
-        </button>
-        <button className={lang === 'gu' ? 'active' : ''} onClick={() => setLang('gu')}>
-          Gujarati
-        </button>
-      </div>
-      <div className="guide-layout">
-        <ol className="guide-toc">
-          {sections.map(({ id, title }) => (
-            <li key={id}>
-              <button
-                className="guide-toc__link"
-                onClick={() =>
-                  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
-                }
-              >
-                {title}
-              </button>
-            </li>
-          ))}
-        </ol>
-        <Surface as="article" className="guide-content">
-          {sections.map(({ id, title, body }) => (
-            <section id={id} key={id} className="guide-section">
-              <h2>{title}</h2>
-              {body}
-            </section>
-          ))}
-          {showHomeLink && (
-            <p className="guide-home-cta">
-              {lang === 'gu' ? (
-                <>
-                  Ramva mate taiyar cho? Room banavva ke join karva mate{' '}
-                  <Link className="home-seo__link" to="/">Home</Link> page par pacha jao.
-                </>
-              ) : (
-                <>
-                  Ready to play? Head back to the{' '}
-                  <Link className="home-seo__link" to="/">Home</Link> page to create or join a room.
-                </>
-              )}
-            </p>
-          )}
-        </Surface>
-      </div>
-    </>
-  );
+export function ThosoGuide({ showHomeLink = false }: { showHomeLink?: boolean }) {
+  return <Guide data={thosoGuideData} showHomeLink={showHomeLink} />;
 }

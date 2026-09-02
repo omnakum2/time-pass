@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import {
-  Card, GameMode, GamePhase, GameState, Player, RoundScore,
+  Card, GameMode, GamePhase, BidBaaziState, Player, RoundScore,
   Suit, TrumpKind, TrumpConfig, TrickCard, MsgRoundResult, MsgGameOver, ErrorCode, Announcement,
   roundsForMode, deal, pickTrump, firstBidderSeat,
   legalMoves, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, isSummitRound, isLastStandRound, ROUNDS, SUITS, RANK_ORDER, GAME_MODES, ClientMessage
@@ -13,7 +13,7 @@ import {
 import { sendMessage, clampPlayers } from '../../helpers';
 import { BaseRoom, Seat } from '../BaseRoom';
 
-export class BidClubRoom extends BaseRoom {
+export class BidBaaziRoom extends BaseRoom {
   private phase: GamePhase = 'LOBBY';
 
   // Round state
@@ -54,7 +54,7 @@ export class BidClubRoom extends BaseRoom {
   }
 
   // Remove a seat (BaseRoom handles filter + reindex + host promotion); then do the
-  // BidClub-specific extras: drop the scoreboard row and cancel a pending lobby
+  // BidBaazi-specific extras: drop the scoreboard row and cancel a pending lobby
   // countdown if the room is no longer full.
   protected override removeSeat(playerId: string): void {
     super.removeSeat(playerId);
@@ -552,7 +552,7 @@ export class BidClubRoom extends BaseRoom {
 
   // ─── State broadcast ──────────────────────────────────────────────────────
 
-  private buildState(forPlayerId: string, lastTrick?: TrickCard[]): GameState {
+  private buildState(forPlayerId: string, lastTrick?: TrickCard[]): BidBaaziState {
     const seat = this.getSeat(forPlayerId);
     const handCounts: Record<string, number> = {};
     for (const s of this.seats) {

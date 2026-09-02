@@ -8,7 +8,7 @@ interface Props {
   visible: boolean;
 }
 
-export function RoundResultOverlay({ result, visible }: Props) {
+export function BidBaaziRoundResult({ result, visible }: Props) {
   // Rank by running total (leader first) so the Rank-1 row can be highlighted.
   const rows = result ? [...result.perPlayer].sort((a, b) => b.total - a.total) : [];
 

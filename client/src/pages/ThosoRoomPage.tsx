@@ -3,25 +3,24 @@ import { useParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Player, legalPlays, highestLedSuitPlayer, GAMES } from 'shared';
 import { useThosoStore } from '../store/thosoStore';
-import { useGameStore } from '../store/gameStore';
+import { useSessionStore } from '../store/sessionStore';
 import { sendMsg } from '../net/socket';
 import { ordinal, sortHand } from '../format';
-import { fireWinnerConfetti } from '../confetti';
 import { useSecondsRemaining } from '../hooks/useSecondsRemaining';
-import { useCopyInvite } from '../hooks/useCopyInvite';
 import { useJoinViaLinkRedirect } from '../hooks/useJoinViaLinkRedirect';
 import { useLeaveRoom } from '../hooks/useLeaveRoom';
 import { useUrgentTurn } from '../hooks/useUrgentTurn';
 import { CardView } from '../components/CardView';
 import { Announcement } from '../components/Announcement';
 import { StandingsTable } from '../components/StandingsTable';
-import { ThosoPlayerChip } from '../components/ThosoPlayerChip';
+import { PlayerChip } from '../components/PlayerChip';
+import { GameTable } from '../components/GameTable';
 import { ThosoCardStack } from '../components/ThosoCardStack';
-import { Surface } from '../components/Surface';
 import { Button } from '../components/Button';
 import { QuickMessages } from '../components/QuickMessages';
-import { Icon } from '../components/Icon';
 import { RoomSettings } from '../components/RoomSettings';
+import { Lobby } from '../components/Lobby';
+import { GameOver } from '../components/GameOver';
 import '../styles/thoso.css';
 
 /** Opponents in clockwise seat order starting just after me. */
@@ -40,9 +39,9 @@ function seatOrderedOpponents(players: Player[], playerId: string): Player[] {
 
 export function ThosoRoomPage() {
   const { state } = useThosoStore();
-  const { playerId, roomId } = useGameStore();
-  const error = useGameStore(s => s.error);
-  const roomClosed = useGameStore(s => s.roomClosed);
+  const { playerId, roomId } = useSessionStore();
+  const error = useSessionStore(s => s.error);
+  const roomClosed = useSessionStore(s => s.roomClosed);
   const leaveRoom = useLeaveRoom();
   const { game = 'thoso', roomId: urlRoomId } = useParams<{ game: string; roomId: string }>();
 
@@ -52,7 +51,6 @@ export function ThosoRoomPage() {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const pendingTargetRef = useRef<string | null>(null);
-  const confettiFiredRef = useRef(false);
 
   // Null-safe turn primitives so all hooks run before any early return.
   const phase = state?.phase ?? 'LOBBY';
@@ -65,7 +63,6 @@ export function ThosoRoomPage() {
   const timerKey = String(turnExpiresAt ?? 'none');
   const timerRunning = turnExpiresAt != null;
 
-  const countdownSecs = useSecondsRemaining(state?.countdownMs ?? null);
   const closeSecs = useSecondsRemaining(state?.roomExpiresInMs ?? null);
 
   // Drop the transfer selection whenever the turn, the drawn card, or the phase changes.
@@ -82,16 +79,6 @@ export function ThosoRoomPage() {
     return () => clearTimeout(t);
   }, [error]);
 
-  // Winner celebration — mirror WinnerPage: an energetic two-burst confetti pop for
-  // EVERYONE (win or lose) when the game ends. Fires once per game-over (the ref resets
-  // when we leave GAME_OVER, so a rematch pops again). Skipped for reduced-motion.
-  useEffect(() => {
-    if (phase !== 'GAME_OVER') { confettiFiredRef.current = false; return; }
-    if (confettiFiredRef.current) return;
-    confettiFiredRef.current = true;
-    fireWinnerConfetti();
-  }, [phase]);
-
   // Near-timeout escalation — mirror GamePage: flag the turn "urgent" once the live
   // countdown drops below URGENT_LEAD_MS so the status line can flash. Reset (and only
   // re-armed) on a live turn; never during the round-hold (turnExpiresAt == null).
@@ -103,16 +90,15 @@ export function ThosoRoomPage() {
   );
 
   // Fresh/stale visitor to a room link → stash the code and bounce home to enter a name +
-  // join. Shared with Bid Club's LobbyPage: it waits out an in-flight reconnect for THIS
+  // join. Shared with BidBaazi's LobbyPage: it waits out an in-flight reconnect for THIS
   // room and only redirects on a genuine newcomer or a failed reconnect (fixes a leftover
   // session from a dead/other room stranding the user on "Loading…").
   useJoinViaLinkRedirect(game, urlRoomId);
 
-  // Invite link (null-safe so the copy hook can run before the loading early-return).
+  // Invite link.
   const displayRoomId = roomId ?? state?.roomId ?? '';
   const hostName = state ? (state.players.find(p => p.id === state.hostId)?.name ?? '') : '';
   const joinUrl = `${window.location.origin}/thoso/room/${displayRoomId}?host=${encodeURIComponent(hostName)}`;
-  const { copied, copy } = useCopyInvite(joinUrl);
 
   if (!state || !playerId) {
     return <div className="page"><p>Loading…</p></div>;
@@ -129,34 +115,17 @@ export function ThosoRoomPage() {
   if (phase === 'LOBBY') {
     return (
       <div className="page">
-        <Surface className="lobby flex-col gap-lg">
-          <div className="text-center">
-            <h2 className="card-title card-title--md">Waiting Room</h2>
-            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <span style={{ fontSize: '1.3rem', fontWeight: 700, letterSpacing: 3 }}>{displayRoomId}</span>
-              <button className="icon-btn" onClick={copy} title="Copy invite link" aria-label="Copy invite link">
-                {copied ? <Icon name="check" /> : <Icon name="copy" />}
-              </button>
-            </div>
-            <p className="tag-faint" style={{ marginTop: 4 }}>Share this code or link for others to join</p>
-          </div>
-
-          <div className="flex-col gap-sm">
-            <p className="hint">Players ({state.players.length}/{state.maxPlayers})</p>
-            <ul className="player-list flex-col gap-sm">
-              {state.players.map(p => (
-                <li key={p.id}>
-                  <span>{p.name}</span>
-                  {p.id === state.hostId && <span className="host-badge">HOST</span>}
-                  {p.id === playerId && <span className="tag-faint">(you)</span>}
-                  {p.status === 'reconnecting' && <span className="tag-faint">reconnecting…</span>}
-                  {p.status === 'offline' && <span className="tag-faint">disconnected</span>}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {isHost && (
+        <Lobby
+          players={state.players}
+          hostId={state.hostId}
+          playerId={playerId}
+          maxPlayers={state.maxPlayers}
+          displayRoomId={displayRoomId}
+          joinUrl={joinUrl}
+          countdownMs={state.countdownMs ?? null}
+          isHost={isHost}
+          onStart={() => sendMsg({ type: 'startGame' })}
+          settings={
             <RoomSettings
               maxPlayers={state.maxPlayers}
               minPlayers={2}
@@ -166,20 +135,8 @@ export function ThosoRoomPage() {
               onCommitMaxPlayers={(n) => sendMsg({ type: 'updateRoomSettings', maxPlayers: n })}
               onSelectMode={() => {}}
             />
-          )}
-
-          {state.countdownMs != null ? (
-            <p className="card-title card-title--sm">Starting in {countdownSecs ?? 0}…</p>
-          ) : (
-            <p className="text-center muted">Waiting for players ({state.players.length}/{state.maxPlayers})</p>
-          )}
-
-          {isHost && (
-            <Button variant="primary" block onClick={() => sendMsg({ type: 'startGame' })} disabled={state.players.length < 2}>
-              Start Game
-            </Button>
-          )}
-        </Surface>
+          }
+        />
       </div>
     );
   }
@@ -198,11 +155,10 @@ export function ThosoRoomPage() {
     const lastRank = rows.length;
 
     return (
-      <div className="winner-page-wrap">
-        <Surface className="winner-card">
-          <div style={{ fontSize: '3.4rem', lineHeight: 1 }}>🏁</div>
-          <h1 className="card-title card-title--lg">Final Standings</h1>
-
+      <GameOver
+        icon={<div style={{ fontSize: '3.4rem', lineHeight: 1 }}>🏁</div>}
+        headline="Final Standings"
+        standings={
           <StandingsTable variant="lr">
             <thead>
               <tr><th>Rank</th><th>Player</th></tr>
@@ -226,26 +182,14 @@ export function ThosoRoomPage() {
               })}
             </tbody>
           </StandingsTable>
-
-          {roomClosed ? (
-            <>
-              <p className="hint">This game has ended and the room has closed.</p>
-              <Button variant="primary" block onClick={handleLeave}>Back to Home</Button>
-            </>
-          ) : isHost ? (
-            <>
-              {closeSecs != null && <p className="tag-faint" style={{ margin: 0 }}>Room closes in {closeSecs}s</p>}
-              <Button variant="primary" block onClick={() => sendMsg({ type: 'restartGame' })}>Play Again</Button>
-              <Button variant="secondary" block onClick={handleLeave}>Leave</Button>
-            </>
-          ) : (
-            <>
-              <p className="hint">Waiting for the host to start a rematch…</p>
-              <Button variant="secondary" block onClick={handleLeave}>Leave</Button>
-            </>
-          )}
-        </Surface>
-      </div>
+        }
+        isHost={isHost}
+        roomClosed={roomClosed}
+        secsLeft={closeSecs}
+        onRematch={() => sendMsg({ type: 'restartGame' })}
+        onLeave={handleLeave}
+        onBackHome={handleLeave}
+      />
     );
   }
 
@@ -324,101 +268,97 @@ export function ThosoRoomPage() {
         </div>
       )}
 
-      <div className="game-area">
-        <div className="game-panel">
-          <div className="table-wrap">
+      <GameTable
+        opponents={opponents.map(p => {
+          const rank = rankOf(p.id);
+          const finished = rank !== undefined;
+          return (
+            <PlayerChip
+              key={p.id}
+              player={p}
+              isActive={currentTurn === p.id}
+              showTimer={currentTurn === p.id && !finished}
+              finishedRank={rank}
+              remainingMs={turnRemainingMs}
+              fullMs={turnTimeoutMs}
+              startKey={timerKey}
+              running={timerRunning}
+              selectable={canTargetTransfer && rank === undefined}
+              reject={rejectId === p.id}
+              onSelect={() => attemptTransfer(p.id)}
+              roundBadge={p.id === roundWinnerId ? roundBadgeText : undefined}
+              info={!finished && tablePhase === 'TRANSFER'
+                ? <div className="thoso-chip__region"><ThosoCardStack card={state.pileTops[p.id] ?? null} size="sm" /></div>
+                : null}
+            />
+          );
+        })}
+        center={
+          <div className="trick-area">
+            <div className="trick-felt">
+              <div className="felt-watermark">
+                <div className="felt-watermark__suits">♠ ♥ ♦ ♣</div>
+                <div className="felt-watermark__title">THOSO</div>
+                <div className="felt-watermark__flourish">✦&nbsp;&nbsp;❦&nbsp;&nbsp;✦</div>
+              </div>
 
-            {/* Opponents around the table */}
-            <div className="table-top-row">
-              {opponents.map(p => (
-                <ThosoPlayerChip
-                  key={p.id}
-                  player={p}
-                  isActive={currentTurn === p.id}
-                  finishedRank={rankOf(p.id)}
-                  phase={tablePhase}
-                  pileTop={state.pileTops[p.id] ?? null}
-                  showCardRegion
-                  remainingMs={turnRemainingMs}
-                  fullMs={turnTimeoutMs}
-                  startKey={timerKey}
-                  running={timerRunning}
-                  selectable={canTargetTransfer && rankOf(p.id) === undefined}
-                  reject={rejectId === p.id}
-                  onSelect={() => attemptTransfer(p.id)}
-                  roundBadge={p.id === roundWinnerId ? roundBadgeText : undefined}
-                />
-              ))}
-            </div>
-
-            {/* Felt centre */}
-            <div className="table-middle-row">
-              <div className="trick-area">
-                <div className="trick-felt">
-                  <div className="felt-watermark">
-                    <div className="felt-watermark__suits">♠ ♥ ♦ ♣</div>
-                    <div className="felt-watermark__title">THOSO</div>
-                    <div className="felt-watermark__flourish">✦&nbsp;&nbsp;❦&nbsp;&nbsp;✦</div>
+              {tablePhase === 'TRANSFER' ? (
+                <div className="thoso-center">
+                  <div className="thoso-drawpile-wrap">
+                    <span className="thoso-drawn__label">Draw pile</span>
+                    <div className="thoso-drawpile" aria-label={`${state.drawPileCount} cards left`}>
+                      <span className="thoso-drawpile__count">{state.drawPileCount}</span>
+                    </div>
                   </div>
 
-                  {tablePhase === 'TRANSFER' ? (
-                    <div className="thoso-center">
-                      <div className="thoso-drawpile-wrap">
-                        <span className="thoso-drawn__label">Draw pile</span>
-                        <div className="thoso-drawpile" aria-label={`${state.drawPileCount} cards left`}>
-                          <span className="thoso-drawpile__count">{state.drawPileCount}</span>
-                        </div>
-                      </div>
-
-                      {drawnCard && (
-                        <div className="thoso-drawn">
-                          <span className="thoso-drawn__label">Drawn</span>
-                          <ThosoCardStack
-                            card={drawnCard}
-                            size="md"
-                            interactive={isMyTurn}
-                            selected={selectedCardId === drawnCard.id}
-                            onClick={() => selectSource(drawnCard.id)}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="thoso-play-area">
-                      <div className="thoso-trick">
-                        <AnimatePresence>
-                          {state.currentTrick.map(({ playerId: pid, card }) => (
-                            <div key={`${pid}-${card.id}`} className="trick-card-slot">
-                              <span className="trick-card-slot__name">
-                                {state.players.find(p => p.id === pid)?.name ?? ''}
-                              </span>
-                              <CardView card={card} played layoutId={`card-${card.id}`} />
-                            </div>
-                          ))}
-                        </AnimatePresence>
-                      </div>
+                  {drawnCard && (
+                    <div className="thoso-drawn">
+                      <span className="thoso-drawn__label">Drawn</span>
+                      <ThosoCardStack
+                        card={drawnCard}
+                        size="md"
+                        interactive={isMyTurn}
+                        selected={selectedCardId === drawnCard.id}
+                        onClick={() => selectSource(drawnCard.id)}
+                      />
                     </div>
                   )}
-
-                  {statusText && <div className={`trick-status${urgent ? ' trick-status--urgent' : ''}`}>{statusText}</div>}
                 </div>
-              </div>
+              ) : (
+                <div className="thoso-play-area">
+                  <div className="thoso-trick">
+                    <AnimatePresence>
+                      {state.currentTrick.map(({ playerId: pid, card }) => (
+                        <div key={`${pid}-${card.id}`} className="trick-card-slot">
+                          <span className="trick-card-slot__name">
+                            {state.players.find(p => p.id === pid)?.name ?? ''}
+                          </span>
+                          <CardView card={card} played layoutId={`card-${card.id}`} />
+                        </div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              )}
+
+              {statusText && <div className={`trick-status${urgent ? ' trick-status--urgent' : ''}`}>{statusText}</div>}
             </div>
           </div>
-
-          {/* My strip (identity + turn ring + finished/left state) */}
-          <div className="my-strip">
-            <ThosoPlayerChip
+        }
+        myStrip={
+          <>
+            <PlayerChip
               player={me}
               isMe
               isActive={isMyTurn}
+              showTimer={isMyTurn && rankOf(playerId) === undefined}
               finishedRank={rankOf(playerId)}
-              phase={tablePhase}
               remainingMs={turnRemainingMs}
               fullMs={turnTimeoutMs}
               startKey={timerKey}
               running={timerRunning}
               roundBadge={playerId === roundWinnerId ? roundBadgeText : undefined}
+              info={null}
             />
             {tablePhase === 'TRANSFER' && isMyTurn && !selectedCardId && (
               <span className="tag-faint">Tap your card, then an opponent to transfer — or Draw</span>
@@ -433,56 +373,52 @@ export function ThosoRoomPage() {
               <span className="tag-faint">Play the Ace of Spades ♠A to start</span>
             )}
             <QuickMessages />
-          </div>
-
-          {/* My area — pile top (Phase 1) or fanned hand (Phase 2) */}
-          {tablePhase === 'TRANSFER' ? (
-            <div className="hand-area">
-              <div className="thoso-my-pile">
-                <span className="thoso-my-pile__label">Your pile</span>
-                <div className="thoso-my-pile__row">
-                  <ThosoCardStack
-                    card={myPileTop}
-                    size="md"
-                    interactive={isMyTurn}
-                    selected={selectedCardId === myPileTop?.id}
-                    onClick={() => myPileTop && selectSource(myPileTop.id)}
-                  />
-                  {isMyTurn && tablePhase === 'TRANSFER' && (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="thoso-draw-btn"
-                      onClick={() => sendMsg({ type: 'thosoDraw' })}
-                    >
-                      Draw
-                    </Button>
-                  )}
-                </div>
+          </>
+        }
+        hand={
+          tablePhase === 'TRANSFER' ? (
+            <div className="thoso-my-pile">
+              <span className="thoso-my-pile__label">Your pile</span>
+              <div className="thoso-my-pile__row">
+                <ThosoCardStack
+                  card={myPileTop}
+                  size="md"
+                  interactive={isMyTurn}
+                  selected={selectedCardId === myPileTop?.id}
+                  onClick={() => myPileTop && selectSource(myPileTop.id)}
+                />
+                {isMyTurn && tablePhase === 'TRANSFER' && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="thoso-draw-btn"
+                    onClick={() => sendMsg({ type: 'thosoDraw' })}
+                  >
+                    Draw
+                  </Button>
+                )}
               </div>
             </div>
           ) : (
-            <div className="hand-area">
-              <div className="thoso-hand-scroll">
-                <div className="hand-cards">
-                  <AnimatePresence>
-                    {sortedHand.map(card => (
-                      <CardView
-                        key={card.id}
-                        card={card}
-                        layoutId={`card-${card.id}`}
-                        disabled={isMyTurn ? !legalIds.includes(card.id) : false}
-                        selected={selectedCardId === card.id}
-                        onClick={() => playCard(card.id)}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </div>
+            <div className="thoso-hand-scroll">
+              <div className="hand-cards">
+                <AnimatePresence>
+                  {sortedHand.map(card => (
+                    <CardView
+                      key={card.id}
+                      card={card}
+                      layoutId={`card-${card.id}`}
+                      disabled={isMyTurn ? !legalIds.includes(card.id) : false}
+                      selected={selectedCardId === card.id}
+                      onClick={() => playCard(card.id)}
+                    />
+                  ))}
+                </AnimatePresence>
               </div>
             </div>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
     </>
   );
 }

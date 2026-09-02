@@ -17,7 +17,7 @@ interface GameCardConfig {
 }
 
 const GAME_CARDS: Record<string, GameCardConfig> = {
-  'bid-club': {
+  'bidbaazi': {
     fanClass: 'fan-5',
     cards: [
       { rank: 'A', suit: '♥', color: 'red' },
@@ -78,14 +78,14 @@ export function GameSelectionPage() {
     <div className="game-selection-screen">
       <main className="selection-content">
         <div className="selection-header">
-          <h1 className="selection-title">Bid Club Lounge</h1>
+          <h1 className="selection-title">CardClub Lounge</h1>
           <p className="selection-subtitle">Select your game & step up to the table</p>
           <div className="selection-divider" />
         </div>
 
         <div className="game-cards-row">
           {GAMES.map((game) => {
-            const cardData = GAME_CARDS[game.id] ?? GAME_CARDS['bid-club'];
+            const cardData = GAME_CARDS[game.id] ?? GAME_CARDS['bidbaazi'];
 
             return (
               <div

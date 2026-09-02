@@ -5,7 +5,7 @@ export interface GameInfo {
   players: string;
   route: string;
   status: 'active' | 'coming-soon';
-  icon: 'bid-club' | 'rummy' | 'thoso';
+  icon: 'bidbaazi' | 'rummy' | 'thoso';
   hasModes: boolean;  // whether the game offers selectable modes at room creation
   maxPlayers: number; // upper bound for the room's player-count slider
   hasGuide: boolean;  // whether a standalone /:game/guide page exists
@@ -13,13 +13,13 @@ export interface GameInfo {
 
 export const GAMES: GameInfo[] = [
   {
-    id: 'bid-club',
-    name: 'Bid Club',
+    id: 'bidbaazi',
+    name: 'BidBaazi',
     description: 'Predict your tricks & dominate the felt',
     players: '2–7 Players',
-    route: '/bid-club',
+    route: '/bidbaazi',
     status: 'active',
-    icon: 'bid-club',
+    icon: 'bidbaazi',
     hasModes: true,
     maxPlayers: 7,
     hasGuide: true,

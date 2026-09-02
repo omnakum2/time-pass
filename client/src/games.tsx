@@ -1,16 +1,16 @@
 import { ComponentType, lazy } from 'react';
-import { useGameStore } from './store/gameStore';
+import { useBidBaaziStore } from './store/bidbaaziStore';
 import { useThosoStore } from './store/thosoStore';
 import { LobbyPage } from './pages/LobbyPage';
 import { GamePage } from './pages/GamePage';
 import { ThosoRoomPage } from './pages/ThosoRoomPage';
-import { Scoreboard } from './components/Scoreboard';
+import { BidBaaziScoreboard } from './components/BidBaaziScoreboard';
 import { ThosoStandings } from './components/ThosoStandings';
 import { ThosoGuide } from './components/ThosoGuide';
 import { GuideContent } from './pages/GuidePage';
 
 // WinnerPage stays code-split — as it was when App owned this routing — since the
-// winner screen isn't needed until a game actually ends. Rendered by BidClubRoomRoot
+// winner screen isn't needed until a game actually ends. Rendered by BidBaaziRoomRoot
 // inside App's route-level <Suspense>.
 const WinnerPage = lazy(() =>
   import('./pages/WinnerPage').then((m) => ({ default: m.WinnerPage }))
@@ -37,22 +37,22 @@ interface GameComponents {
 }
 
 /**
- * Bid Club in-room root — encapsulates the old App `RoomRouter` phase logic so it
+ * BidBaazi in-room root — encapsulates the old App `RoomRouter` phase logic so it
  * needs no props: reads phase + gameOver from the game store and picks the screen.
  */
-function BidClubRoomRoot() {
-  const gameState = useGameStore((s) => s.gameState);
-  const gameOver = useGameStore((s) => s.gameOver);
+function BidBaaziRoomRoot() {
+  const gameState = useBidBaaziStore((s) => s.gameState);
+  const gameOver = useBidBaaziStore((s) => s.gameOver);
   const phase = gameState?.phase;
   if (gameOver) return <WinnerPage />;
   if (!phase || phase === 'LOBBY') return <LobbyPage />;
   return <GamePage />;
 }
 
-/** Bid Club scoreboard body — reads the game store; renders nothing before a game exists. */
-function BidClubStandings() {
-  const gameState = useGameStore((s) => s.gameState);
-  return gameState ? <Scoreboard gameState={gameState} /> : null;
+/** BidBaazi scoreboard body — reads the game store; renders nothing before a game exists. */
+function BidBaaziStandings() {
+  const gameState = useBidBaaziStore((s) => s.gameState);
+  return gameState ? <BidBaaziScoreboard gameState={gameState} /> : null;
 }
 
 /** Thoso rank board — reads the Thoso store; renders nothing before a game exists. */
@@ -62,6 +62,6 @@ function ThosoStandingsPanel() {
 }
 
 export const GAME_COMPONENTS: Record<string, GameComponents> = {
-  'bid-club': { RoomRoot: BidClubRoomRoot, Standings: BidClubStandings, Guide: GuideContent },
+  'bidbaazi': { RoomRoot: BidBaaziRoomRoot, Standings: BidBaaziStandings, Guide: GuideContent },
   'thoso': { RoomRoot: ThosoRoomPage, Standings: ThosoStandingsPanel, Guide: ThosoGuide },
 };

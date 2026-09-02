@@ -9,7 +9,7 @@ interface Props {
   running?: boolean;
 }
 
-export function BidPanel({ round, remainingMs, fullMs, startKey, running }: Props) {
+export function BidBaaziBidPanel({ round, remainingMs, fullMs, startKey, running }: Props) {
   const bids = Array.from({ length: round + 1 }, (_, i) => i);
   return (
     <>

@@ -12,7 +12,7 @@ interface Props {
 }
 
 /** Blind Bid: after the hand is revealed, LOCK the blind bid (×2) or PUSH it +1 (×3). */
-export function PushPanel({ bid, cards, remainingMs, fullMs, startKey, running, onDecide }: Props) {
+export function BidBaaziPushPanel({ bid, cards, remainingMs, fullMs, startKey, running, onDecide }: Props) {
   const canPush = bid < cards;
   return (
     <>

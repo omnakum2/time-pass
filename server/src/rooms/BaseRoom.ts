@@ -18,7 +18,7 @@ export interface Seat {
 
 export abstract class BaseRoom {
   readonly id: string;
-  maxPlayers: number; // mutable: a game (e.g. BidClub host settings) can change capacity in the lobby
+  maxPlayers: number; // mutable: a game (e.g. BidBaazi host settings) can change capacity in the lobby
   protected seats: Seat[] = [];
   protected hostId: string | null = null;
   protected emptyRoomTimer: ReturnType<typeof setTimeout> | null = null;

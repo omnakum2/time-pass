@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { NAME_MIN_LEN, NAME_MAX_LEN, GameMode, GAMES } from 'shared';
 import { sendMsg, reconnectSession } from '../net/socket';
-import { useGameStore } from '../store/gameStore';
+import { useSessionStore } from '../store/sessionStore';
+import { useBidBaaziStore } from '../store/bidbaaziStore';
 import { storage } from '../storage';
 import { STORAGE_KEYS } from '../constants';
 import { Button } from '../components/Button';
@@ -11,7 +12,7 @@ import { Surface } from '../components/Surface';
 import { RoomSettings } from '../components/RoomSettings';
 
 export function HomePage() {
-  const { game = 'bid-club' } = useParams();
+  const { game = 'bidbaazi' } = useParams();
   const g = GAMES.find(x => x.id === game) ?? GAMES[0];
   const [name, setName] = useState(storage.getPlayer()?.name ?? '');
   const [roomCode, setRoomCode] = useState('');
@@ -20,7 +21,8 @@ export function HomePage() {
   const [gameMode, setGameMode] = useState<GameMode>('classic');
   const [pendingHost, setPendingHost] = useState('');
   const [pending, setPending] = useState<'create' | 'join' | null>(null);
-  const { connected, roomId, gameState, reconnectFailed } = useGameStore();
+  const { connected, roomId, reconnectFailed } = useSessionStore();
+  const gameState = useBidBaaziStore((s) => s.gameState);
   const rejoinAttempt = useRef(false);
   const navigate = useNavigate();
 
@@ -57,7 +59,7 @@ export function HomePage() {
     if (!n) return;
     sendMsg({ type: 'createRoom', name: n, game, maxPlayers, mode: gameMode });
     // Navigate will happen when we receive 'joined' + 'state'
-    const unsub = useGameStore.subscribe((s) => {
+    const unsub = useSessionStore.subscribe((s) => {
       if (s.roomId) {
         navigate(`/${game}/room/${s.roomId}`);
         unsub();
@@ -78,7 +80,7 @@ export function HomePage() {
     } else {
       sendMsg({ type: 'joinRoom', roomId: code, name: n });
     }
-    const unsub = useGameStore.subscribe((s) => {
+    const unsub = useSessionStore.subscribe((s) => {
       if (s.roomId) {
         navigate(`/${game}/room/${s.roomId}`);
         unsub();
@@ -117,9 +119,9 @@ export function HomePage() {
     if (rejoinAttempt.current) {
       rejoinAttempt.current = false;
       setPending(null);
-      useGameStore.getState().setError('ROOM_NOT_FOUND', 'That room is no longer available.');
+      useSessionStore.getState().setError('ROOM_NOT_FOUND', 'That room is no longer available.');
     }
-    useGameStore.getState().setReconnectFailed(false);
+    useSessionStore.getState().setReconnectFailed(false);
   }, [reconnectFailed]);
 
   return (

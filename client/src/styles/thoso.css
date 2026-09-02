@@ -1,7 +1,7 @@
 /* ─── Thoso-specific styling ───────────────────────────────────────────────────
-   Layered on top of the shared Bid Club table shell (index.css). Sapphire theming
+   Layered on top of the shared BidBaazi table shell (index.css). Sapphire theming
    comes for free from the `data-game="thoso"` tokens (styles/theme.css). Only the
-   Phase-1/Phase-2 pieces that differ from Bid Club live here. */
+   Phase-1/Phase-2 pieces that differ from BidBaazi live here. */
 
 /* ─── Pile stack (a face-up top card over hidden buried cards) ─────────────────*/
 .thoso-pile { display: inline-flex; }

@@ -37,13 +37,13 @@
 /* Per-game palettes. The selector is attribute-only (no :root) so it applies
    BOTH on the root element (in-game, one game) AND on an individual .medallion
    element in the lounge (many games at once). */
-[data-game="bid-club"]{
+[data-game="bidbaazi"]{
   --game-primary:#D14257;
   --game-deep:#5E1A28;
   --game-felt:#1E7B46;
   --game-felt-deep:#14532E;
   --game-gem:#D14257;
-  --surface:#4A1F2B;      /* original wine — Bid Club surface unchanged */
+  --surface:#4A1F2B;      /* original wine — BidBaazi surface unchanged */
   --surface-2:#2E1720;
   --page-1:#3B1F1B;
   --page-2:#5A2233;

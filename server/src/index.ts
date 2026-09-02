@@ -32,7 +32,7 @@ let draining = false; // during shutdown drain: reject new rooms, let existing o
 // Game-factory: maps a registry game id to its Room constructor.
 // Add a new game by adding an entry here (and its Room class import).
 const ROOM_FACTORIES: Record<string, (id: string, maxPlayers: number, mode: GameMode) => BaseRoom> = {
-  'bid-club': (id, maxPlayers, mode) => new Room(id, maxPlayers, mode),
+  'bidbaazi': (id, maxPlayers, mode) => new Room(id, maxPlayers, mode),
   'thoso': (id, maxPlayers) => new ThosoRoom(id, Math.min(maxPlayers, THOSO_MAX_PLAYERS)),
 };
 
@@ -145,7 +145,7 @@ function handleMessage(ws: WebSocket, msg: ClientMessage): void {
       const roomId = generateRoomId();
       const maxPlayers = clampPlayers(typeof msg.maxPlayers === 'number' ? msg.maxPlayers : MAX_PLAYERS);
       const mode: GameMode = GAME_MODES.some(m => m.id === msg.mode) ? (msg.mode as GameMode) : 'classic';
-      const game = typeof msg.game === 'string' ? msg.game : 'bid-club';
+      const game = typeof msg.game === 'string' ? msg.game : 'bidbaazi';
       const factory = ROOM_FACTORIES[game];
       if (!factory) { sendError(ws, 'JOIN_FAILED'); return; } // unknown or not-yet-available game
       const room = factory(roomId, maxPlayers, mode);

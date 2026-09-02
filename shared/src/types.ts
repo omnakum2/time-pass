@@ -117,63 +117,59 @@ export interface RoundScore {
 
 export type Scoreboard = Record<string, RoundScore[]>; // playerId → rounds
 
-// ─── Redacted game state (sent to each client) ───────────────────────────────
+// ─── Common room-lifecycle state shared by every game's redacted state ───────
 
-export interface GameState {
-  phase: GamePhase;
+/** Common room-lifecycle state shared by every game's redacted state */
+export interface BaseRoomState {
+  phase: string;                     // each game narrows this to its own phase union
   roomId: string;
   players: Player[];
   hostId: string;
   maxPlayers: number;
+  currentTurn: string | null;
+  countdownMs: number | null;        // lobby auto-start countdown (null unless counting down)
+  turnTimeoutMs: number;             // full turn budget (ring denominator)
+  turnExpiresAt: number | null;      // absolute epoch ms the current turn auto-resolves
+  turnRemainingMs: number | null;    // ms left on the current turn at broadcast
+  roomExpiresInMs: number | null;    // ms until a finished room auto-closes
+  announcement: Announcement | null;
+}
+
+// ─── Redacted game state (sent to each client) ───────────────────────────────
+
+export interface BidBaaziState extends BaseRoomState {
+  phase: GamePhase;                // narrows BaseRoomState.phase
   round: number | null;        // current round number (7..1), null in LOBBY
   trump: Suit | null;
   trumpConfig: TrumpConfig | null; // full trump rule for the round (Revolving Trump specials)
   yourHand: Card[];            // only the recipient's cards
   handCounts: Record<string, number>; // other players' card counts
   bids: Record<string, number | null>; // playerId → bid (null if not yet bid)
-  currentTurn: string | null;  // playerId whose turn it is
   currentTrick: TrickCard[];   // cards played in current trick (in order)
   trickLeader: string | null;  // who leads the current trick
   scoreboard: Scoreboard;
   firstBidder: string | null;
   tricksWon: Record<string, number>; // playerId → tricks won this round
-  countdownMs: number | null; // ms left on the lobby auto-start countdown (null unless counting down)
-  turnTimeoutMs: number; // full turn budget for the current phase (ring denominator)
-  turnExpiresAt: number | null; // absolute epoch ms the current turn auto-resolves (null = no live turn / paused)
-  turnRemainingMs: number | null; // ms left on the current turn at broadcast (frozen value while paused)
-  roomExpiresInMs: number | null; // ms until a finished room auto-closes (null unless in GAME_OVER)
   mode: GameMode; // the room's game mode
-  announcement: Announcement | null; // banner to show during the DEALING window (mode intro / Up & Down milestone)
   pushStatus: Record<string, 'locked' | 'pushed'> | null; // Blind Bid PUSH phase: each decided player's choice (null otherwise)
 }
 
 // ─── Redacted Thoso state (sent to each client) ──────────────────────────────
 
-export interface ThosoState {
+export interface ThosoState extends BaseRoomState {
   game: 'thoso';
-  phase: 'LOBBY' | 'TRANSFER' | 'PLAYING' | 'GAME_OVER';
-  roomId: string;
-  players: Player[];
-  hostId: string;
-  maxPlayers: number;
+  phase: 'LOBBY' | 'TRANSFER' | 'PLAYING' | 'GAME_OVER'; // narrows BaseRoomState.phase
   drawPileCount: number;                 // cards left in the central draw pile (Phase 1)
   pileTops: Record<string, Card | null>; // Phase 1: every player's face-up pile TOP card (public)
   drawnCard: Card | null;                // Phase 1: current player's just-drawn face-up card awaiting a transfer decision (public; null when none pending)
   penaltyReveal: Card[] | null;          // Phase 1: the cards THIS player just received as a missed-transfer penalty (private, shown ~5s); null otherwise
   handCounts: Record<string, number>;    // Phase 2: per-player hand size (not incl. your own detail)
   yourHand: Card[];                       // Phase 2: your own full hand (empty in Phase 1 — only your top card is visible, via pileTops)
-  currentTurn: string | null;
   ledSuit: Suit | null;                   // Phase 2: current round's led suit
   mustLeadAceOfSpades: boolean;           // Phase 2: true during the opening lead, until the Ace of Spades has been played
   currentTrick: TrickCard[];              // Phase 2: cards played so far this round
   roundResolving: boolean;                // true while a completed Phase-2 round is held on screen before clearing
   finishedRanks: { playerId: string; rank: number }[]; // finishing order (1 = first out)
-  turnTimeoutMs: number;
-  turnExpiresAt: number | null;
-  turnRemainingMs: number | null;
-  countdownMs: number | null;
-  roomExpiresInMs: number | null;
-  announcement: Announcement | null;
 }
 
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
@@ -181,7 +177,7 @@ export interface ThosoState {
 export interface MsgCreateRoom {
   type: 'createRoom';
   name: string;
-  game?: string; // registry game id (e.g. 'bid-club'); defaults to 'bid-club'
+  game?: string; // registry game id (e.g. 'bidbaazi'); defaults to 'bidbaazi'
   maxPlayers?: number; // 2–7, defaults to 7
   mode?: GameMode; // defaults to 'classic'
 }
@@ -287,7 +283,7 @@ export interface MsgJoined {
 
 export interface MsgState {
   type: 'state';
-  state: GameState;
+  state: BidBaaziState;
 }
 
 export interface MsgThosoState {

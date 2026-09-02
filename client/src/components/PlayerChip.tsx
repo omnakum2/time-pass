@@ -1,34 +1,60 @@
+import React from 'react';
 import { Player } from 'shared';
 import { TurnBorder } from './TurnTimer';
-import { Delta } from './Delta';
-import { useGameStore } from '../store/gameStore';
+import { useSessionStore } from '../store/sessionStore';
+import { ordinal } from '../format';
 
 interface Props {
   player: Player;
-  bid: number | null;
-  tricksWon: number;
+  isMe?: boolean;
   isActive: boolean;
-  phase: string;
+  /** Caller computes the game-specific phase condition for showing the turn ring. */
+  showTimer?: boolean;
   remainingMs?: number;
   fullMs?: number;
   startKey?: string;
   running?: boolean;
-  isMe?: boolean;
-  totalScore?: number;
-  pushChoice?: 'locked' | 'pushed';
+  /** Game-specific middle content (BidBaazi stats/total, Thoso card region). */
+  info?: React.ReactNode;
+  /** Finishing position (1 = first out); set only once the player has finished (Thoso). */
+  finishedRank?: number;
+  /** Small pill shown while a finished round is held (e.g. 'Leads' / 'Picks up') (Thoso). */
+  roundBadge?: string;
+  /** Clickable as a transfer target (a source card is currently selected) (Thoso). */
+  selectable?: boolean;
+  /** Shake once — an illegal transfer was rejected by the server (Thoso). */
+  reject?: boolean;
+  onSelect?: () => void;
 }
 
-export function PlayerChip({ player, bid, tricksWon, isActive, phase, remainingMs, fullMs, startKey, running, isMe, totalScore, pushChoice }: Props) {
-  const bubble = useGameStore(s => s.activeBubbles[player.id]);
+/**
+ * Shared player-chip shell for every game: chat bubble, active glow, turn-border ring,
+ * name, disconnected state, plus optional finished/round-winner/transfer-target features.
+ * Each game passes its own middle content through the `info` slot.
+ */
+export function PlayerChip({
+  player, isMe, isActive, showTimer, remainingMs, fullMs, startKey, running,
+  info, finishedRank, roundBadge, selectable, reject, onSelect,
+}: Props) {
+  const bubble = useSessionStore(s => s.activeBubbles[player.id]);
+  const finished = finishedRank !== undefined;
+  const cls = [
+    'player-chip',
+    isActive && !finished ? 'player-chip--active' : '',
+    isMe ? 'player-chip--me' : '',
+    finished ? 'thoso-chip--finished' : '',
+    selectable ? 'thoso-chip--target' : '',
+    reject ? 'reject' : '',
+  ].filter(Boolean).join(' ');
+
   return (
-    <div className={`player-chip${isActive ? ' player-chip--active' : ''}${isMe ? ' player-chip--me' : ''}`}>
+    <div className={cls} onClick={selectable ? onSelect : undefined}>
       {bubble && (
         <div className={`chat-bubble${isMe ? '' : ' chat-bubble--below'}`} key={bubble.key}>
           {bubble.text}
         </div>
       )}
-      {isActive && fullMs !== undefined &&
-        (phase === 'PLAYING' || ((phase === 'BIDDING' || phase === 'TRUMP_SELECT') && !isMe)) && (
+      {showTimer && fullMs !== undefined && (
         <TurnBorder key={startKey} remainingMs={remainingMs ?? 0} fullMs={fullMs} startKey={startKey ?? ''} running={running} />
       )}
 
@@ -37,29 +63,17 @@ export function PlayerChip({ player, bid, tricksWon, isActive, phase, remainingM
         {isMe && <span className="tag-faint" style={{ marginLeft: 4 }}>(you)</span>}
       </div>
 
-      <div className="player-chip__stats">
-        {bid !== null ? `Bid ${bid}` : (phase === 'BIDDING' ? 'bidding…' : 'no bid')}
-        {' · '}Won {tricksWon}
-      </div>
-
-      {totalScore !== undefined && (
-        <div className="player-chip__total">
-          Score: <Delta value={totalScore} />
-          {(phase === 'PUSH' || pushChoice) && (
-            <>
-              {' · '}
-              <span
-                className={`player-chip__push${pushChoice ? '' : ' player-chip__push--deciding'}`}
-                title={pushChoice === 'locked' ? 'Locked ×2' : pushChoice === 'pushed' ? 'Pushed ×3' : 'Deciding'}
-              >
-                {pushChoice === 'locked' ? '×2' : pushChoice === 'pushed' ? '×3' : '?'}
-              </span>
-            </>
-          )}
-        </div>
+      {roundBadge && !finished && (
+        <div className="thoso-chip__round-badge">{roundBadge}</div>
       )}
 
-      {player.status !== 'online' && (
+      {info}
+
+      {finished && (
+        <div className="thoso-chip__finished-badge">Finished · {ordinal(finishedRank!)}</div>
+      )}
+
+      {player.status !== 'online' && !finished && (
         <div className="player-chip__disconnected">
           {player.status === 'reconnecting' ? 'reconnecting…' : 'left'}
         </div>

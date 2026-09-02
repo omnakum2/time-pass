@@ -4,7 +4,7 @@ import { CountdownRing } from './CountdownRing';
 
 interface Props { remainingMs: number; fullMs: number; startKey: string; running?: boolean; limited?: boolean; }
 
-export function TrumpPicker({ remainingMs, fullMs, startKey, running, limited }: Props) {
+export function BidBaaziTrumpPicker({ remainingMs, fullMs, startKey, running, limited }: Props) {
   // Up & Down (Summit + Last Stand) offers only a trump suit or No Trump — no specials.
   const specials = limited ? TRUMP_SPECIALS.filter(o => o.kind === 'noTrump') : TRUMP_SPECIALS;
   return (
