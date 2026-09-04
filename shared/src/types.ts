@@ -138,6 +138,7 @@ export interface BaseRoomState {
 // ─── Redacted game state (sent to each client) ───────────────────────────────
 
 export interface BidBaaziState extends BaseRoomState {
+  game: 'bidbaazi';                // registry game id (mirrors ThosoState.game) — lets one state channel self-identify
   phase: GamePhase;                // narrows BaseRoomState.phase
   round: number | null;        // current round number (7..1), null in LOBBY
   trump: Suit | null;
@@ -283,12 +284,7 @@ export interface MsgJoined {
 
 export interface MsgState {
   type: 'state';
-  state: BidBaaziState;
-}
-
-export interface MsgThosoState {
-  type: 'thosoState';
-  state: ThosoState; // Thoso rooms send this instead of MsgState
+  state: BidBaaziState | ThosoState; // one state channel for every game — the client routes by state.game
 }
 
 export interface MsgRoundResult {
@@ -349,7 +345,6 @@ export interface MsgQuickMessageBroadcast {
 export type ServerMessage =
   | MsgJoined
   | MsgState
-  | MsgThosoState
   | MsgRoundResult
   | MsgGameOver
   | MsgError

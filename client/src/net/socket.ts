@@ -84,9 +84,12 @@ export function disconnect(): void {
 function dispatch(msg: ServerMessage): void {
   const store = useSessionStore.getState();
 
-  // Registry-driven game-state routing: any descriptor whose play.stateMsgType matches.
-  const gamePlay = Object.values(GAME_DESCRIPTORS).find((d) => d.play?.stateMsgType === msg.type)?.play;
-  if (gamePlay) { gamePlay.applyState((msg as any).state); return; }
+  // Registry-driven game-state routing: one 'state' channel for every game,
+  // dispatched to the matching descriptor by the payload's own `game` id.
+  if (msg.type === 'state') {
+    GAME_DESCRIPTORS[msg.state.game]?.play?.applyState(msg.state);
+    return;
+  }
 
   switch (msg.type) {
     case 'joined':

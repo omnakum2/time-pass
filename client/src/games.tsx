@@ -73,8 +73,7 @@ interface GamePlay {
   RoomRoot: ComponentType;                              // in-room UI root (lobby/game/winner)
   Standings: ComponentType;                             // header scoreboard-overlay body
   Guide: ComponentType<{ showHomeLink?: boolean }>;     // guide content
-  stateMsgType: string;                                 // server state-message type routed to this game's store
-  applyState: (s: any) => void;                         // push a state payload into this game's store
+  applyState: (s: any) => void;                         // push a state payload into this game's store (routed by state.game)
   isInGame: (phase?: string) => boolean;                // is this phase an "in a live game" phase?
 }
 
@@ -107,7 +106,6 @@ export const GAME_DESCRIPTORS: Record<string, GameDescriptor> = {
       RoomRoot: BidBaaziRoomRoot,
       Standings: BidBaaziStandings,
       Guide: BidBaaziGuide,
-      stateMsgType: 'state',
       applyState: (s) => useBidBaaziStore.getState().setState(s),
       isInGame: (phase) => !!phase && BIDBAAZI_INGAME_PHASES.has(phase),
     },
@@ -138,7 +136,6 @@ export const GAME_DESCRIPTORS: Record<string, GameDescriptor> = {
       RoomRoot: ThosoRoomPage,
       Standings: ThosoStandingsPanel,
       Guide: ThosoGuide,
-      stateMsgType: 'thosoState',
       applyState: (s) => useThosoStore.getState().setState(s),
       isInGame: (phase) => !!phase && THOSO_INGAME_PHASES.has(phase),
     },

@@ -546,6 +546,7 @@ export class BidBaaziRoom extends BaseRoom {
         : null;
 
     return {
+      game: 'bidbaazi',
       phase: this.phase,
       roomId: this.id,
       players: this.seats.map(s => s.player),

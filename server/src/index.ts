@@ -3,7 +3,8 @@ dotenv.config(); // load .env into process.env before anything reads it
 
 import { createServer, IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { Room, BaseRoom } from './room';
+import { BaseRoom } from './rooms/BaseRoom';
+import { BidBaaziRoom } from './rooms/bidbaazi/BidBaaziRoom';
 import { ThosoRoom, THOSO_MAX_PLAYERS } from './rooms/thoso/ThosoRoom';
 import { ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES } from 'shared';
 import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS, HEARTBEAT_MS } from './constants';
@@ -32,7 +33,7 @@ let draining = false; // during shutdown drain: reject new rooms, let existing o
 // Game-factory: maps a registry game id to its Room constructor.
 // Add a new game by adding an entry here (and its Room class import).
 const ROOM_FACTORIES: Record<string, (id: string, maxPlayers: number, mode: GameMode) => BaseRoom> = {
-  'bidbaazi': (id, maxPlayers, mode) => new Room(id, maxPlayers, mode),
+  'bidbaazi': (id, maxPlayers, mode) => new BidBaaziRoom(id, maxPlayers, mode),
   'thoso': (id, maxPlayers) => new ThosoRoom(id, Math.min(maxPlayers, THOSO_MAX_PLAYERS)),
 };
 

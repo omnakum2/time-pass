@@ -597,12 +597,12 @@ export class ThosoRoom extends BaseRoom {
 
   broadcastState(): void {
     this.forEachOpenSeat(seat => {
-      sendMessage(seat.ws!, { type: 'thosoState', state: this.buildThosoState(seat.player.id) });
+      sendMessage(seat.ws!, { type: 'state', state: this.buildThosoState(seat.player.id) });
     });
   }
 
   sendState(ws: WebSocket, playerId: string): void {
-    sendMessage(ws, { type: 'thosoState', state: this.buildThosoState(playerId) });
+    sendMessage(ws, { type: 'state', state: this.buildThosoState(playerId) });
   }
 
   // Thoso carries all end-of-game info in the state itself (finishedRanks) — no
