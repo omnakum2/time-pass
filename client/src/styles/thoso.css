@@ -10,7 +10,7 @@
    when a descendant shrinks --card-w, which otherwise stretches the card tall/thin
    (same trap the trick-card media query calls out). Co-declaring both keeps the
    1:1.45 ratio, so chip piles render as small, undistorted thumbnails. */
-.thoso-pile--sm { --card-w: 32px; --card-h: calc(var(--card-w) * 1.45); }
+.thoso-pile--sm { --card-w: 40px; --card-h: calc(var(--card-w) * 1.45); }
 .thoso-pile--md { --card-w: 54px; --card-h: calc(var(--card-w) * 1.45); }
 .thoso-pile--interactive { cursor: pointer; }
 
@@ -45,7 +45,7 @@
    comfortably clears the sm card (≈46px) plus its down-right shadow-layer offset. */
 .thoso-chip__region {
   display: flex; align-items: center; justify-content: center;
-  margin-top: 4px; min-height: 56px; padding-bottom: 6px;
+  margin-top: 4px; min-height: 66px; padding-bottom: 6px;
 }
 
 .thoso-chip--finished { opacity: 0.5; }

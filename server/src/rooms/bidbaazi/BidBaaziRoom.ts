@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import {
   Card, GameMode, GamePhase, BidBaaziState, Player, RoundScore,
@@ -7,7 +6,7 @@ import {
   legalPlays, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, isSummitRound, isLastStandRound, ROUNDS, SUITS, RANK_ORDER, GAME_MODES, ClientMessage
 } from 'shared';
 import {
-  BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, NPC_AUTO_MOVE_MS, TRICK_DISPLAY_MS, ROUND_END_DELAY_MS,
+  BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, TRICK_DISPLAY_MS, ROUND_END_DELAY_MS,
   ANNOUNCE_MS, PUSH_TIMEOUT_MS,
 } from '../../constants';
 import { sendMessage, clampPlayers } from '../../helpers';
@@ -64,30 +63,10 @@ export class BidBaaziRoom extends BaseRoom {
 
   // ─── Join / Create ────────────────────────────────────────────────────────
 
-  addPlayer(ws: WebSocket, name: string, asHost = false): Seat | null {
-    if (this.phase !== 'LOBBY') return null;
-    if (this.isFull) return null;
-
-    const playerId = uuidv4();
-    const token = uuidv4();
-    const seat: Seat = {
-      player: {
-        id: playerId,
-        name,
-        seatIndex: this.seats.length,
-        status: 'online',
-      },
-      token,
-      ws,
-      hand: [],
-      reconnectTimer: null,
-    };
-    this.seats.push(seat);
-    this.scoreboard.set(playerId, []);
-    if (asHost) this.hostId = playerId;
-    this.cancelEmptyRoomTimer();
-    this.maybeStartCountdown();
-    return seat;
+  // BidBaazi seeds an empty scoreboard row for each new seat; the rest of the join flow
+  // (guards, seat creation, host, timers) is the shared BaseRoom.addPlayer.
+  protected override onSeatAdded(seat: Seat): void {
+    this.scoreboard.set(seat.player.id, []);
   }
 
   // ─── Lobby ────────────────────────────────────────────────────────────────
@@ -519,20 +498,11 @@ export class BidBaaziRoom extends BaseRoom {
 
   // ─── Timers ───────────────────────────────────────────────────────────────
 
-  // Begin a NEW turn: fix its absolute deadline once, then arm the auto-move timer.
-  // A just-refreshed ('reconnecting') seat still gets the full budget; only a clearly
-  // gone ('offline') seat is fast-forwarded so the table doesn't wait on someone absent.
-  private beginTurn(): void {
-    this.cancelTurnTimer();
-    this.turnPausedRemainingMs = null;
-    if (this.isEmpty) { this.turnExpiresAt = null; return; } // nobody to act → paused
-    const currentSeat = this.seats[this.currentTurnSeatIndex];
-    const offline = currentSeat?.player.status === 'offline';
-    const duration = offline
-      ? NPC_AUTO_MOVE_MS
-      : ((this.phase === 'BIDDING' || this.phase === 'TRUMP_SELECT') ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS);
-    this.turnExpiresAt = Date.now() + duration;
-    this.armTurnTimer();
+  // Per-phase turn budget: bidding / trump-select get BID_TIMEOUT_MS, play gets
+  // PLAY_TIMEOUT_MS. BaseRoom.beginTurn applies it (and swaps in NPC_AUTO_MOVE_MS for an
+  // offline seat).
+  protected turnDurationMs(): number {
+    return (this.phase === 'BIDDING' || this.phase === 'TRUMP_SELECT') ? BID_TIMEOUT_MS : PLAY_TIMEOUT_MS;
   }
 
   protected autoAction(): void {

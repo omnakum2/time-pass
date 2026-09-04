@@ -21,7 +21,7 @@ interface Props {
 /** Resolve a `size` prop to a card width in px. */
 function sizeToPx(size: 'sm' | 'md' | 'lg' | number): number {
   if (typeof size === 'number') return size;
-  if (size === 'sm') return 32;
+  if (size === 'sm') return 40;
   if (size === 'lg') return 72;
   return 54; // 'md'
 }

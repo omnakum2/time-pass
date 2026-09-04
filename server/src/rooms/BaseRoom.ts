@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import { v4 as uuidv4 } from 'uuid';
 import { Player, ErrorCode, Card, ClientMessage, ServerMessage } from 'shared';
 import {
   RECONNECT_WINDOW_MS, EMPTY_ROOM_DESTROY_MS, LOBBY_RECONNECT_WINDOW_MS, QUICK_MSG_THROTTLE_MS,
@@ -93,7 +94,6 @@ export abstract class BaseRoom {
   abstract handleGameMessage(playerId: string, msg: ClientMessage): ErrorCode | null;
 
   // Common per-game room surface the server's message router depends on:
-  abstract addPlayer(ws: WebSocket, name: string, asHost?: boolean): Seat | null;
   abstract getPhase(): string;
   abstract resendPhaseExtras(ws: WebSocket): void;
 
@@ -101,6 +101,33 @@ export abstract class BaseRoom {
   protected abstract isTurnPhase(): boolean;   // true during a live-turn phase (drives reconnect/disconnect turn-timer resume)
   protected abstract autoAction(): void;       // the game's auto-move when a turn times out
   protected abstract beginGame(): void;        // start the game from a full lobby (countdown expiry)
+  protected abstract turnDurationMs(): number; // the current turn's full budget (per-phase); an offline seat uses NPC_AUTO_MOVE_MS instead
+
+  // ─── Join / seat creation (shared) ──────────────────────────────────────────
+
+  // Add a player to the lobby. Shared skeleton (LOBBY/full guards, seat creation, host,
+  // empty-room + countdown timers); per-game seat init hangs off the onSeatAdded() hook.
+  addPlayer(ws: WebSocket, name: string, asHost = false): Seat | null {
+    if (this.getPhase() !== 'LOBBY') return null;
+    if (this.isFull) return null;
+
+    const seat: Seat = {
+      player: { id: uuidv4(), name, seatIndex: this.seats.length, status: 'online' },
+      token: uuidv4(),
+      ws,
+      hand: [],
+      reconnectTimer: null,
+    };
+    this.seats.push(seat);
+    this.onSeatAdded(seat);
+    if (asHost) this.hostId = seat.player.id;
+    this.cancelEmptyRoomTimer();
+    this.maybeStartCountdown();
+    return seat;
+  }
+
+  // Per-game seat initialisation (e.g. BidBaazi seeds a scoreboard row). Default: nothing.
+  protected onSeatAdded(_seat: Seat): void { /* no-op by default */ }
 
   quickMessage(playerId: string, msgId: string): void {
     const seat = this.getSeat(playerId);
@@ -291,6 +318,22 @@ export abstract class BaseRoom {
 
   protected cancelTurnTimer(): void {
     this.turnTimer = this.clearTimer(this.turnTimer);
+  }
+
+  // Begin a NEW turn: fix its absolute deadline once (the per-phase budget from
+  // turnDurationMs, or the short NPC budget for an offline seat), then arm the auto-move
+  // timer. A just-refreshed ('reconnecting') seat still gets the full budget; only a
+  // clearly gone ('offline') seat is fast-forwarded so the table doesn't wait on someone
+  // absent. Paused (empty room) → no live deadline; reconnect() restores it.
+  protected beginTurn(): void {
+    this.cancelTurnTimer();
+    this.turnPausedRemainingMs = null;
+    if (this.isEmpty) { this.turnExpiresAt = null; return; } // nobody to act → paused
+    const currentSeat = this.seats[this.currentTurnSeatIndex];
+    const offline = currentSeat?.player.status === 'offline';
+    const duration = offline ? NPC_AUTO_MOVE_MS : this.turnDurationMs();
+    this.turnExpiresAt = Date.now() + duration;
+    this.armTurnTimer();
   }
 
   // ─── Game-over timer (shared) ───────────────────────────────────────────────

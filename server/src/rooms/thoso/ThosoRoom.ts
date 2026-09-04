@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import {
   Card, Suit, TrickCard, Announcement, ClientMessage, ErrorCode, ThosoState,
@@ -6,7 +5,7 @@ import {
   highestLedSuitPlayer, RANK_ORDER, GAMES,
 } from 'shared';
 import {
-  PLAY_TIMEOUT_MS, NPC_AUTO_MOVE_MS, ANNOUNCE_MS,
+  PLAY_TIMEOUT_MS, ANNOUNCE_MS,
   PENALTY_REVEAL_MS, TRICK_DISPLAY_MS,
 } from '../../constants';
 import { sendMessage, clampPlayers } from '../../helpers';
@@ -101,28 +100,6 @@ export class ThosoRoom extends BaseRoom {
   protected override removeSeat(playerId: string): void {
     super.removeSeat(playerId);
     if (this.countdownTimer && this.seats.length < this.maxPlayers) this.cancelCountdown();
-  }
-
-  // ─── Join / Create ────────────────────────────────────────────────────────
-
-  addPlayer(ws: WebSocket, name: string, asHost = false): Seat | null {
-    if (this.phase !== 'LOBBY') return null;
-    if (this.isFull) return null;
-
-    const playerId = uuidv4();
-    const token = uuidv4();
-    const seat: Seat = {
-      player: { id: playerId, name, seatIndex: this.seats.length, status: 'online' },
-      token,
-      ws,
-      hand: [],
-      reconnectTimer: null,
-    };
-    this.seats.push(seat);
-    if (asHost) this.hostId = playerId;
-    this.cancelEmptyRoomTimer();
-    this.maybeStartCountdown();
-    return seat;
   }
 
   // ─── Lobby ────────────────────────────────────────────────────────────────
@@ -240,6 +217,9 @@ export class ThosoRoom extends BaseRoom {
     target.hand.push(card); // land on TOP of the target's pile
 
     // Turn continues — the player may transfer another eligible card or draw again.
+    // Reset the turn timer: a legit action hands the player the turn afresh, so the
+    // countdown restarts (they shouldn't run out mid-turn for having acted).
+    this.beginTurn();
     this.broadcastState();
     return null;
   }
@@ -279,6 +259,7 @@ export class ThosoRoom extends BaseRoom {
     if (isTransferable(drawn.rank, this.handsMap(), playerId)) {
       // Transferable → keep it face-up and pending; the turn continues.
       this.drawnCard = drawn;
+      this.beginTurn(); // reset the turn timer — the draw kept the turn alive
       this.broadcastState();
       return null;
     }
@@ -496,16 +477,10 @@ export class ThosoRoom extends BaseRoom {
 
   // ─── Turn timer ─────────────────────────────────────────────────────────────
 
-  // Begin a NEW turn: fix its absolute deadline once, then arm the auto-move timer.
-  private beginTurn(): void {
-    this.cancelTurnTimer();
-    this.turnPausedRemainingMs = null;
-    if (this.isEmpty) { this.turnExpiresAt = null; return; } // nobody to act → paused
-    const currentSeat = this.seats[this.currentTurnSeatIndex];
-    const offline = currentSeat?.player.status === 'offline';
-    const duration = offline ? NPC_AUTO_MOVE_MS : PLAY_TIMEOUT_MS; // Thoso turns use PLAY_TIMEOUT_MS
-    this.turnExpiresAt = Date.now() + duration;
-    this.armTurnTimer();
+  // Thoso turns all use the play timeout. BaseRoom.beginTurn applies it (and swaps in
+  // NPC_AUTO_MOVE_MS for an offline seat).
+  protected turnDurationMs(): number {
+    return PLAY_TIMEOUT_MS;
   }
 
   protected autoAction(): void {
