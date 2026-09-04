@@ -1,12 +1,16 @@
 import { ComponentType, lazy } from 'react';
 import { useBidBaaziStore } from './store/bidbaaziStore';
 import { useThosoStore } from './store/thosoStore';
+import { useBusinessStore } from './store/businessStore';
 import { LobbyPage } from './pages/LobbyPage';
 import { GamePage } from './pages/GamePage';
 import { ThosoRoomPage } from './pages/ThosoRoomPage';
+import { BusinessRoomPage } from './pages/BusinessRoomPage';
 import { BidBaaziScoreboard } from './components/BidBaaziScoreboard';
 import { ThosoStandings } from './components/ThosoStandings';
+import { BusinessStandings } from './components/BusinessStandings';
 import { ThosoGuide } from './components/ThosoGuide';
+import { BusinessGuide } from './components/BusinessGuide';
 import { BidBaaziGuide } from './components/BidBaaziGuide';
 
 // WinnerPage stays code-split — as it was when App owned this routing — since the
@@ -56,6 +60,12 @@ function ThosoStandingsPanel() {
   return state ? <ThosoStandings state={state} /> : null;
 }
 
+/** Business rank board — reads the Business store; renders nothing before a game exists. */
+function BusinessStandingsPanel() {
+  const state = useBusinessStore((s) => s.state);
+  return state ? <BusinessStandings state={state} /> : null;
+}
+
 /* ── Lounge-card art (moved from GameSelectionPage) ─────────────────────────── */
 interface MiniCardData {
   rank: string;
@@ -89,6 +99,7 @@ const BIDBAAZI_INGAME_PHASES = new Set([
   'DEALING', 'TRUMP_SELECT', 'BIDDING', 'PUSH', 'PLAYING', 'ROUND_SCORING',
 ]);
 const THOSO_INGAME_PHASES = new Set(['TRANSFER', 'PLAYING', 'GAME_OVER']);
+const BUSINESS_INGAME_PHASES = new Set(['ROLLING', 'BUYING', 'GAME_OVER']);
 
 export const GAME_DESCRIPTORS: Record<string, GameDescriptor> = {
   bidbaazi: {
@@ -138,6 +149,24 @@ export const GAME_DESCRIPTORS: Record<string, GameDescriptor> = {
       Guide: ThosoGuide,
       applyState: (s) => useThosoStore.getState().setState(s),
       isInGame: (phase) => !!phase && THOSO_INGAME_PHASES.has(phase),
+    },
+  },
+  business: {
+    loungeCard: {
+      fanClass: 'fan-4',
+      cards: [
+        { rank: 'A', suit: '♦', color: 'red' },
+        { rank: 'K', suit: '♣', color: 'black' },
+        { rank: 'Q', suit: '♥', color: 'red' },
+        { rank: 'J', suit: '♠', color: 'black' },
+      ],
+    },
+    play: {
+      RoomRoot: BusinessRoomPage,
+      Standings: BusinessStandingsPanel,
+      Guide: BusinessGuide,
+      applyState: (s) => useBusinessStore.getState().setState(s),
+      isInGame: (phase) => !!phase && BUSINESS_INGAME_PHASES.has(phase),
     },
   },
 };

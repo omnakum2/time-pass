@@ -1,0 +1,202 @@
+/* ─── Business-specific styling ────────────────────────────────────────────────
+   Layered on top of the shared lounge chrome (index.css). Royal-purple + gold
+   theming comes for free from the `data-game="business"` tokens (styles/theme.css).
+   Only the board-grid + tile pieces live here. Phase 1 = static scaffold. */
+
+.business-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 16px;
+}
+
+/* ─── The 36-tile perimeter board (10×10 CSS grid) ──────────────────────────── */
+.business-board {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(10, 1fr);
+  gap: 4px;
+  width: min(92vw, 720px);
+  aspect-ratio: 1 / 1;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--game-felt-deep);
+  border: 1px solid var(--game-primary);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+}
+
+/* ─── A single perimeter tile ────────────────────────────────────────────────
+   Solid colour block, contrast text, NO images. Property tiles get their group
+   colour inline; everything else falls back to a neutral surface (inline). */
+.business-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 3px 4px;
+  border-radius: 6px;
+  color: #fff;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.28);
+}
+
+.business-tile__name {
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1.05;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.business-tile__price {
+  font-size: 0.55rem;
+  font-weight: 600;
+  opacity: 0.92;
+}
+
+.business-tile__owner {
+  margin-top: auto;
+  font-size: 0.52rem;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.32);
+  border-radius: 4px;
+  padding: 0 3px;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+/* Neutral (non-property) tile types read against the surface fallback. */
+.business-tile--corner .business-tile__name,
+.business-tile--card .business-tile__name,
+.business-tile--tax .business-tile__name {
+  color: var(--game-primary);
+}
+
+/* ─── Player tokens sitting on a tile ─────────────────────────────────────────*/
+.business-tile__tokens {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: 60%;
+  justify-content: flex-end;
+}
+
+.business-token {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-size: 0.5rem;
+  font-weight: 800;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* ─── Center title / dice area (spans the inner 9×9) ──────────────────────────*/
+.business-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 10px;
+  background: var(--game-felt);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+
+.business-center__brand {
+  font-size: clamp(1.4rem, 5vw, 2.6rem);
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: var(--game-primary);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.business-center__sub {
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.business-center__dice {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  min-height: 44px;
+  align-items: center;
+}
+
+.business-die {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #fff;
+  color: #1a1a1a;
+  font-weight: 900;
+  font-size: 1.3rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Cash panel ──────────────────────────────────────────────────────────────*/
+.business-cash-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: min(92vw, 720px);
+  justify-content: center;
+}
+
+.business-cash-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--surface-2);
+}
+
+.business-cash-row--turn {
+  border-color: var(--game-primary);
+  box-shadow: 0 0 0 2px var(--game-primary) inset;
+}
+
+.business-cash-row--bankrupt {
+  opacity: 0.5;
+}
+
+.business-cash-row__swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  flex: none;
+}
+
+.business-cash-row__name {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.business-cash-row__cash {
+  font-weight: 800;
+  color: var(--game-primary);
+}

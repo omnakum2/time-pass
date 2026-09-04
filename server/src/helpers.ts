@@ -77,6 +77,10 @@ export function validateMessage(msg: ClientMessage): ErrorCode | null {
       return typeof msg.cardId === 'string' && typeof msg.toPlayerId === 'string' ? null : 'BAD_MESSAGE';
     case 'thosoPlay':
       return typeof msg.cardId === 'string' ? null : 'BAD_MESSAGE';
+    case 'businessRoll':
+    case 'businessBuy':
+    case 'businessEndTurn':
+      return null;
     case 'startGame':
     case 'restartGame':
     case 'leaveRoom':

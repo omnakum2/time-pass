@@ -1,5 +1,6 @@
 import { useBidBaaziStore } from './bidbaaziStore';
 import { useThosoStore } from './thosoStore';
+import { useBusinessStore } from './businessStore';
 import { GAME_DESCRIPTORS } from '../games';
 
 /**
@@ -14,9 +15,11 @@ import { GAME_DESCRIPTORS } from '../games';
 export function useInGame(): boolean {
   const bidPhase = useBidBaaziStore((s) => s.state?.phase);
   const thosoPhase = useThosoStore((s) => s.state?.phase);
+  const businessPhase = useBusinessStore((s) => s.state?.phase);
   return (
     !!GAME_DESCRIPTORS.bidbaazi.play?.isInGame(bidPhase) ||
-    !!GAME_DESCRIPTORS.thoso.play?.isInGame(thosoPhase)
+    !!GAME_DESCRIPTORS.thoso.play?.isInGame(thosoPhase) ||
+    !!GAME_DESCRIPTORS.business.play?.isInGame(businessPhase)
   );
 }
 
@@ -24,7 +27,9 @@ export function useInGame(): boolean {
 export function useActiveGameId(): string | null {
   const hasBidBaazi = useBidBaaziStore((s) => !!s.state);
   const hasThoso = useThosoStore((s) => !!s.state);
+  const hasBusiness = useBusinessStore((s) => !!s.state);
   if (hasBidBaazi) return 'bidbaazi';
   if (hasThoso) return 'thoso';
+  if (hasBusiness) return 'business';
   return null;
 }

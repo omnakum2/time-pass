@@ -5,7 +5,7 @@ export interface GameInfo {
   players: string;
   route: string;
   status: 'active' | 'coming-soon';
-  icon: 'bidbaazi' | 'rummy' | 'thoso';
+  icon: 'bidbaazi' | 'rummy' | 'thoso' | 'business';
   hasModes: boolean;  // whether the game offers selectable modes at room creation
   maxPlayers: number; // upper bound for the room's player-count slider
   hasGuide: boolean;  // whether a standalone /:game/guide page exists
@@ -46,6 +46,18 @@ export const GAMES: GameInfo[] = [
     icon: 'thoso',
     hasModes: false,
     maxPlayers: 6,
+    hasGuide: true,
+  },
+  {
+    id: 'business',
+    name: 'Business',
+    description: 'Buy, build & bankrupt your rivals',
+    players: '2–4 Players',
+    route: '/business',
+    status: 'active',
+    icon: 'business',
+    hasModes: false,
+    maxPlayers: 4,
     hasGuide: true,
   },
 ];

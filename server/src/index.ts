@@ -6,6 +6,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { BaseRoom } from './rooms/BaseRoom';
 import { BidBaaziRoom } from './rooms/bidbaazi/BidBaaziRoom';
 import { ThosoRoom, THOSO_MAX_PLAYERS } from './rooms/thoso/ThosoRoom';
+import { BusinessRoom, BUSINESS_MAX_PLAYERS } from './rooms/business/BusinessRoom';
 import { ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES } from 'shared';
 import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS, HEARTBEAT_MS } from './constants';
 import { sendMessage, sendError, sanitizeName, clampPlayers, validateMessage, randomRoomCode } from './helpers';
@@ -35,6 +36,7 @@ let draining = false; // during shutdown drain: reject new rooms, let existing o
 const ROOM_FACTORIES: Record<string, (id: string, maxPlayers: number, mode: GameMode) => BaseRoom> = {
   'bidbaazi': (id, maxPlayers, mode) => new BidBaaziRoom(id, maxPlayers, mode),
   'thoso': (id, maxPlayers) => new ThosoRoom(id, Math.min(maxPlayers, THOSO_MAX_PLAYERS)),
+  'business': (id, maxPlayers) => new BusinessRoom(id, Math.min(maxPlayers, BUSINESS_MAX_PLAYERS)),
 };
 
 // Generate a unique room code (retries on the rare collision).

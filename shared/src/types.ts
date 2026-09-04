@@ -173,6 +173,28 @@ export interface ThosoState extends BaseRoomState {
   finishedRanks: { playerId: string; rank: number }[]; // finishing order (1 = first out)
 }
 
+// ─── Redacted Business state (sent to each client) ───────────────────────────
+
+/** Ownership of a single board tile. Land and buildings can have different owners. */
+export interface TileOwnership {
+  land: string | null;          // playerId who owns the land deed (null = the bank)
+  mortgaged: boolean;           // land mortgaged to the bank (its site rent → bank)
+  buildingOwner: string | null; // playerId who owns the buildings (may differ from the land)
+  houses: number;               // 0..3
+  hotel: boolean;
+}
+
+export interface BusinessState extends BaseRoomState {
+  game: 'business';
+  phase: 'LOBBY' | 'ROLLING' | 'BUYING' | 'GAME_OVER'; // narrows BaseRoomState.phase
+  positions: Record<string, number>;         // playerId → tile index (0..35)
+  cash: Record<string, number>;              // playerId → money
+  colours: Record<string, string>;           // playerId → token/pip colour
+  dice: [number, number] | null;             // last roll (public)
+  ownership: Record<number, TileOwnership>;  // tile index → ownership (public)
+  bankrupt: string[];                        // eliminated playerIds
+}
+
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
 
 export interface MsgCreateRoom {
@@ -256,6 +278,12 @@ export interface MsgThosoPlay {
   cardId: string; // Phase 2; the server decides whether it's a follow or a Thoso
 }
 
+// ─── Business client messages ───────────────────────────────────────────────
+
+export interface MsgBusinessRoll { type: 'businessRoll'; }        // roll the dice on your turn
+export interface MsgBusinessBuy { type: 'businessBuy'; }          // buy the (unowned) tile you're on
+export interface MsgBusinessEndTurn { type: 'businessEndTurn'; }  // end your turn
+
 export type ClientMessage =
   | MsgCreateRoom
   | MsgJoinRoom
@@ -271,7 +299,10 @@ export type ClientMessage =
   | MsgUpdateRoomSettings
   | MsgThosoDraw
   | MsgThosoTransfer
-  | MsgThosoPlay;
+  | MsgThosoPlay
+  | MsgBusinessRoll
+  | MsgBusinessBuy
+  | MsgBusinessEndTurn;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
 
@@ -284,7 +315,7 @@ export interface MsgJoined {
 
 export interface MsgState {
   type: 'state';
-  state: BidBaaziState | ThosoState; // one state channel for every game — the client routes by state.game
+  state: BidBaaziState | ThosoState | BusinessState; // one state channel for every game — the client routes by state.game
 }
 
 export interface MsgRoundResult {

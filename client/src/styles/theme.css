@@ -79,3 +79,17 @@
   --header-1:rgba(20,34,60,0.98);  /* sapphire */
   --header-2:rgba(10,18,38,0.98);
 }
+[data-game="business"]{
+  --game-primary:#E8B53A;  /* gold accent — buttons / turn-ring / gem */
+  --game-deep:#4C1D95;
+  --game-felt:#5B21B6;
+  --game-felt-deep:#3B0F73;
+  --game-gem:#E8B53A;
+  --surface:#2E1A47;      /* royal purple */
+  --surface-2:#1E1030;
+  --page-1:#2A184A;
+  --page-2:#4C1D95;
+  --page-3:#3B0F73;
+  --header-1:rgba(30,18,46,0.98);  /* royal purple */
+  --header-2:rgba(18,10,30,0.98);
+}
