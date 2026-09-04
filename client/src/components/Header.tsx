@@ -3,10 +3,10 @@ import { Link, useLocation } from 'react-router-dom';
 import { GAMES } from 'shared';
 import { useInGame, useActiveGameId } from '../store/activeGame';
 import { Modal } from './Modal';
-import { GAME_COMPONENTS } from '../games';
+import { GAME_DESCRIPTORS } from '../games';
 // Fallback guide for a game with no registry entry (defensive — in-game routes are
-// always a known game). GuideContent is the platform-default (BidBaazi) guide.
-import { GuideContent } from '../pages/GuidePage';
+// always a known game). BidBaaziGuide is the platform-default guide.
+import { BidBaaziGuide } from './BidBaaziGuide';
 import { useLeaveRoom } from '../hooks/useLeaveRoom';
 import logo from '../assets/logo.webp';
 
@@ -26,8 +26,8 @@ export function Header() {
   const gameId = seg;
   // Registry-driven overlay bodies (both read their own store): the scoreboard
   // standings for this game, and its guide (falling back to the default guide).
-  const Standings = GAME_COMPONENTS[gameId]?.Standings;
-  const Guide = GAME_COMPONENTS[gameId]?.Guide ?? GuideContent;
+  const Standings = GAME_DESCRIPTORS[gameId]?.play?.Standings;
+  const Guide = GAME_DESCRIPTORS[gameId]?.play?.Guide ?? BidBaaziGuide;
 
   const leave = useLeaveRoom();
   const handleLeave = () => {

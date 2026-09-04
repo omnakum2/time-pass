@@ -2,15 +2,18 @@ import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import {
   Card, Suit, TrickCard, Announcement, ClientMessage, ErrorCode, ThosoState,
-  makeDeck, shuffle, topCard, eligibleTransferTargets, isTransferable, legalPlays, isThoso,
-  highestLedSuitPlayer, RANK_ORDER,
+  createDeck, shuffle, topCard, eligibleTransferTargets, isTransferable, legalPlays, isThoso,
+  highestLedSuitPlayer, RANK_ORDER, GAMES,
 } from 'shared';
 import {
   PLAY_TIMEOUT_MS, NPC_AUTO_MOVE_MS, ANNOUNCE_MS,
-  THOSO_MAX_PLAYERS, PENALTY_REVEAL_MS, TRICK_DISPLAY_MS,
+  PENALTY_REVEAL_MS, TRICK_DISPLAY_MS,
 } from '../../constants';
 import { sendMessage, clampPlayers } from '../../helpers';
 import { BaseRoom, Seat } from '../BaseRoom';
+
+// Thoso's player cap comes from the shared game registry — the single source of truth.
+export const THOSO_MAX_PLAYERS = GAMES.find((g) => g.id === 'thoso')?.maxPlayers ?? 6;
 
 /**
  * Server engine for **Thoso** — a two-phase transfer-and-shedding card game.
@@ -46,7 +49,7 @@ export class ThosoRoom extends BaseRoom {
   private announcement: Announcement | null = null;    // banner (phase intro / THOSO! / penalty)
   private announcementTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(id: string, maxPlayers = 6) {
+  constructor(id: string, maxPlayers = THOSO_MAX_PLAYERS) {
     super(id, maxPlayers); // BaseRoom clamps to [2,7]
   }
 
@@ -188,7 +191,7 @@ export class ThosoRoom extends BaseRoom {
 
   private beginTransferPhase(): void {
     this.phase = 'TRANSFER';
-    this.deck = shuffle(makeDeck());
+    this.deck = shuffle(createDeck());
     this.seats.forEach(s => { s.hand = []; });
     this.finishedRanks = [];
     this.ledSuit = null;
@@ -341,6 +344,7 @@ export class ThosoRoom extends BaseRoom {
 
   private thosoPlay(playerId: string, cardId: string): ErrorCode | null {
     if (this.phase !== 'PLAYING') return 'WRONG_PHASE';
+    if (this.roundResolving) return 'WRONG_PHASE'; // reject plays during the round-display hold
     if (this.currentTurnPlayerId() !== playerId) return 'NOT_YOUR_TURN';
     const seat = this.getSeat(playerId);
     if (!seat) return 'NOT_IN_ROOM';
@@ -375,6 +379,16 @@ export class ThosoRoom extends BaseRoom {
       if (picker) {
         for (const tc of this.currentTrick) picker.hand.push(tc.card);
         picker.hand.push(card); // …and lands, with the whole round, on the led-suit leader
+        // The pile-winner may have emptied their hand earlier this round (marked finished),
+        // but picking up the pile brings them back into the game — re-open their seat and
+        // renumber the finishing order so there are no rank gaps. This must run before the
+        // maybeEndGame() check below, which counts un-finished seats.
+        if (this.isFinished(picker.player.id)) {
+          const reopenId = picker.player.id;
+          this.finishedRanks = this.finishedRanks
+            .filter(r => r.playerId !== reopenId)
+            .map((r, i) => ({ ...r, rank: i + 1 }));
+        }
       }
       this.setAnnouncement({
         title: 'THOSO!', subtitle: `${seat.player.name} sweeps the pile`,

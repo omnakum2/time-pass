@@ -4,7 +4,7 @@ import {
   Card, GameMode, GamePhase, BidBaaziState, Player, RoundScore,
   Suit, TrumpKind, TrumpConfig, TrickCard, MsgRoundResult, MsgGameOver, ErrorCode, Announcement,
   roundsForMode, deal, pickTrump, firstBidderSeat,
-  legalMoves, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, isSummitRound, isLastStandRound, ROUNDS, SUITS, RANK_ORDER, GAME_MODES, ClientMessage
+  legalPlays, trickWinner, scoreRound, roundMultiplier, latestTotal, isHandHiddenForBid, announcementFor, isSummitRound, isLastStandRound, ROUNDS, SUITS, RANK_ORDER, GAME_MODES, ClientMessage
 } from 'shared';
 import {
   BID_TIMEOUT_MS, PLAY_TIMEOUT_MS, NPC_AUTO_MOVE_MS, TRICK_DISPLAY_MS, ROUND_END_DELAY_MS,
@@ -378,6 +378,7 @@ export class BidBaaziRoom extends BaseRoom {
 
   playCard(playerId: string, cardId: string): ErrorCode | null {
     if (this.phase !== 'PLAYING') return 'WRONG_PHASE';
+    if (this.turnExpiresAt == null) return 'WRONG_PHASE'; // reject plays during the trick-display hold (phase is still PLAYING but no live turn)
     if (this.currentTurnPlayerId() !== playerId) return 'NOT_YOUR_TURN';
 
     const seat = this.getSeat(playerId);
@@ -387,7 +388,7 @@ export class BidBaaziRoom extends BaseRoom {
     if (cardIndex === -1) return 'CARD_NOT_IN_HAND';
 
     const card = seat.hand[cardIndex];
-    const legal = legalMoves(seat.hand, this.leadSuit);
+    const legal = legalPlays(seat.hand, this.leadSuit);
     if (!legal.find(c => c.id === cardId)) return 'ILLEGAL_CARD';
 
     // Play the card
@@ -542,7 +543,7 @@ export class BidBaaziRoom extends BaseRoom {
     } else if (this.phase === 'PLAYING') {
       const seat = this.getSeat(playerId);
       if (seat) {
-        const legal = legalMoves(seat.hand, this.leadSuit);
+        const legal = legalPlays(seat.hand, this.leadSuit);
         if (legal.length > 0) {
           this.playCard(playerId, legal[0].id);
         }

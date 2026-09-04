@@ -1,5 +1,6 @@
 import { Card, Rank, Suit, TrickCard, RoundScore, GameMode, TrumpConfig, Announcement } from './types';
-import { RANK_ORDER, SUITS } from './constants';
+import { RANK_ORDER } from './constants';
+import { createDeck, shuffle } from './cards';
 
 // ─── Rank ordering (higher index = higher rank) ──────────────────────────────
 
@@ -12,27 +13,6 @@ export function rankValue(rank: Rank): number {
 export function roundsForMode(mode: GameMode): number[] {
   if (mode === 'upDown') return [1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1];
   return [7, 6, 5, 4, 3, 2, 1]; // classic + blind
-}
-
-// ─── Deck ────────────────────────────────────────────────────────────────────
-
-export function createDeck(): Card[] {
-  const deck: Card[] = [];
-  for (const suit of SUITS) {
-    for (const rank of RANK_ORDER) {
-      deck.push({ id: `${rank}${suit}`, rank, suit });
-    }
-  }
-  return deck;
-}
-
-export function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
 }
 
 // ─── Dealing ─────────────────────────────────────────────────────────────────
@@ -80,19 +60,6 @@ export function firstBidderSeat(roundIndex: number, playerCount: number): number
   return roundIndex % playerCount;
 }
 
-// ─── Legal moves ─────────────────────────────────────────────────────────────
-
-/**
- * Returns the subset of the player's hand that are legal to play.
- * - If no lead suit yet (player is leading), all cards are legal.
- * - Otherwise must follow lead suit if possible; else any card.
- */
-export function legalMoves(hand: Card[], leadSuit: Suit | null): Card[] {
-  if (leadSuit === null) return hand;
-  const suited = hand.filter(c => c.suit === leadSuit);
-  return suited.length > 0 ? suited : hand;
-}
-
 // ─── Trick winner ────────────────────────────────────────────────────────────
 
 const AK47_RANKS: Rank[] = ['A', 'K', '4', '7'];
@@ -134,7 +101,7 @@ function winningTrump(trumps: TrickCard[], leadSuit: Suit): TrickCard {
  *    trump matching the led suit wins, else the card played first.
  *  - Otherwise only the led suit is eligible → Low Card = lowest of the led suit,
  *    No Trump / everything else = highest of the led suit.
- * Follow-suit legality is unchanged (see legalMoves).
+ * Follow-suit legality is unchanged (see legalPlays).
  */
 export function trickWinner(trick: TrickCard[], leadSuit: Suit, cfg: TrumpConfig): TrickCard {
   const trumps = trick.filter(tc => isTrumpCard(tc.card, cfg));

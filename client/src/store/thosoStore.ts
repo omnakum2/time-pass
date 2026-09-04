@@ -3,11 +3,11 @@ import { ThosoState } from 'shared';
 
 interface ThosoStore {
   state: ThosoState | null;
-  setThosoState: (s: ThosoState) => void;
+  setState: (s: ThosoState) => void;
   reset: () => void;
 }
 export const useThosoStore = create<ThosoStore>((set) => ({
   state: null,
-  setThosoState: (state) => set({ state }),
+  setState: (state) => set({ state }),
   reset: () => set({ state: null }),
 }));

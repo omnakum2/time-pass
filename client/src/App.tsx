@@ -4,7 +4,7 @@ import { GAMES } from 'shared';
 import { Header } from './components/Header';
 import { GameSelectionPage } from './pages/GameSelectionPage';
 import { HomePage } from './pages/HomePage';
-import { GAME_COMPONENTS } from './games';
+import { GAME_DESCRIPTORS } from './games';
 const GuidePage = lazy(() => import('./pages/GuidePage').then(m => ({ default: m.GuidePage })));
 import { ErrorToast } from './components/ErrorToast';
 
@@ -29,12 +29,12 @@ export default function App() {
   );
 }
 
-// Per-game in-room root comes from the component registry (BidBaazi's own root now
+// Per-game in-room root comes from the game registry (BidBaazi's own root now
 // encapsulates the former RoomRouter lobby→game→winner phase logic). A future game
-// needs only a GAME_COMPONENTS entry — no edit here.
+// needs only a GAME_DESCRIPTORS entry — no edit here.
 function RoomForGame() {
   const { game } = useParams();
-  const Root = GAME_COMPONENTS[game ?? '']?.RoomRoot;
+  const Root = GAME_DESCRIPTORS[game ?? '']?.play?.RoomRoot;
   return Root ? <Root /> : <Navigate to="/" replace />;
 }
 

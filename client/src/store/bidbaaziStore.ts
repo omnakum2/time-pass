@@ -7,7 +7,7 @@ import { BidBaaziState, MsgGameOver, MsgRoundResult } from 'shared';
  * error state is game-agnostic and lives in sessionStore.
  */
 interface BidBaaziStore {
-  gameState: BidBaaziState | null;
+  state: BidBaaziState | null;
   lastRoundResult: MsgRoundResult | null;
   gameOver: MsgGameOver | null;
 
@@ -18,12 +18,12 @@ interface BidBaaziStore {
 }
 
 export const useBidBaaziStore = create<BidBaaziStore>((set) => ({
-  gameState: null,
+  state: null,
   lastRoundResult: null,
   gameOver: null,
 
-  setState: (gameState) => set((s) => ({ gameState, gameOver: gameState.phase === 'GAME_OVER' ? s.gameOver : null })),
+  setState: (state) => set((s) => ({ state, gameOver: state.phase === 'GAME_OVER' ? s.gameOver : null })),
   setRoundResult: (lastRoundResult) => set({ lastRoundResult }),
   setGameOver: (gameOver) => set({ gameOver }),
-  reset: () => set({ gameState: null, lastRoundResult: null, gameOver: null }),
+  reset: () => set({ state: null, lastRoundResult: null, gameOver: null }),
 }));

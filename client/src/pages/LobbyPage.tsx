@@ -10,7 +10,7 @@ import { GAME_MODES } from 'shared';
 
 export function LobbyPage() {
   const { roomId: urlRoomId, game = 'bidbaazi' } = useParams<{ roomId: string; game: string }>();
-  const gameState = useBidBaaziStore((s) => s.gameState);
+  const gameState = useBidBaaziStore((s) => s.state);
   const { playerId, roomId, reconnectFailed } = useSessionStore();
 
   // Someone landing directly on /:game/room/:id without being in the room → stash the

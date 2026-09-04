@@ -7,7 +7,7 @@ import { ThosoRoomPage } from './pages/ThosoRoomPage';
 import { BidBaaziScoreboard } from './components/BidBaaziScoreboard';
 import { ThosoStandings } from './components/ThosoStandings';
 import { ThosoGuide } from './components/ThosoGuide';
-import { GuideContent } from './pages/GuidePage';
+import { BidBaaziGuide } from './components/BidBaaziGuide';
 
 // WinnerPage stays code-split — as it was when App owned this routing — since the
 // winner screen isn't needed until a game actually ends. Rendered by BidBaaziRoomRoot
@@ -17,31 +17,26 @@ const WinnerPage = lazy(() =>
 );
 
 /**
- * CLIENT game-component registry.
+ * CLIENT game registry — one GAME_DESCRIPTORS entry per game, keyed by game id
+ * (the client mirror of the server's ROOM_FACTORIES).
  *
- * Every per-game COMPONENT choice that used to be a scattered `game === 'thoso'`
- * switch (in App / Header / GuidePage) lives here, keyed by game id. Adding a game
- * is one-place-safe: add a GAME_COMPONENTS entry here (plus the shared registry
- * entry and the server ROOM_FACTORIES) and nothing else in the client changes.
+ * Every per-game choice that used to be a scattered `game === 'thoso'` switch —
+ * in-room root, header overlays, guide, state-message routing, in-game phase sets,
+ * and lounge-card art — collapses into a single descriptor here. Adding a game is
+ * one-place-safe: add a GAME_DESCRIPTORS entry (plus the shared registry entry and
+ * the server ROOM_FACTORIES) and nothing else in the client changes.
  *
- * Each component is PROP-LESS: it reads its own store internally, so App / Header /
- * GuidePage render `<Root/>`, `<Standings/>`, `<Guide/>` without knowing the game.
+ * A PLAYABLE game carries a `play` block; its components are PROP-LESS (each reads
+ * its own store), so App / Header / GuidePage render `<RoomRoot/>`, `<Standings/>`,
+ * `<Guide/>` without knowing the game. A coming-soon game carries only lounge art.
  */
-interface GameComponents {
-  /** In-room UI root (lobby / game / winner) — reads its own store. */
-  RoomRoot: ComponentType;
-  /** Header scoreboard-overlay body — reads its own store, renders nothing when idle. */
-  Standings: ComponentType;
-  /** Guide content (self-contained). `showHomeLink` is honoured on the standalone page. */
-  Guide: ComponentType<{ showHomeLink?: boolean }>;
-}
 
 /**
  * BidBaazi in-room root — encapsulates the old App `RoomRouter` phase logic so it
  * needs no props: reads phase + gameOver from the game store and picks the screen.
  */
 function BidBaaziRoomRoot() {
-  const gameState = useBidBaaziStore((s) => s.gameState);
+  const gameState = useBidBaaziStore((s) => s.state);
   const gameOver = useBidBaaziStore((s) => s.gameOver);
   const phase = gameState?.phase;
   if (gameOver) return <WinnerPage />;
@@ -51,7 +46,7 @@ function BidBaaziRoomRoot() {
 
 /** BidBaazi scoreboard body — reads the game store; renders nothing before a game exists. */
 function BidBaaziStandings() {
-  const gameState = useBidBaaziStore((s) => s.gameState);
+  const gameState = useBidBaaziStore((s) => s.state);
   return gameState ? <BidBaaziScoreboard gameState={gameState} /> : null;
 }
 
@@ -61,7 +56,91 @@ function ThosoStandingsPanel() {
   return state ? <ThosoStandings state={state} /> : null;
 }
 
-export const GAME_COMPONENTS: Record<string, GameComponents> = {
-  'bidbaazi': { RoomRoot: BidBaaziRoomRoot, Standings: BidBaaziStandings, Guide: GuideContent },
-  'thoso': { RoomRoot: ThosoRoomPage, Standings: ThosoStandingsPanel, Guide: ThosoGuide },
+/* ── Lounge-card art (moved from GameSelectionPage) ─────────────────────────── */
+interface MiniCardData {
+  rank: string;
+  suit: string;
+  color: 'red' | 'black';
+}
+
+export interface GameCardConfig {
+  cards: MiniCardData[];
+  fanClass: string;
+}
+
+// Gameplay wiring for a PLAYABLE game. Undefined for coming-soon games (lounge art only).
+interface GamePlay {
+  RoomRoot: ComponentType;                              // in-room UI root (lobby/game/winner)
+  Standings: ComponentType;                             // header scoreboard-overlay body
+  Guide: ComponentType<{ showHomeLink?: boolean }>;     // guide content
+  stateMsgType: string;                                 // server state-message type routed to this game's store
+  applyState: (s: any) => void;                         // push a state payload into this game's store
+  isInGame: (phase?: string) => boolean;                // is this phase an "in a live game" phase?
+}
+
+// One descriptor per game (client mirror of the server ROOM_FACTORIES). Coming-soon
+// games carry only lounge art; `play` is present only for playable games.
+export interface GameDescriptor {
+  loungeCard: GameCardConfig;
+  play?: GamePlay;
+}
+
+// In-game phase sets (moved here from store/activeGame.ts) — consulted by each game's isInGame.
+const BIDBAAZI_INGAME_PHASES = new Set([
+  'DEALING', 'TRUMP_SELECT', 'BIDDING', 'PUSH', 'PLAYING', 'ROUND_SCORING',
+]);
+const THOSO_INGAME_PHASES = new Set(['TRANSFER', 'PLAYING', 'GAME_OVER']);
+
+export const GAME_DESCRIPTORS: Record<string, GameDescriptor> = {
+  bidbaazi: {
+    loungeCard: {
+      fanClass: 'fan-5',
+      cards: [
+        { rank: 'A', suit: '♥', color: 'red' },
+        { rank: 'K', suit: '♥', color: 'red' },
+        { rank: 'Q', suit: '♥', color: 'red' },
+        { rank: 'J', suit: '♥', color: 'red' },
+        { rank: '10', suit: '♥', color: 'red' },
+      ],
+    },
+    play: {
+      RoomRoot: BidBaaziRoomRoot,
+      Standings: BidBaaziStandings,
+      Guide: BidBaaziGuide,
+      stateMsgType: 'state',
+      applyState: (s) => useBidBaaziStore.getState().setState(s),
+      isInGame: (phase) => !!phase && BIDBAAZI_INGAME_PHASES.has(phase),
+    },
+  },
+  rummy: {
+    loungeCard: {
+      fanClass: 'fan-5',
+      cards: [
+        { rank: 'A', suit: '♠', color: 'black' },
+        { rank: 'K', suit: '♠', color: 'black' },
+        { rank: 'Q', suit: '♦', color: 'red' },
+        { rank: '', suit: '', color: 'black' }, // Card back (reusing Blind card back)
+        { rank: 'A', suit: '♦', color: 'red' },
+      ],
+    },
+  },
+  thoso: {
+    loungeCard: {
+      fanClass: 'fan-4',
+      cards: [
+        { rank: 'A', suit: '♣', color: 'black' },
+        { rank: 'K', suit: '♣', color: 'black' },
+        { rank: '7', suit: '♠', color: 'black' },
+        { rank: '10', suit: '♠', color: 'black' },
+      ],
+    },
+    play: {
+      RoomRoot: ThosoRoomPage,
+      Standings: ThosoStandingsPanel,
+      Guide: ThosoGuide,
+      stateMsgType: 'thosoState',
+      applyState: (s) => useThosoStore.getState().setState(s),
+      isInGame: (phase) => !!phase && THOSO_INGAME_PHASES.has(phase),
+    },
+  },
 };

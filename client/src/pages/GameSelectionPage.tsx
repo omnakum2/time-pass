@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GAMES, GameInfo } from 'shared';
 import { ErrorToast } from '../components/ErrorToast';
+import { GAME_DESCRIPTORS } from '../games';
 import '../styles/selection.css';
 
 /* ── Mini playing-card data per game ──────────────────────────────────────── */
@@ -10,43 +11,6 @@ interface MiniCardData {
   suit: string;
   color: 'red' | 'black';
 }
-
-interface GameCardConfig {
-  cards: MiniCardData[];
-  fanClass: string;
-}
-
-const GAME_CARDS: Record<string, GameCardConfig> = {
-  'bidbaazi': {
-    fanClass: 'fan-5',
-    cards: [
-      { rank: 'A', suit: '♥', color: 'red' },
-      { rank: 'K', suit: '♥', color: 'red' },
-      { rank: 'Q', suit: '♥', color: 'red' },
-      { rank: 'J', suit: '♥', color: 'red' },
-      { rank: '10', suit: '♥', color: 'red' },
-    ],
-  },
-  rummy: {
-    fanClass: 'fan-5',
-    cards: [
-      { rank: 'A', suit: '♠', color: 'black' },
-      { rank: 'K', suit: '♠', color: 'black' },
-      { rank: 'Q', suit: '♦', color: 'red' },
-      { rank: '', suit: '', color: 'black' }, // Card back (reusing Blind card back)
-      { rank: 'A', suit: '♦', color: 'red' },
-    ],
-  },
-  thoso: {
-    fanClass: 'fan-4',
-    cards: [
-      { rank: 'A', suit: '♣', color: 'black' },
-      { rank: 'K', suit: '♣', color: 'black' },
-      { rank: '7', suit: '♠', color: 'black' },
-      { rank: '10', suit: '♠', color: 'black' },
-    ],
-  },
-};
 
 function MiniCard({ rank, suit, color }: MiniCardData) {
   // Card back reusing standard blind card back
@@ -85,7 +49,7 @@ export function GameSelectionPage() {
 
         <div className="game-cards-row">
           {GAMES.map((game) => {
-            const cardData = GAME_CARDS[game.id] ?? GAME_CARDS['bidbaazi'];
+            const cardData = GAME_DESCRIPTORS[game.id]?.loungeCard ?? GAME_DESCRIPTORS['bidbaazi'].loungeCard;
 
             return (
               <div

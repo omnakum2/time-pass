@@ -4,9 +4,9 @@ dotenv.config(); // load .env into process.env before anything reads it
 import { createServer, IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Room, BaseRoom } from './room';
-import { ThosoRoom } from './rooms/thoso/ThosoRoom';
+import { ThosoRoom, THOSO_MAX_PLAYERS } from './rooms/thoso/ThosoRoom';
 import { ClientMessage, MAX_PLAYERS, GameMode, GAME_MODES } from 'shared';
-import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS, HEARTBEAT_MS, THOSO_MAX_PLAYERS } from './constants';
+import { MAX_CONN_PER_IP, MAX_PAYLOAD_BYTES, RATE_LIMIT_PER_SEC, DRAIN_MAX_MS, HEARTBEAT_MS } from './constants';
 import { sendMessage, sendError, sanitizeName, clampPlayers, validateMessage, randomRoomCode } from './helpers';
 
 // ─── Environment-specific settings (from process.env) ──────────────────────

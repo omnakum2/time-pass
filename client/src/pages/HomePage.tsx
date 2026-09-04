@@ -22,7 +22,7 @@ export function HomePage() {
   const [pendingHost, setPendingHost] = useState('');
   const [pending, setPending] = useState<'create' | 'join' | null>(null);
   const { connected, roomId, reconnectFailed } = useSessionStore();
-  const gameState = useBidBaaziStore((s) => s.gameState);
+  const gameState = useBidBaaziStore((s) => s.state);
   const rejoinAttempt = useRef(false);
   const navigate = useNavigate();
 

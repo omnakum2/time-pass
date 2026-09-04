@@ -1,14 +1,7 @@
 import { ClientMessage, ServerMessage } from 'shared';
 import { useSessionStore } from '../store/sessionStore';
 import { useBidBaaziStore } from '../store/bidbaaziStore';
-import { useThosoStore } from '../store/thosoStore';
-
-// Per-game state-message dispatch: each game's `*State` server message routes to
-// its own store. Adding a game = add one entry here (plus its case in dispatch()).
-const GAME_STATE_DISPATCH: Record<string, (state: any) => void> = {
-  state:      (s) => useBidBaaziStore.getState().setState(s),
-  thosoState: (s) => useThosoStore.getState().setThosoState(s),
-};
+import { GAME_DESCRIPTORS } from '../games';
 import { storage } from '../storage';
 import { WS_DEFAULT_PORT, RECONNECT_BASE_MS, RECONNECT_MAX_MS, RECONNECT_EXP_CAP } from '../constants';
 
@@ -90,15 +83,16 @@ export function disconnect(): void {
 
 function dispatch(msg: ServerMessage): void {
   const store = useSessionStore.getState();
+
+  // Registry-driven game-state routing: any descriptor whose play.stateMsgType matches.
+  const gamePlay = Object.values(GAME_DESCRIPTORS).find((d) => d.play?.stateMsgType === msg.type)?.play;
+  if (gamePlay) { gamePlay.applyState((msg as any).state); return; }
+
   switch (msg.type) {
     case 'joined':
       reconnecting = false;
       storage.setSession({ roomId: msg.roomId, token: msg.token, playerId: msg.playerId });
       store.setSession(msg.playerId, msg.roomId);
-      break;
-    case 'state':
-    case 'thosoState':
-      GAME_STATE_DISPATCH[msg.type]?.(msg.state);
       break;
     case 'roundResult':
       useBidBaaziStore.getState().setRoundResult(msg);

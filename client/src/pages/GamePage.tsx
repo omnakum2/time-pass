@@ -1,10 +1,10 @@
 import { useRef, useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Suit, Player } from 'shared';
-import { legalMoves, isHandHiddenForBid } from 'shared';
+import { legalPlays, isHandHiddenForBid } from 'shared';
 import { useSessionStore } from '../store/sessionStore';
 import { useBidBaaziStore } from '../store/bidbaaziStore';
-import { sortHand } from '../format';
+import { sortHand, seatOrderedOpponents } from '../format';
 import { sendMsg } from '../net/socket';
 import { getTotal } from '../lib/helpers';
 import { CardView } from '../components/CardView';
@@ -20,11 +20,12 @@ import { QuickMessages } from '../components/QuickMessages';
 import { Announcement } from '../components/Announcement';
 import { BidBaaziPushPanel } from '../components/BidBaaziPushPanel';
 import { useUrgentTurn } from '../hooks/useUrgentTurn';
+import '../styles/bidbaazi.css';
 
 // ─── GamePage ─────────────────────────────────────────────────────────────────
 
 export function GamePage() {
-  const { gameState, lastRoundResult } = useBidBaaziStore();
+  const { state: gameState, lastRoundResult } = useBidBaaziStore();
   const playerId = useSessionStore((s) => s.playerId);
   const prevTurnRef = useRef<string>('');
   const prevTrickEmptyRef = useRef(true);
@@ -78,7 +79,7 @@ export function GamePage() {
 
   // Legal cards when it's my turn to play
   const legalIds = isMyTurn && phase === 'PLAYING'
-    ? legalMoves(yourHand, leadSuit).map(c => c.id)
+    ? legalPlays(yourHand, leadSuit).map(c => c.id)
     : [];
 
   // Sort hand: by suit order then rank
@@ -96,16 +97,7 @@ export function GamePage() {
   };
 
   // Opponents in clockwise seat order from me
-  const me = players.find(p => p.id === playerId);
-  const opponents: Player[] = [];
-  if (me) {
-    const n = players.length;
-    for (let i = 1; i < n; i++) {
-      const seatIdx = (me.seatIndex + i) % n;
-      const opp = players.find(p => p.seatIndex === seatIdx);
-      if (opp) opponents.push(opp);
-    }
-  }
+  const opponents = seatOrderedOpponents(players, playerId);
 
   // BidBaazi chip middle content — bid/tricks line + score/push total.
   const chipInfo = (bid: number | null, won: number, totalScore: number, pushChoice?: 'locked' | 'pushed') => (

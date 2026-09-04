@@ -15,23 +15,7 @@
 //      predecessor(K)=Q, etc. Used by `transferPredecessorRank` and friends.
 
 import { Card, Rank, Suit, TrickCard } from './types';
-import { SUITS, RANK_ORDER } from './constants';
-
-// ─── Deck ────────────────────────────────────────────────────────────────────
-
-/**
- * A standard 52-card deck. Card ids match how `Card.id` is formed elsewhere in
- * the codebase: `${rank}${suit}` (e.g. "AH", "10D").
- */
-export function makeDeck(): Card[] {
-  const deck: Card[] = [];
-  for (const suit of SUITS) {
-    for (const rank of RANK_ORDER) {
-      deck.push({ id: `${rank}${suit}`, rank, suit });
-    }
-  }
-  return deck;
-}
+import { RANK_ORDER } from './constants';
 
 // ─── Transfer sequence (cyclic, Ace-low) ─────────────────────────────────────
 
@@ -90,20 +74,6 @@ export function isTransferable(
 }
 
 // ─── Playing a trick (Phase 2) ───────────────────────────────────────────────
-
-/**
- * The subset of `hand` that is legal to play right now.
- * - `requireAceOfSpades` (the Phase-2 opening lead) → only the Ace of Spades is legal.
- * - `ledSuit` null (you are the leader) → every card is legal.
- * - Holding the led suit → you must follow suit (only those cards are legal).
- * - Void in the led suit → every card is legal (a Thoso is forced).
- */
-export function legalPlays(hand: Card[], ledSuit: Suit | null, requireAceOfSpades = false): Card[] {
-  if (requireAceOfSpades) return hand.filter(c => c.rank === 'A' && c.suit === 'S');
-  if (ledSuit === null) return hand;
-  const followers = hand.filter(c => c.suit === ledSuit);
-  return followers.length > 0 ? followers : hand;
-}
 
 /**
  * True iff playing `card` is a "Thoso" (an off-suit discard): there IS a led

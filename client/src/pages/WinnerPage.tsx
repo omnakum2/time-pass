@@ -13,7 +13,7 @@ import { useSecondsRemaining } from '../hooks/useSecondsRemaining';
 import { useLeaveRoom } from '../hooks/useLeaveRoom';
 
 export function WinnerPage() {
-  const { gameOver, gameState } = useBidBaaziStore();
+  const { gameOver, state: gameState } = useBidBaaziStore();
   const { playerId, roomClosed } = useSessionStore();
   const navigate = useNavigate();
   const leaveRoom = useLeaveRoom();
