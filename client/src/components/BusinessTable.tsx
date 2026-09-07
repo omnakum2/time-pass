@@ -24,6 +24,16 @@ const GROUP_COLOUR: Record<string, string> = {
   yellow: '#e0a92e',
 };
 
+// Per-group tile TEXT colour, chosen for contrast against its group background.
+// Yellow is a light block, so white washes out → dark ink; the darker red / blue /
+// green keep white. Applied at the tile level so name, price and owner chip all read.
+const GROUP_TEXT: Record<string, string> = {
+  red: '#fff',
+  blue: '#fff',
+  green: '#fff',
+  yellow: '#2a1e00',
+};
+
 // Perimeter mapping from tile pos → 10×10 grid cell (per the locked spec).
 function cellFor(pos: number): { row: number; col: number } {
   const N = 10;
@@ -103,11 +113,16 @@ export function BusinessTable() {
   return (
     <div className="business-page">
       <Announcement announcement={state.announcement} />
+      {/* Scroll wrapper: board fits on desktop but stays large on phones so the
+          user can pan (and pinch-zoom natively) instead of reading tiny tiles. */}
+      <div className="business-board-scroll">
       <div className="business-board" role="group" aria-label="Business board">
         {BOARD.map(tile => {
           const { row, col } = cellFor(tile.pos);
           const isProperty = tile.type === 'property';
-          const groupColour = isProperty ? GROUP_COLOUR[(tile as { colour: string }).colour] : undefined;
+          const tileColour = isProperty ? (tile as { colour: string }).colour : undefined;
+          const groupColour = tileColour ? GROUP_COLOUR[tileColour] : undefined;
+          const groupText = tileColour ? GROUP_TEXT[tileColour] : undefined;
           const own = ownership[tile.pos];
           const ownerId = own?.land ?? null;
           const price = priceOf(tile);
@@ -116,11 +131,12 @@ export function BusinessTable() {
           return (
             <div
               key={tile.pos}
-              className={`business-tile business-tile--${tile.type}`}
+              className={`business-tile business-tile--${tile.type}${tileColour ? ` business-tile--g-${tileColour}` : ''}`}
               style={{
                 gridRow: row,
                 gridColumn: col,
                 background: groupColour ?? 'var(--surface-2)',
+                ...(groupText ? { color: groupText } : {}),
               }}
             >
               <div className="business-tile__name">{tile.name}</div>
@@ -160,7 +176,7 @@ export function BusinessTable() {
                   {tokens.map(p => (
                     <span
                       key={p.id}
-                      className="business-token"
+                      className={`business-token${p.id === currentTurn ? ' business-token--turn' : ''}`}
                       style={{ background: colours[p.id] ?? 'var(--game-primary)' }}
                       title={p.name}
                     >
@@ -180,8 +196,10 @@ export function BusinessTable() {
           <div className="business-center__dice">
             {state.dice ? (
               <>
-                <span className="business-die">{state.dice[0]}</span>
-                <span className="business-die">{state.dice[1]}</span>
+                {/* key includes both rolled values so a new roll remounts the die and
+                    the CSS pop animation replays (the element is otherwise reused). */}
+                <span key={`d0-${state.dice[0]}-${state.dice[1]}`} className="business-die">{state.dice[0]}</span>
+                <span key={`d1-${state.dice[0]}-${state.dice[1]}`} className="business-die">{state.dice[1]}</span>
               </>
             ) : (
               <span className="tag-faint">—</span>
@@ -224,6 +242,7 @@ export function BusinessTable() {
             )}
           </div>
         </div>
+      </div>
       </div>
 
       {/* ── Deeds panel (your turn): build · mortgage ──────────────────────────*/}

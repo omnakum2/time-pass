@@ -11,19 +11,37 @@
   padding: 16px;
 }
 
+/* ─── Board scroll wrapper ───────────────────────────────────────────────────
+   Fits the board on desktop (no scrollbar at ≥720px) but lets the board stay big
+   on phones, so the user PANS it (and pinch-zooms natively) instead of squinting
+   at a shrunk-to-345px grid. */
+.business-board-scroll {
+  width: 100%;
+  max-width: min(94vw, 720px);
+  margin: 0 auto;
+  overflow: auto;
+}
+
 /* ─── The 36-tile perimeter board (10×10 CSS grid) ──────────────────────────── */
 .business-board {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
   grid-template-rows: repeat(10, 1fr);
   gap: 4px;
-  width: min(92vw, 720px);
+  width: 700px;
+  max-width: 100%;
   aspect-ratio: 1 / 1;
   padding: 10px;
   border-radius: 14px;
   background: var(--game-felt-deep);
   border: 1px solid var(--game-primary);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+}
+
+/* On phones keep the board LARGER than the viewport so it overflows the wrapper
+   and can be panned; max-width:none lets it ignore the wrapper's width cap. */
+@media (max-width: 560px) {
+  .business-board { width: 520px; max-width: none; }
 }
 
 /* ─── A single perimeter tile ────────────────────────────────────────────────
@@ -77,6 +95,12 @@
 .business-tile--card .business-tile__name,
 .business-tile--tax .business-tile__name {
   color: var(--game-primary);
+}
+
+/* Yellow group carries DARK ink (set inline on the tile) — drop the white-oriented
+   text shadow so the dark name reads crisp on the light-yellow block. */
+.business-tile--g-yellow .business-tile__name {
+  text-shadow: none;
 }
 
 /* ─── Player tokens sitting on a tile ─────────────────────────────────────────*/
@@ -473,4 +497,32 @@
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
+}
+
+/* ─── Motion polish ───────────────────────────────────────────────────────────
+   All keyframe motion is opt-in via prefers-reduced-motion: no-preference, so
+   reduced-motion users get none of it. Kept short (≤0.35s) and non-nauseating.
+   Dice remount on a new roll (value in the React key) and tokens remount when
+   they move to a new tile, so these mount animations replay only on real events. */
+@media (prefers-reduced-motion: no-preference) {
+  .business-die { animation: business-die-pop 0.35s ease-out; }
+  .business-token { animation: business-token-land 0.3s ease-out; }
+}
+
+@keyframes business-die-pop {
+  0%   { transform: scale(0.6) rotate(-14deg); opacity: 0.35; }
+  60%  { transform: scale(1.12) rotate(6deg);  opacity: 1; }
+  100% { transform: scale(1)    rotate(0deg); }
+}
+
+@keyframes business-token-land {
+  0%   { transform: scale(0.4);  opacity: 0; }
+  65%  { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* Current player's token — soft gold ring (static; safe under reduced motion).
+   Keeps the base drop shadow as the second layer. */
+.business-token--turn {
+  box-shadow: 0 0 0 2px var(--game-primary), 0 1px 3px rgba(0, 0, 0, 0.55);
 }
