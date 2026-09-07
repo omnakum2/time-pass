@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 import {
   Announcement, ClientMessage, ErrorCode, BusinessState, TileOwnership,
-  GLOBALS, PLAYER_COLOURS, GAMES, BoardTile,
+  GLOBALS, PLAYER_COLOURS, GAMES, BoardTile, CardTile, CHANCE, COMMUNITY_CHEST,
   rollDice, diceTotal, advance, tileAt,
 } from 'shared';
 import { PLAY_TIMEOUT_MS, ANNOUNCE_MS } from '../../constants';
@@ -239,8 +239,85 @@ export class BusinessRoom extends BaseRoom {
         if (payee) this.cash[payee] = (this.cash[payee] ?? 0) + rent;
         return `−₹${rent.toLocaleString('en-IN')} rent → ${payee ? this.nameOf(payee) : 'the bank'} (${tile.name})`;
       }
+      case 'card':
+        return this.applyCard(playerId, tile, total); // Chance / Community Chest (Phase 5)
       default:
-        return null; // card (Chance / Community Chest) → Phase 5
+        return null;
+    }
+  }
+
+  // ─── Chance / Community Chest cards (Phase 5) ────────────────────────────────
+
+  // Split building count: houses vs hotels this player owns the BUILDINGS of
+  // (may differ from land ownership once split ownership lands in Phase 6).
+  private housesAndHotelsOwned(playerId: string): { houses: number; hotels: number } {
+    return Object.values(this.ownership).reduce(
+      (acc, o) => {
+        if (o.buildingOwner === playerId) {
+          acc.houses += o.houses;
+          if (o.hotel) acc.hotels += 1;
+        }
+        return acc;
+      },
+      { houses: 0, hotels: 0 },
+    );
+  }
+
+  // Auto-apply the card a player drew by landing on a Chance / Community Chest tile.
+  // The DICE TOTAL selects the outcome (even total → deck.even, odd → deck.odd); no
+  // outcome for that total → nothing happens. Returns a short banner fragment (or null).
+  private applyCard(playerId: string, tile: CardTile, total: number): string | null {
+    const deck = tile.card === 'chance' ? CHANCE : COMMUNITY_CHEST;
+    const outcome = (total % 2 === 0 ? deck.even : deck.odd)[total];
+    if (!outcome) return null;
+
+    switch (outcome.kind) {
+      case 'credit': {
+        this.cash[playerId] = (this.cash[playerId] ?? 0) + outcome.amount;
+        return `${outcome.label}: +₹${outcome.amount.toLocaleString('en-IN')}`;
+      }
+      case 'debit': {
+        if (outcome.requiresBuildings && this.buildingsOwned(playerId) === 0) {
+          return `${outcome.label} — no buildings, nothing charged`;
+        }
+        this.cash[playerId] = (this.cash[playerId] ?? 0) - outcome.amount;
+        return `−₹${outcome.amount.toLocaleString('en-IN')} ${outcome.label}`;
+      }
+      case 'collectEach': {
+        const others = this.seats
+          .map(s => s.player.id)
+          .filter(id => id !== playerId && !this.bankrupt.includes(id));
+        others.forEach(id => { this.cash[id] = (this.cash[id] ?? 0) - outcome.amount; });
+        const collected = outcome.amount * others.length;
+        this.cash[playerId] = (this.cash[playerId] ?? 0) + collected;
+        return `${outcome.label}: +₹${collected.toLocaleString('en-IN')} collected`;
+      }
+      case 'perBuilding': {
+        const { houses, hotels } = this.housesAndHotelsOwned(playerId);
+        if (outcome.requiresBuildings && houses === 0 && hotels === 0) {
+          return `${outcome.label} — no buildings, nothing charged`;
+        }
+        const charge = outcome.house * houses + outcome.hotel * hotels;
+        if (charge <= 0) return `${outcome.label} — nothing owed`;
+        this.cash[playerId] = (this.cash[playerId] ?? 0) - charge;
+        return `−₹${charge.toLocaleString('en-IN')} ${outcome.label}`;
+      }
+      case 'goto': {
+        const from = this.positions[playerId] ?? 0;
+        const target = outcome.target;
+        // Forward-wrap to the target; if the forward path loops past START, collect the bonus.
+        const passedStart = !!outcome.collectIfPass && target <= from;
+        if (passedStart) this.cash[playerId] = (this.cash[playerId] ?? 0) + GLOBALS.startBonus;
+        this.positions[playerId] = target;
+
+        const parts: string[] = [outcome.label];
+        if (passedStart) parts.push(`+₹${GLOBALS.startBonus.toLocaleString('en-IN')} passing START`);
+        // Re-apply the target tile's landing (jail fine, rest-house skip, rent…). None of the
+        // goto targets are card tiles, so this never recurses back into applyCard.
+        const landing = this.applyLanding(playerId, target, total);
+        if (landing) parts.push(landing);
+        return parts.join(' · ');
+      }
     }
   }
 
