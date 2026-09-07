@@ -110,7 +110,7 @@ export const CHANCE: CardDeck = {
     3:  { kind: 'credit', amount: 2500, label: 'Lottery prize' },
     5:  { kind: 'credit', amount: 1000, label: 'Crossword prize' },
     7:  { kind: 'credit', amount: 2000, label: 'Jackpot' },
-    9:  { kind: 'goto',   target: POS.MUMBAI, collectIfPass: true, label: 'Go back to Mumbai' }, // TODO: board also says "then to Darjeeling" — confirm exact behaviour
+    9:  { kind: 'goto',   target: POS.CLUB, label: 'Go to Club — miss your next turn' }, // CLUB is the one corner no other card uses (JAIL/REST HOUSE already appear)
     11: { kind: 'credit', amount: 3000, label: 'Best export performance' },
   },
 };
