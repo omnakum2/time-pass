@@ -35,8 +35,14 @@
   --warning: #FFB300;
   --danger:  #F0736C;
 
-  --card-w:  clamp(46px, 9vw, 72px);
-  --card-h:  calc(var(--card-w) * 1.45);
+  /* One fluid lever for every playing card. Contexts derive their width as a RATIO
+     of --card-base (never a fixed px), so a card's box AND its glyphs — font-size is
+     calc(var(--card-w) * 0.3) — always scale together, at every screen size. */
+  --card-base: clamp(46px, 9vw, 72px);
+  --card-w:    var(--card-base);
+  --card-h:    calc(var(--card-w) * 1.45);
+  --card-w-sm: calc(var(--card-base) * 0.56);   /* chip pile · penalty reveal (~40px @72 base) */
+  --card-w-md: calc(var(--card-base) * 0.75);   /* centre pile · drawn · draw pile (~54px @72 base) */
   --radius:  10px;
   font-family: 'Segoe UI', system-ui, sans-serif;
   color: var(--text);
@@ -114,9 +120,9 @@ body {
   border: 1px solid #d7d7d7;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   font-weight: 700;
-  /* Proportional to the card width so glyphs scale with size — the full-card look
-     (corner rank+suit + centre suit) then renders cleanly at every size, incl. the
-     32px chip pile. ~0.3× of the ambient ~60px matches the old max of 18px. */
+  /* Glyphs scale off the card width (which every context derives from --card-base),
+     so the full-card look (corner rank+suit + centre suit) renders cleanly at every
+     size — from the small chip pile up to the hand fan — with no per-size tuning. */
   font-size: calc(var(--card-w) * 0.3);
   cursor: pointer; user-select: none; position: relative;
   box-shadow: 0 2px 8px rgba(0,0,0,0.45);
@@ -799,7 +805,9 @@ body {
   .guide-toc { position: static; }
 }
 @media (max-width: 600px) {
-  :root { --card-w: 72px; }
+  /* Pin the base bigger for the phone hand fan — every derived size (piles, trick,
+     drawn) scales off it, so the whole card UI stays proportional, not fixed px. */
+  :root { --card-base: 72px; }
 
   /* Header: scale down so brand + nav fit narrow screens on one row */
   .app-header__logo { height: 46px; }
@@ -819,11 +827,11 @@ body {
   .trick-felt { padding: 14px 10px; min-height: 0; }
   .felt-watermark__title { font-size: clamp(1.6rem, 9vw, 2.8rem); }
 
-  /* Decouple played (trick) cards from the enlarged hand cards: set an explicit
-     width AND height on the played card. The shared --card-h calc keeps the
-     :root height, so re-scoping --card-w alone stretched them. Fixed 1:1.45
-     ratio so up to 7 cards fit the felt without distortion. */
-  .trick-card-slot .card { width: 46px; height: 67px; }
+  /* Decouple played (trick) cards from the enlarged hand fan by re-scoping their
+     --card-w (co-declaring --card-h to hold the 1:1.45 ratio). Driving the BOX via
+     --card-w — not a fixed width/height — keeps the glyph (font-size scales off
+     --card-w) shrinking WITH the card, so ~7 cards fit the felt without oversized pips. */
+  .trick-card-slot .card { --card-w: calc(var(--card-base) * 0.64); --card-h: calc(var(--card-w) * 1.45); }
   .trick-felt { gap: 6px; }
 
   /* Chat bubbles: cap to ~a chip's width and let them WRAP, so two opponents
@@ -839,13 +847,13 @@ body {
   .hand-cards .card { margin-left: -32px; }
 }
 @media (max-width: 480px) {
-  :root { --card-w: 76px; }
+  :root { --card-base: 76px; }
   .app-header__logo { height: 42px; }
   .home-actions .btn { padding: 15px 10px; font-size: 1.05rem; }
   .trick-area { border-radius: 60px; padding: 10px; }
   .trick-felt { border-radius: 50px; }
   .hand-cards .card { margin-left: -38px; }
 
-  /* Even smaller played cards so all 7 fit on the narrowest phones */
-  .trick-card-slot .card { width: 42px; height: 61px; }
+  /* Even smaller played cards so all 7 fit on the narrowest phones (box + glyph together) */
+  .trick-card-slot .card { --card-w: calc(var(--card-base) * 0.55); --card-h: calc(var(--card-w) * 1.45); }
 }

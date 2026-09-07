@@ -10,8 +10,8 @@
    when a descendant shrinks --card-w, which otherwise stretches the card tall/thin
    (same trap the trick-card media query calls out). Co-declaring both keeps the
    1:1.45 ratio, so chip piles render as small, undistorted thumbnails. */
-.thoso-pile--sm { --card-w: 40px; --card-h: calc(var(--card-w) * 1.45); }
-.thoso-pile--md { --card-w: 54px; --card-h: calc(var(--card-w) * 1.45); }
+.thoso-pile--sm { --card-w: var(--card-w-sm); --card-h: calc(var(--card-w) * 1.45); }
+.thoso-pile--md { --card-w: var(--card-w-md); --card-h: calc(var(--card-w) * 1.45); }
 .thoso-pile--interactive { cursor: pointer; }
 
 .thoso-stack { position: relative; display: inline-flex; }
@@ -102,7 +102,7 @@
 }
 .thoso-drawpile-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .thoso-drawpile {
-  --card-w: 54px;
+  --card-w: var(--card-w-md);
   --card-h: calc(var(--card-w) * 1.45);
   position: relative;
   width: var(--card-w); height: var(--card-h);
@@ -177,7 +177,7 @@
   font-size: 0.72rem; font-weight: 800; letter-spacing: 0.4px;
   text-transform: uppercase; color: var(--gold);
 }
-.thoso-penalty-reveal__cards { display: flex; gap: 6px; --card-w: 40px; --card-h: calc(var(--card-w) * 1.45); }
+.thoso-penalty-reveal__cards { display: flex; gap: 6px; --card-w: var(--card-w-sm); --card-h: calc(var(--card-w) * 1.45); }
 @keyframes thoso-penalty-reveal-pop {
   from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.94); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }

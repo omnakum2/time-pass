@@ -9,8 +9,9 @@ interface Props {
   onClick?: () => void;
   layoutId?: string;
   style?: React.CSSProperties;
-  /** Card width. Keywords map to px (sm→32, md→54, lg→72) or pass an explicit px number.
-   *  Omit to inherit the ambient `--card-w` from context (BidBaazi hand/trick sizing). */
+  /** Card width. Keywords map to a fluid RATIO of the shared `--card-base`
+   *  (sm/md/lg), so an explicitly-sized card still scales with the viewport; a
+   *  number is an explicit px width. Omit to inherit the ambient `--card-w`. */
   size?: 'sm' | 'md' | 'lg' | number;
   /** Render a face-DOWN card (the shared `.card--back` look) instead of the front. */
   back?: boolean;
@@ -18,12 +19,13 @@ interface Props {
   backColor?: string;
 }
 
-/** Resolve a `size` prop to a card width in px. */
-function sizeToPx(size: 'sm' | 'md' | 'lg' | number): number {
-  if (typeof size === 'number') return size;
-  if (size === 'sm') return 40;
-  if (size === 'lg') return 72;
-  return 54; // 'md'
+/** Resolve a `size` prop to a card-width CSS value. Keywords reference the shared
+ *  fluid tokens (so they scale with the viewport, no fixed px); a number is px. */
+function sizeToWidth(size: 'sm' | 'md' | 'lg' | number): string {
+  if (typeof size === 'number') return `${size}px`;
+  if (size === 'sm') return 'var(--card-w-sm)';
+  if (size === 'lg') return 'var(--card-base)';
+  return 'var(--card-w-md)'; // 'md'
 }
 
 export function CardView({ card, disabled, selected, played, onClick, layoutId, style, size, back, backColor }: Props) {
@@ -38,7 +40,7 @@ export function CardView({ card, disabled, selected, played, onClick, layoutId, 
 
   // Only set the size vars when `size` is given; otherwise inherit ambient --card-w.
   const sizeVars: React.CSSProperties = size !== undefined
-    ? { ['--card-w' as any]: `${sizeToPx(size)}px`, ['--card-h' as any]: `calc(${sizeToPx(size)}px * 1.45)` }
+    ? { ['--card-w' as any]: sizeToWidth(size), ['--card-h' as any]: `calc(${sizeToWidth(size)} * 1.45)` }
     : {};
   const mergedStyle: React.CSSProperties = {
     ...sizeVars,
