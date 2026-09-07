@@ -14,6 +14,13 @@ import { BaseRoom, Seat } from '../BaseRoom';
 // Thoso's player cap comes from the shared game registry — the single source of truth.
 export const THOSO_MAX_PLAYERS = GAMES.find((g) => g.id === 'thoso')?.maxPlayers ?? 6;
 
+// ─── Deadlock re-deal (2 finalists only) ──────────────────────────────────────
+// Physical rule: when the last two players thoso each other endlessly and no card
+// can leave play, each is dealt fresh cards and play continues until someone frees.
+const REDEAL_STALL_ROUNDS = 4;   // consecutive no-discard (all-thoso) rounds among 2 finalists → deadlock
+const REDEAL_CARDS_EACH = 2;     // fresh cards dealt to each finalist per re-deal
+const REDEAL_SAFETY_CAP = 8;     // absolute max re-deals before a fewest-cards resolve (near-never hit)
+
 /**
  * Server engine for **Thoso** — a two-phase transfer-and-shedding card game.
  *
@@ -44,6 +51,9 @@ export class ThosoRoom extends BaseRoom {
   private penaltyRevealTimer: ReturnType<typeof setTimeout> | null = null;
   private roundResolving = false;                             // Phase-2: a completed round is held on screen before clearing
   private roundHoldTimer: ReturnType<typeof setTimeout> | null = null;
+  private discardPile: Card[] = [];                          // Phase-2 cards that left play permanently (the re-deal source)
+  private roundsSinceDiscard = 0;                            // consecutive no-discard (all-thoso) rounds — deadlock detector
+  private redealCount = 0;                                   // deadlock re-deals so far this hand (safety cap)
 
   private announcement: Announcement | null = null;    // banner (phase intro / THOSO! / penalty)
   private announcementTimer: ReturnType<typeof setTimeout> | null = null;
@@ -139,6 +149,9 @@ export class ThosoRoom extends BaseRoom {
     gone.forEach(id => this.removeSeat(id));
 
     this.deck = [];
+    this.discardPile = [];
+    this.roundsSinceDiscard = 0;
+    this.redealCount = 0;
     this.ledSuit = null;
     this.currentTrick = [];
     this.drawnCard = null;
@@ -170,6 +183,9 @@ export class ThosoRoom extends BaseRoom {
     this.phase = 'TRANSFER';
     this.deck = shuffle(createDeck());
     this.seats.forEach(s => { s.hand = []; });
+    this.discardPile = [];
+    this.roundsSinceDiscard = 0;
+    this.redealCount = 0;
     this.finishedRanks = [];
     this.ledSuit = null;
     this.currentTrick = [];
@@ -377,6 +393,7 @@ export class ThosoRoom extends BaseRoom {
       });
       this.checkFinished(seat); // the thoso may have shed the player's last card
       if (this.maybeEndGame()) return null;
+      this.roundsSinceDiscard++; // a thoso round moves cards but discards none — no progress
       this.currentTrick.push({ playerId, card }); // show the off-suit thoso card during the hold
       const leaderIdx = !this.isFinished(playerId)
         ? seat.player.seatIndex
@@ -404,6 +421,10 @@ export class ThosoRoom extends BaseRoom {
       const leaderIdx = (winnerSeat && !this.isFinished(winnerId!))
         ? winnerSeat.player.seatIndex
         : this.nextActiveSeatIndex(from); // winner finished this round → next active leads
+      // Everyone followed suit (no thoso): these cards leave play permanently. Bank them
+      // as the deadlock re-deal source, and reset the stall counter — real progress happened.
+      this.discardPile.push(...this.currentTrick.map(tc => tc.card));
+      this.roundsSinceDiscard = 0;
       this.endRoundAndLead(leaderIdx);
       return;
     }
@@ -428,6 +449,12 @@ export class ThosoRoom extends BaseRoom {
       this.currentTrick = [];
       this.ledSuit = null;
       if (this.maybeEndGame()) return;
+      // Two finalists locked in a thoso stand-off (no card has left play for several
+      // rounds): deal each fresh cards so someone can finish. Only ever at 2 players.
+      if (this.activeSeatCount() === 2 && this.roundsSinceDiscard >= REDEAL_STALL_ROUNDS) {
+        this.redealDeadlock(leaderSeatIndex);
+        return;
+      }
       this.startPlayRound(leaderSeatIndex);
     }, TRICK_DISPLAY_MS);
   }
@@ -439,6 +466,51 @@ export class ThosoRoom extends BaseRoom {
     this.playersInRound = this.activeSeatCount();
     this.beginTurn();
     this.broadcastState();
+  }
+
+  // ─── Deadlock re-deal (2 finalists) ───────────────────────────────────────────
+  // The last two players keep thoso-ing each other with no card ever leaving play.
+  // Reshuffle THIS hand's discards and add REDEAL_CARDS_EACH to each finalist's hand
+  // so the lock can break; play then resumes and repeats if they stall again — there
+  // is no direct win, a player must still shed to finish. Guaranteed to terminate: if
+  // the discard pool can't fund a re-deal, or the safety cap is hit, the finalists are
+  // resolved by hand size (fewest cards is closest to finishing → wins).
+  private redealDeadlock(leaderSeatIndex: number): void {
+    const active = this.seats.filter(s => !this.isFinished(s.player.id));
+    if (active.length !== 2) { this.startPlayRound(leaderSeatIndex); return; }
+
+    const need = REDEAL_CARDS_EACH * active.length;
+    if (this.redealCount >= REDEAL_SAFETY_CAP || this.discardPile.length < need) {
+      this.resolveByHandSize(active);
+      return;
+    }
+
+    this.discardPile = shuffle(this.discardPile);
+    for (const s of active) {
+      for (let i = 0; i < REDEAL_CARDS_EACH; i++) s.hand.push(this.discardPile.pop()!);
+    }
+    this.redealCount++;
+    this.roundsSinceDiscard = 0;
+    this.setAnnouncement({
+      title: 'Re-deal',
+      subtitle: `Nobody could finish — ${REDEAL_CARDS_EACH} fresh cards each`,
+      variant: 'intro',
+    });
+    // Keep the stalled round's intended leader if they're still in; else first active.
+    const leadIdx = !this.isFinished(this.seats[leaderSeatIndex]?.player.id)
+      ? leaderSeatIndex
+      : this.firstActiveSeatIndex();
+    this.startPlayRound(leadIdx);
+  }
+
+  // Safety resolution when a deadlock can't be re-dealt: fewer cards ⇒ closer to
+  // finishing ⇒ ranks first; the finalist holding more cards is the loser. Ends the game.
+  private resolveByHandSize(active: Seat[]): void {
+    const ordered = [...active].sort((a, b) => a.hand.length - b.hand.length);
+    for (const s of ordered) {
+      this.finishedRanks.push({ playerId: s.player.id, rank: this.finishedRanks.length + 1 });
+    }
+    this.endGame();
   }
 
   // Record a player as finished the first time their hand empties (by playing out).
