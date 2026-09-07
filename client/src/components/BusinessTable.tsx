@@ -1,6 +1,8 @@
 import { BOARD, BoardTile } from 'shared';
 import { useBusinessStore } from '../store/businessStore';
 import { useSessionStore } from '../store/sessionStore';
+import { sendMsg } from '../net/socket';
+import { Announcement } from './Announcement';
 import '../styles/business.css';
 
 /**
@@ -43,8 +45,14 @@ export function BusinessTable() {
     return <div className="page"><p>Loading…</p></div>;
   }
 
-  const { players, positions, cash, colours, ownership, currentTurn, bankrupt } = state;
+  const { players, positions, cash, colours, ownership, currentTurn, bankrupt, skipNext } = state;
   const nameOf = (id: string) => players.find(p => p.id === id)?.name ?? id;
+
+  // Whose turn + what the current player may do this step.
+  const myTurn = currentTurn === playerId;
+  const canRoll = state.phase === 'ROLLING' && myTurn;
+  const canEnd = state.phase === 'BUYING' && myTurn;
+  const turnName = currentTurn ? nameOf(currentTurn) : '';
 
   // Tokens grouped by the tile they sit on, so a tile can stack multiple tokens.
   const tokensOn = (pos: number) =>
@@ -52,6 +60,7 @@ export function BusinessTable() {
 
   return (
     <div className="business-page">
+      <Announcement announcement={state.announcement} />
       <div className="business-board" role="group" aria-label="Business board">
         {BOARD.map(tile => {
           const { row, col } = cellFor(tile.pos);
@@ -111,7 +120,32 @@ export function BusinessTable() {
                 <span className="business-die">{state.dice[1]}</span>
               </>
             ) : (
-              <span className="tag-faint">Waiting to roll…</span>
+              <span className="tag-faint">—</span>
+            )}
+          </div>
+          <div className="business-center__turn">
+            {canRoll ? (
+              <button
+                type="button"
+                className="business-action-btn business-action-btn--roll"
+                onClick={() => sendMsg({ type: 'businessRoll' })}
+              >
+                🎲 Roll dice
+              </button>
+            ) : canEnd ? (
+              <button
+                type="button"
+                className="business-action-btn business-action-btn--end"
+                onClick={() => sendMsg({ type: 'businessEndTurn' })}
+              >
+                End turn →
+              </button>
+            ) : (
+              <span className="tag-faint">
+                {state.phase === 'ROLLING'
+                  ? `Waiting for ${turnName} to roll…`
+                  : `${turnName} is taking their turn…`}
+              </span>
             )}
           </div>
         </div>
@@ -133,6 +167,7 @@ export function BusinessTable() {
                 {p.name}
                 {isMe && <span className="tag-faint" style={{ marginLeft: 4 }}>(you)</span>}
                 {isBankrupt && <span className="tag-faint" style={{ marginLeft: 4 }}>(bankrupt)</span>}
+                {skipNext.includes(p.id) && <span className="tag-faint" style={{ marginLeft: 4 }}>(skips next)</span>}
               </span>
               <span className="business-cash-row__cash">₹{(cash[p.id] ?? 0).toLocaleString('en-IN')}</span>
             </div>

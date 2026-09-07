@@ -193,6 +193,7 @@ export interface BusinessState extends BaseRoomState {
   dice: [number, number] | null;             // last roll (public)
   ownership: Record<number, TileOwnership>;  // tile index → ownership (public)
   bankrupt: string[];                        // eliminated playerIds
+  skipNext: string[];                        // playerIds who miss their next turn (CLUB / REST HOUSE)
 }
 
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
