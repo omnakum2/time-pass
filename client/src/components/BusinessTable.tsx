@@ -54,6 +54,14 @@ export function BusinessTable() {
   const canEnd = state.phase === 'BUYING' && myTurn;
   const turnName = currentTurn ? nameOf(currentTurn) : '';
 
+  // Post-roll buy: the tile I'm standing on, if it's an unowned buyable I can afford.
+  const myTile = BOARD[positions[playerId] ?? 0];
+  const myTilePrice = 'price' in myTile ? myTile.price : 0;
+  const canBuy =
+    canEnd && myTilePrice > 0 && !ownership[positions[playerId] ?? 0]?.land &&
+    (cash[playerId] ?? 0) >= myTilePrice;
+  const isDoubles = Boolean(state.dice && state.dice[0] === state.dice[1]);
+
   // Tokens grouped by the tile they sit on, so a tile can stack multiple tokens.
   const tokensOn = (pos: number) =>
     players.filter(p => (positions[p.id] ?? 0) === pos);
@@ -133,13 +141,24 @@ export function BusinessTable() {
                 🎲 Roll dice
               </button>
             ) : canEnd ? (
-              <button
-                type="button"
-                className="business-action-btn business-action-btn--end"
-                onClick={() => sendMsg({ type: 'businessEndTurn' })}
-              >
-                End turn →
-              </button>
+              <div className="business-turn-actions">
+                {canBuy && (
+                  <button
+                    type="button"
+                    className="business-action-btn business-action-btn--roll"
+                    onClick={() => sendMsg({ type: 'businessBuy' })}
+                  >
+                    Buy {myTile.name} — ₹{myTilePrice.toLocaleString('en-IN')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="business-action-btn business-action-btn--end"
+                  onClick={() => sendMsg({ type: 'businessEndTurn' })}
+                >
+                  {isDoubles ? 'Roll again →' : 'End turn →'}
+                </button>
+              </div>
             ) : (
               <span className="tag-faint">
                 {state.phase === 'ROLLING'

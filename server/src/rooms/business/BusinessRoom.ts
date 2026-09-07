@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 import {
   Announcement, ClientMessage, ErrorCode, BusinessState, TileOwnership,
-  GLOBALS, PLAYER_COLOURS, GAMES,
+  GLOBALS, PLAYER_COLOURS, GAMES, BoardTile,
   rollDice, diceTotal, advance, tileAt,
 } from 'shared';
 import { PLAY_TIMEOUT_MS, ANNOUNCE_MS } from '../../constants';
@@ -155,9 +155,7 @@ export class BusinessRoom extends BaseRoom {
 
   // Income-Tax base: CITY properties (not stations/utilities) whose LAND this player owns.
   private cityPropsOwned(playerId: string): number {
-    return Object.entries(this.ownership).filter(
-      ([pos, o]) => o.land === playerId && tileAt(Number(pos)).type === 'property',
-    ).length;
+    return this.tilesOfTypeOwnedBy(playerId, 'property');
   }
 
   // Wealth-Tax base: every house + every hotel this player owns the buildings of.
@@ -187,18 +185,19 @@ export class BusinessRoom extends BaseRoom {
       this.cash[playerId] = (this.cash[playerId] ?? 0) + GLOBALS.startBonus;
       effects.push(`+₹${GLOBALS.startBonus.toLocaleString('en-IN')} passing START`);
     }
-    const landing = this.applyLanding(playerId, pos);
+    const landing = this.applyLanding(playerId, pos, total);
     if (landing) effects.push(landing);
 
-    const doubles = roll[0] === roll[1];
-    if (doubles) effects.push('Doubles — roll again!');
+    if (roll[0] === roll[1]) effects.push('Doubles — roll again!');
     this.setAnnouncement({
       variant: 'intro',
       title: `${this.nameOf(playerId)} rolled ${roll[0]} + ${roll[1]} → ${tileAt(pos).name}`,
       subtitle: effects.length ? effects.join(' · ') : undefined,
     });
 
-    this.phase = doubles ? 'ROLLING' : 'BUYING';
+    // Always stop at the post-roll decision so the player can buy/build; doubles
+    // are re-rolled from businessEndTurn (which reads the still-set dice).
+    this.phase = 'BUYING';
     this.beginTurn();
     this.broadcastState();
     return null;
@@ -207,7 +206,7 @@ export class BusinessRoom extends BaseRoom {
   // Auto effect for the tile a player stopped on. Returns a short banner fragment (or
   // null). START bonus is handled by `passedStart`; property/station/utility (buy/rent)
   // arrive in Phase 3 and Chance/Chest cards in Phase 5 — no-ops here.
-  private applyLanding(playerId: string, pos: number): string | null {
+  private applyLanding(playerId: string, pos: number, total: number): string | null {
     const tile = tileAt(pos);
     switch (tile.type) {
       case 'corner':
@@ -228,9 +227,65 @@ export class BusinessRoom extends BaseRoom {
         this.cash[playerId] = (this.cash[playerId] ?? 0) - amount;
         return `−₹${amount.toLocaleString('en-IN')} ${tile.name}`;
       }
+      case 'property':
+      case 'station':
+      case 'utility': {
+        const own = this.ownership[pos];
+        if (!own || !own.land || own.land === playerId) return null; // unowned (buyable) or yours → no rent
+        const rent = this.rentFor(tile, own, total);
+        if (rent <= 0) return null;
+        this.cash[playerId] = (this.cash[playerId] ?? 0) - rent;
+        const payee = own.mortgaged ? null : own.land; // mortgaged land's site rent → bank (Phase 6)
+        if (payee) this.cash[payee] = (this.cash[payee] ?? 0) + rent;
+        return `−₹${rent.toLocaleString('en-IN')} rent → ${payee ? this.nameOf(payee) : 'the bank'} (${tile.name})`;
+      }
       default:
-        return null; // property / station / utility → Phase 3; card → Phase 5
+        return null; // card (Chance / Community Chest) → Phase 5
     }
+  }
+
+  // Rent on landing (Phase 3 = bare site rent; buildings arrive in Phase 4).
+  private rentFor(tile: BoardTile, own: TileOwnership, total: number): number {
+    if (tile.type === 'property') return tile.siteRent;
+    if (tile.type === 'station') {
+      const n = this.tilesOfTypeOwnedBy(own.land!, 'station');
+      return GLOBALS.stationRent[Math.max(0, Math.min(n, GLOBALS.stationRent.length) - 1)] ?? 0;
+    }
+    if (tile.type === 'utility') {
+      const n = this.tilesOfTypeOwnedBy(own.land!, 'utility');
+      return total * (n >= 2 ? GLOBALS.utilityMultiplier.both : GLOBALS.utilityMultiplier.one);
+    }
+    return 0;
+  }
+
+  private priceOf(tile: BoardTile): number | null {
+    if (tile.type === 'property' || tile.type === 'station' || tile.type === 'utility') return tile.price;
+    return null;
+  }
+
+  private tilesOfTypeOwnedBy(playerId: string, type: 'property' | 'station' | 'utility'): number {
+    return Object.entries(this.ownership).filter(
+      ([pos, o]) => o.land === playerId && tileAt(Number(pos)).type === type,
+    ).length;
+  }
+
+  // Buy the unowned buyable tile the player is standing on (Phase 3 — land only).
+  private businessBuy(playerId: string): ErrorCode | null {
+    if (this.phase !== 'BUYING') return 'WRONG_PHASE';
+    if (playerId !== this.currentTurnPlayerId()) return 'NOT_YOUR_TURN';
+    const pos = this.positions[playerId] ?? 0;
+    const tile = tileAt(pos);
+    const price = this.priceOf(tile);
+    if (price == null || this.ownership[pos]?.land) return 'ILLEGAL_MOVE'; // not buyable / already owned
+    if ((this.cash[playerId] ?? 0) < price) return 'INSUFFICIENT_FUNDS';
+    this.cash[playerId] = (this.cash[playerId] ?? 0) - price;
+    this.ownership[pos] = { land: playerId, mortgaged: false, buildingOwner: null, houses: 0, hotel: false };
+    this.setAnnouncement({
+      variant: 'intro',
+      title: `${this.nameOf(playerId)} bought ${tile.name} for ₹${price.toLocaleString('en-IN')}`,
+    });
+    this.broadcastState();
+    return null;
   }
 
   // End the current turn and hand off to the next non-bankrupt seat, consuming (and
@@ -238,8 +293,15 @@ export class BusinessRoom extends BaseRoom {
   private businessEndTurn(playerId: string): ErrorCode | null {
     if (this.phase !== 'BUYING') return 'WRONG_PHASE';
     if (playerId !== this.currentTurnPlayerId()) return 'NOT_YOUR_TURN';
+    // Doubles let the SAME player roll again (no 3-doubles→jail rule); otherwise
+    // hand off. Read the still-set dice before clearing it for the next roll.
+    const doubles = !!this.dice && this.dice[0] === this.dice[1];
     this.dice = null;
-    this.advanceToNextPlayer();
+    if (doubles) {
+      this.setAnnouncement({ variant: 'intro', title: `${this.nameOf(playerId)} rolls again (doubles)` });
+    } else {
+      this.advanceToNextPlayer();
+    }
     this.phase = 'ROLLING';
     this.beginTurn();
     this.broadcastState();
@@ -330,7 +392,7 @@ export class BusinessRoom extends BaseRoom {
       case 'restartGame':        return this.restartGame(playerId);
       case 'updateRoomSettings': return this.updateRoomSettings(playerId, msg.maxPlayers);
       case 'businessRoll':       return this.businessRoll(playerId);
-      case 'businessBuy':        return null; // Phase 3 (land economy)
+      case 'businessBuy':        return this.businessBuy(playerId);
       case 'businessEndTurn':    return this.businessEndTurn(playerId);
       default:                   return null; // not a message this game handles
     }

@@ -356,7 +356,9 @@ export type ErrorCode =
   | 'CARD_NOT_IN_HAND'
   | 'ILLEGAL_CARD'
   | 'INVALID_TRUMP'
-  | 'INVALID_SETTINGS';
+  | 'INVALID_SETTINGS'
+  | 'INSUFFICIENT_FUNDS'
+  | 'ILLEGAL_MOVE';
 
 export interface MsgError {
   type: 'error';

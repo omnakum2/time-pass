@@ -44,4 +44,6 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   ILLEGAL_CARD: 'You must follow the lead suit if you can.',
   INVALID_TRUMP: 'That trump choice is not allowed.',
   INVALID_SETTINGS: 'Those room settings are not allowed.',
+  INSUFFICIENT_FUNDS: "You don't have enough cash for that.",
+  ILLEGAL_MOVE: "You can't do that here.",
 };
