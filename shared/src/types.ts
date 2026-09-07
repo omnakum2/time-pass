@@ -184,6 +184,20 @@ export interface TileOwnership {
   hotel: boolean;
 }
 
+// A negotiated player-to-player deal (async — never pauses the turn clock). The
+// proposer offers a bundle (cash + land deeds + buildings) and requests one back.
+export interface BusinessDeal {
+  id: string;
+  from: string;               // proposer playerId
+  to: string;                 // target playerId
+  offerCash: number;          // proposer → target
+  offerLand: number[];        // tile positions whose LAND the proposer gives
+  offerBuildings: number[];   // tile positions whose BUILDINGS the proposer gives
+  requestCash: number;        // target → proposer
+  requestLand: number[];      // tile positions whose LAND the target gives
+  requestBuildings: number[]; // tile positions whose BUILDINGS the target gives
+}
+
 export interface BusinessState extends BaseRoomState {
   game: 'business';
   phase: 'LOBBY' | 'ROLLING' | 'BUYING' | 'GAME_OVER'; // narrows BaseRoomState.phase
@@ -194,6 +208,7 @@ export interface BusinessState extends BaseRoomState {
   ownership: Record<number, TileOwnership>;  // tile index → ownership (public)
   bankrupt: string[];                        // eliminated playerIds
   skipNext: string[];                        // playerIds who miss their next turn (CLUB / REST HOUSE)
+  pendingDeals: BusinessDeal[];              // open trade offers (public)
 }
 
 // ─── WebSocket messages: Client → Server ────────────────────────────────────
@@ -287,6 +302,15 @@ export interface MsgBusinessBuild { type: 'businessBuild'; pos: number; kind: 'h
 export interface MsgBusinessSell { type: 'businessSell'; pos: number; kind: 'house' | 'hotel'; }   // sell a building back to the bank
 export interface MsgBusinessMortgage { type: 'businessMortgage'; pos: number; }     // mortgage your land to the bank
 export interface MsgBusinessUnmortgage { type: 'businessUnmortgage'; pos: number; } // repay + lift the mortgage
+export interface MsgBusinessProposeDeal {
+  type: 'businessProposeDeal';
+  to: string;
+  offerCash: number; offerLand: number[]; offerBuildings: number[];
+  requestCash: number; requestLand: number[]; requestBuildings: number[];
+}
+export interface MsgBusinessAcceptDeal { type: 'businessAcceptDeal'; dealId: string; }
+export interface MsgBusinessRejectDeal { type: 'businessRejectDeal'; dealId: string; }
+export interface MsgBusinessCancelDeal { type: 'businessCancelDeal'; dealId: string; }
 export interface MsgBusinessEndTurn { type: 'businessEndTurn'; }  // end your turn
 
 export type ClientMessage =
@@ -311,6 +335,10 @@ export type ClientMessage =
   | MsgBusinessSell
   | MsgBusinessMortgage
   | MsgBusinessUnmortgage
+  | MsgBusinessProposeDeal
+  | MsgBusinessAcceptDeal
+  | MsgBusinessRejectDeal
+  | MsgBusinessCancelDeal
   | MsgBusinessEndTurn;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────

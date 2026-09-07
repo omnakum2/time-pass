@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { BOARD, BoardTile, GLOBALS, isProperty } from 'shared';
 import { useBusinessStore } from '../store/businessStore';
 import { useSessionStore } from '../store/sessionStore';
 import { sendMsg } from '../net/socket';
 import { Announcement } from './Announcement';
+import { BusinessDealModal } from './BusinessDealModal';
 import '../styles/business.css';
 
 /**
@@ -37,16 +39,32 @@ function priceOf(t: BoardTile): number | null {
   return null;
 }
 
+// Plain-English list of one side of a deal ("Mumbai + New Delhi buildings + ₹1,000").
+function bundleSummary(cash: number, land: number[], buildings: number[]): string {
+  const parts: string[] = [];
+  land.forEach((pos) => parts.push(BOARD[pos].name));
+  buildings.forEach((pos) => parts.push(`${BOARD[pos].name} buildings`));
+  if (cash > 0) parts.push(`₹${cash.toLocaleString('en-IN')}`);
+  return parts.length ? parts.join(' + ') : 'nothing';
+}
+
 export function BusinessTable() {
   const { state } = useBusinessStore();
   const { playerId } = useSessionStore();
+  const [dealOpen, setDealOpen] = useState(false);
 
   if (!state || !playerId) {
     return <div className="page"><p>Loading…</p></div>;
   }
 
-  const { players, positions, cash, colours, ownership, currentTurn, bankrupt, skipNext } = state;
+  const { players, positions, cash, colours, ownership, currentTurn, bankrupt, skipNext, pendingDeals } = state;
   const nameOf = (id: string) => players.find(p => p.id === id)?.name ?? id;
+
+  // ─── Deals (async — available whenever the board is live, not turn-gated) ──────
+  const dealsLive = state.phase === 'ROLLING' || state.phase === 'BUYING';
+  const incomingDeals = dealsLive ? pendingDeals.filter((d) => d.to === playerId) : [];
+  const outgoingDeals = dealsLive ? pendingDeals.filter((d) => d.from === playerId) : [];
+  const bankruptMe = bankrupt.includes(playerId);
 
   // Whose turn + what the current player may do this step.
   const myTurn = currentTurn === playerId;
@@ -281,6 +299,81 @@ export function BusinessTable() {
           </div>
         </div>
       )}
+
+      {/* ── Deals panel (async — any live player, not turn-gated) ───────────────*/}
+      {dealsLive && !bankruptMe && (
+        <div className="business-deals-panel">
+          <div className="business-deals-panel__head">
+            <span className="business-deals-panel__title">Deals</span>
+            <button
+              type="button"
+              className="business-mini-btn"
+              onClick={() => setDealOpen(true)}
+            >
+              + Propose deal
+            </button>
+          </div>
+
+          {incomingDeals.length === 0 && outgoingDeals.length === 0 && (
+            <div className="business-deal-empty">No open deals. Propose one to start trading.</div>
+          )}
+
+          {incomingDeals.map((d) => (
+            <div key={d.id} className="business-deal-card business-deal-card--in">
+              <div className="business-deal-card__text">
+                <strong>From {nameOf(d.from)}</strong>
+                <span className="business-deal-card__leg"> — You get: {bundleSummary(d.offerCash, d.offerLand, d.offerBuildings)}</span>
+                <span className="business-deal-card__sep"> · </span>
+                <span className="business-deal-card__leg">You give: {bundleSummary(d.requestCash, d.requestLand, d.requestBuildings)}</span>
+              </div>
+              <div className="business-deal-card__btns">
+                <button
+                  type="button"
+                  className="business-mini-btn"
+                  onClick={() => sendMsg({ type: 'businessAcceptDeal', dealId: d.id })}
+                >
+                  Accept
+                </button>
+                <button
+                  type="button"
+                  className="business-mini-btn business-mini-btn--sell"
+                  onClick={() => sendMsg({ type: 'businessRejectDeal', dealId: d.id })}
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {outgoingDeals.map((d) => (
+            <div key={d.id} className="business-deal-card business-deal-card--out">
+              <div className="business-deal-card__text">
+                <strong>To {nameOf(d.to)}</strong>
+                <span className="business-deal-card__leg"> — You give: {bundleSummary(d.offerCash, d.offerLand, d.offerBuildings)}</span>
+                <span className="business-deal-card__sep"> · </span>
+                <span className="business-deal-card__leg">You get: {bundleSummary(d.requestCash, d.requestLand, d.requestBuildings)}</span>
+                <span className="business-deal-card__pending"> (pending)</span>
+              </div>
+              <div className="business-deal-card__btns">
+                <button
+                  type="button"
+                  className="business-mini-btn business-mini-btn--sell"
+                  onClick={() => sendMsg({ type: 'businessCancelDeal', dealId: d.id })}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <BusinessDealModal
+        open={dealOpen}
+        onClose={() => setDealOpen(false)}
+        state={state}
+        playerId={playerId}
+      />
 
       {/* ── Cash panel ─────────────────────────────────────────────────────────*/}
       <div className="business-cash-panel">

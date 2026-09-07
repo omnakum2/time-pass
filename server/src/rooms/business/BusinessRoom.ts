@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
+import { randomUUID } from 'crypto';
 import {
-  Announcement, ClientMessage, ErrorCode, BusinessState, TileOwnership,
+  Announcement, ClientMessage, ErrorCode, BusinessState, TileOwnership, BusinessDeal, MsgBusinessProposeDeal,
   GLOBALS, PLAYER_COLOURS, GAMES, BoardTile, PropertyTile, CardTile, CHANCE, COMMUNITY_CHEST,
   rollDice, diceTotal, advance, tileAt,
 } from 'shared';
@@ -33,6 +34,8 @@ export class BusinessRoom extends BaseRoom {
   private ownership: Record<number, TileOwnership> = {}; // tile index → ownership (public)
   private bankrupt: string[] = [];                   // eliminated playerIds
   private skipNext = new Set<string>();              // parked by CLUB / REST HOUSE — miss next turn
+  private pendingDeals: BusinessDeal[] = [];         // open trade offers (public)
+  private dealCooldownUntil: Record<string, number> = {}; // `${from}:${to}` → epoch ms a re-offer is allowed
 
   private announcement: Announcement | null = null;  // banner (phase intro / milestones)
   private announcementTimer: ReturnType<typeof setTimeout> | null = null;
@@ -98,6 +101,8 @@ export class BusinessRoom extends BaseRoom {
     this.ownership = {};
     this.bankrupt = [];
     this.skipNext.clear();
+    this.pendingDeals = [];
+    this.dealCooldownUntil = {};
     this.currentTurnSeatIndex = 0;
     this.setAnnouncement(null);
 
@@ -123,6 +128,8 @@ export class BusinessRoom extends BaseRoom {
     this.ownership = {};
     this.bankrupt = [];
     this.skipNext.clear();
+    this.pendingDeals = [];
+    this.dealCooldownUntil = {};
     this.currentTurnSeatIndex = 0;
     this.phase = 'ROLLING';
     this.setAnnouncement({ variant: 'intro', title: 'Business begins — roll to move!' });
@@ -516,6 +523,7 @@ export class BusinessRoom extends BaseRoom {
     });
     this.cash[playerId] = 0;
     if (!this.bankrupt.includes(playerId)) this.bankrupt.push(playerId);
+    this.pendingDeals = this.pendingDeals.filter((d) => d.from !== playerId && d.to !== playerId);
     this.setAnnouncement({ variant: 'intro', title: `${this.nameOf(playerId)} is BANKRUPT — out of the game` });
     const alive = this.seats.filter((s) => !this.bankrupt.includes(s.player.id));
     if (alive.length <= 1) {
@@ -523,6 +531,94 @@ export class BusinessRoom extends BaseRoom {
       this.cancelTurnTimer();
       this.startGameOverTimer();
     }
+  }
+
+  // ─── Deals (Phase 6b): async player-to-player trade / sale ───────────────────
+
+  private isActivePlayer(pid: string): boolean {
+    return this.seats.some((s) => s.player.id === pid) && !this.bankrupt.includes(pid);
+  }
+
+  // A deal is executable only while BOTH sides still hold everything it moves.
+  private dealAssetsValid(d: BusinessDeal): boolean {
+    if ((this.cash[d.from] ?? 0) < d.offerCash) return false;
+    if ((this.cash[d.to] ?? 0) < d.requestCash) return false;
+    const landOf = (pid: string, pos: number) => this.ownership[pos]?.land === pid;
+    const buildOf = (pid: string, pos: number) => this.ownership[pos]?.buildingOwner === pid;
+    return d.offerLand.every((p) => landOf(d.from, p))
+      && d.offerBuildings.every((p) => buildOf(d.from, p))
+      && d.requestLand.every((p) => landOf(d.to, p))
+      && d.requestBuildings.every((p) => buildOf(d.to, p));
+  }
+
+  // Propose a bundle-for-bundle trade to another player. Async — allowed any time
+  // the game is live, by anyone, and never touches the turn clock.
+  private businessProposeDeal(fromId: string, msg: MsgBusinessProposeDeal): ErrorCode | null {
+    if (this.phase !== 'ROLLING' && this.phase !== 'BUYING') return 'WRONG_PHASE';
+    const toId = msg.to;
+    if (toId === fromId || !this.isActivePlayer(fromId) || !this.isActivePlayer(toId)) return 'ILLEGAL_MOVE';
+    if ((this.dealCooldownUntil[`${fromId}:${toId}`] ?? 0) > Date.now()) return 'ILLEGAL_MOVE'; // 5-min per-pair cooldown
+    const clampCash = (n: number) => (Number.isFinite(n) && n > 0 ? Math.floor(n) : 0);
+    const deal: BusinessDeal = {
+      id: randomUUID(),
+      from: fromId,
+      to: toId,
+      offerCash: clampCash(msg.offerCash),
+      offerLand: [...new Set(msg.offerLand)],
+      offerBuildings: [...new Set(msg.offerBuildings)],
+      requestCash: clampCash(msg.requestCash),
+      requestLand: [...new Set(msg.requestLand)],
+      requestBuildings: [...new Set(msg.requestBuildings)],
+    };
+    const moves = deal.offerCash + deal.requestCash
+      + deal.offerLand.length + deal.offerBuildings.length
+      + deal.requestLand.length + deal.requestBuildings.length;
+    if (moves === 0 || !this.dealAssetsValid(deal)) return 'ILLEGAL_MOVE';
+    // One pending offer per proposer→target pair (a new one replaces the old).
+    this.pendingDeals = this.pendingDeals.filter((d) => !(d.from === fromId && d.to === toId));
+    this.pendingDeals.push(deal);
+    this.setAnnouncement({ variant: 'intro', title: `${this.nameOf(fromId)} sent ${this.nameOf(toId)} a deal` });
+    this.broadcastState();
+    return null;
+  }
+
+  private businessAcceptDeal(toId: string, dealId: string): ErrorCode | null {
+    const deal = this.pendingDeals.find((d) => d.id === dealId && d.to === toId);
+    if (!deal) return 'ILLEGAL_MOVE';
+    if (!this.dealAssetsValid(deal)) { // stale — an asset moved since it was offered
+      this.pendingDeals = this.pendingDeals.filter((d) => d.id !== dealId);
+      this.broadcastState();
+      return 'ILLEGAL_MOVE';
+    }
+    this.cash[deal.from] = (this.cash[deal.from] ?? 0) - deal.offerCash + deal.requestCash;
+    this.cash[deal.to] = (this.cash[deal.to] ?? 0) + deal.offerCash - deal.requestCash;
+    deal.offerLand.forEach((p) => { this.ownership[p].land = deal.to; });
+    deal.offerBuildings.forEach((p) => { this.ownership[p].buildingOwner = deal.to; });
+    deal.requestLand.forEach((p) => { this.ownership[p].land = deal.from; });
+    deal.requestBuildings.forEach((p) => { this.ownership[p].buildingOwner = deal.from; });
+    // Drop this deal + any others the transfer just made stale.
+    this.pendingDeals = this.pendingDeals.filter((d) => d.id !== dealId && this.dealAssetsValid(d));
+    this.setAnnouncement({ variant: 'intro', title: `${this.nameOf(deal.from)} and ${this.nameOf(deal.to)} completed a deal` });
+    this.broadcastState();
+    return null;
+  }
+
+  private businessRejectDeal(toId: string, dealId: string): ErrorCode | null {
+    const deal = this.pendingDeals.find((d) => d.id === dealId && d.to === toId);
+    if (!deal) return 'ILLEGAL_MOVE';
+    this.pendingDeals = this.pendingDeals.filter((d) => d.id !== dealId);
+    this.dealCooldownUntil[`${deal.from}:${deal.to}`] = Date.now() + GLOBALS.rejectCooldownMs;
+    this.setAnnouncement({ variant: 'intro', title: `${this.nameOf(toId)} rejected ${this.nameOf(deal.from)}'s deal` });
+    this.broadcastState();
+    return null;
+  }
+
+  private businessCancelDeal(fromId: string, dealId: string): ErrorCode | null {
+    const deal = this.pendingDeals.find((d) => d.id === dealId && d.from === fromId);
+    if (!deal) return 'ILLEGAL_MOVE';
+    this.pendingDeals = this.pendingDeals.filter((d) => d.id !== dealId);
+    this.broadcastState();
+    return null;
   }
 
   // End the current turn and hand off to the next non-bankrupt seat, consuming (and
@@ -599,6 +695,7 @@ export class BusinessRoom extends BaseRoom {
       ownership: this.ownership,
       bankrupt: this.bankrupt,
       skipNext: [...this.skipNext],
+      pendingDeals: this.pendingDeals,
       currentTurn: this.currentTurnPlayerId() || null,
       turnTimeoutMs: PLAY_TIMEOUT_MS,
       turnExpiresAt: turnActive ? this.turnExpiresAt : null,
@@ -637,6 +734,10 @@ export class BusinessRoom extends BaseRoom {
       case 'businessSell':       return this.businessSell(playerId, msg.pos, msg.kind);
       case 'businessMortgage':   return this.businessMortgage(playerId, msg.pos);
       case 'businessUnmortgage': return this.businessUnmortgage(playerId, msg.pos);
+      case 'businessProposeDeal': return this.businessProposeDeal(playerId, msg);
+      case 'businessAcceptDeal':  return this.businessAcceptDeal(playerId, msg.dealId);
+      case 'businessRejectDeal':  return this.businessRejectDeal(playerId, msg.dealId);
+      case 'businessCancelDeal':  return this.businessCancelDeal(playerId, msg.dealId);
       case 'businessEndTurn':    return this.businessEndTurn(playerId);
       default:                   return null; // not a message this game handles
     }

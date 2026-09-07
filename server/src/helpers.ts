@@ -88,6 +88,16 @@ export function validateMessage(msg: ClientMessage): ErrorCode | null {
     case 'businessMortgage':
     case 'businessUnmortgage':
       return Number.isInteger(msg.pos) ? null : 'BAD_MESSAGE';
+    case 'businessProposeDeal':
+      return typeof msg.to === 'string'
+        && typeof msg.offerCash === 'number' && typeof msg.requestCash === 'number'
+        && [msg.offerLand, msg.offerBuildings, msg.requestLand, msg.requestBuildings]
+          .every((a) => Array.isArray(a) && a.every((n) => Number.isInteger(n)))
+        ? null : 'BAD_MESSAGE';
+    case 'businessAcceptDeal':
+    case 'businessRejectDeal':
+    case 'businessCancelDeal':
+      return typeof msg.dealId === 'string' ? null : 'BAD_MESSAGE';
     case 'startGame':
     case 'restartGame':
     case 'leaveRoom':

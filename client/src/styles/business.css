@@ -328,3 +328,149 @@
   padding: 0 3px;
   z-index: 1;
 }
+
+/* ─── Deals (async player-to-player trades) ───────────────────────────────────*/
+.business-deals-panel {
+  width: min(92vw, 720px);
+  background: var(--surface);
+  border: 1px solid var(--game-primary);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.business-deals-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.business-deals-panel__title {
+  font-weight: 800;
+  color: var(--game-primary);
+}
+
+.business-deal-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-2);
+}
+.business-deal-card--in { border-left: 3px solid var(--game-primary); }
+.business-deal-card--out { opacity: 0.92; }
+.business-deal-card__text {
+  flex: 1 1 260px;
+  min-width: 0;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.business-deal-card__leg { opacity: 0.95; }
+.business-deal-card__sep { opacity: 0.55; }
+.business-deal-card__pending { opacity: 0.6; font-style: italic; }
+.business-deal-card__btns {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+
+/* ─── Propose-deal modal form ─────────────────────────────────────────────────*/
+.business-deal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: min(86vw, 460px);
+}
+.business-deal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.business-deal-label {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--game-primary);
+}
+.business-deal-select {
+  font: inherit;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--game-primary);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.business-deal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--surface-2);
+}
+.business-deal-section__title {
+  font-weight: 800;
+  color: var(--game-primary);
+}
+.business-deal-section__who { font-weight: 700; }
+.business-deal-empty {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  color: var(--ink);
+}
+.business-deal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.business-deal-chip {
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--surface-2);
+  background: var(--surface-2);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.business-deal-chip:hover { border-color: var(--game-primary); }
+.business-deal-chip--on {
+  background: var(--game-primary);
+  border-color: var(--game-primary);
+  color: #fff;
+}
+.business-deal-cash {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+.business-deal-cash input {
+  font: inherit;
+  width: 130px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--surface-2);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.business-deal-cash__hint { opacity: 0.6; }
+.business-deal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.business-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
