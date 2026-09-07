@@ -313,3 +313,18 @@
   font-weight: 800;
   color: var(--game-primary);
 }
+.business-cash-row__cash--debt { color: #e5484d; }
+
+.business-tile__mort {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 0.42rem;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  color: #fff;
+  background: rgba(180, 40, 40, 0.88);
+  border-radius: 3px;
+  padding: 0 3px;
+  z-index: 1;
+}

@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 import {
   Announcement, ClientMessage, ErrorCode, BusinessState, TileOwnership,
-  GLOBALS, PLAYER_COLOURS, GAMES, BoardTile, CardTile, CHANCE, COMMUNITY_CHEST,
+  GLOBALS, PLAYER_COLOURS, GAMES, BoardTile, PropertyTile, CardTile, CHANCE, COMMUNITY_CHEST,
   rollDice, diceTotal, advance, tileAt,
 } from 'shared';
 import { PLAY_TIMEOUT_MS, ANNOUNCE_MS } from '../../constants';
@@ -228,14 +228,15 @@ export class BusinessRoom extends BaseRoom {
         return `−₹${amount.toLocaleString('en-IN')} ${tile.name}`;
       }
       case 'property':
+        return this.chargePropertyRent(playerId, pos, tile);
       case 'station':
       case 'utility': {
         const own = this.ownership[pos];
-        if (!own || !own.land || own.land === playerId) return null; // unowned (buyable) or yours → no rent
+        if (!own || !own.land || own.land === playerId) return null; // unowned or yours → no rent
         const rent = this.rentFor(tile, own, total);
         if (rent <= 0) return null;
         this.cash[playerId] = (this.cash[playerId] ?? 0) - rent;
-        const payee = own.mortgaged ? null : own.land; // mortgaged land's site rent → bank (Phase 6)
+        const payee = own.mortgaged ? null : own.land; // mortgaged → site rent to the bank
         if (payee) this.cash[payee] = (this.cash[payee] ?? 0) + rent;
         return `−₹${rent.toLocaleString('en-IN')} rent → ${payee ? this.nameOf(payee) : 'the bank'} (${tile.name})`;
       }
@@ -321,15 +322,38 @@ export class BusinessRoom extends BaseRoom {
     }
   }
 
-  // Rent on landing. Bare property = site rent; a developed property charges
-  // houseRent[houses] + hotelRent instead (the same owner holds land + buildings
-  // in Phase 4 — split ownership arrives in Phase 6).
-  private rentFor(tile: BoardTile, own: TileOwnership, total: number): number {
-    if (tile.type === 'property') {
-      if (own.houses <= 0 && !own.hotel) return tile.siteRent;
-      const houseR = own.houses > 0 ? tile.houseRent[own.houses - 1] : 0;
-      return houseR + (own.hotel ? tile.hotelRent : 0);
+  // Property rent with SPLIT land/building ownership (Phase 6). Site rent → the
+  // land owner (the bank if the land is mortgaged); building rent → the building
+  // owner (may differ once buildings are sold). For a same-owner, unmortgaged,
+  // developed tile the site is "covered" (building rent only). The lander pays
+  // nothing on the portions it already owns.
+  private chargePropertyRent(landerId: string, pos: number, tile: PropertyTile): string | null {
+    const own = this.ownership[pos];
+    if (!own || !own.land) return null; // unowned → buyable, no rent
+    const developed = own.houses > 0 || own.hotel;
+    const buildAmt = developed
+      ? (own.houses > 0 ? tile.houseRent[own.houses - 1] : 0) + (own.hotel ? tile.hotelRent : 0)
+      : 0;
+    const sameOwner = own.buildingOwner === null || own.buildingOwner === own.land;
+    const siteCovered = developed && sameOwner && !own.mortgaged; // buildings absorb the site
+    const siteAmt = siteCovered ? 0 : tile.siteRent;
+    const parts: string[] = [];
+    if (own.land !== landerId && siteAmt > 0) {
+      this.cash[landerId] = (this.cash[landerId] ?? 0) - siteAmt;
+      const sitePayee = own.mortgaged ? null : own.land;
+      if (sitePayee) this.cash[sitePayee] = (this.cash[sitePayee] ?? 0) + siteAmt;
+      parts.push(`−₹${siteAmt.toLocaleString('en-IN')} site → ${sitePayee ? this.nameOf(sitePayee) : 'the bank'}`);
     }
+    if (developed && own.buildingOwner && own.buildingOwner !== landerId && buildAmt > 0) {
+      this.cash[landerId] = (this.cash[landerId] ?? 0) - buildAmt;
+      this.cash[own.buildingOwner] = (this.cash[own.buildingOwner] ?? 0) + buildAmt;
+      parts.push(`−₹${buildAmt.toLocaleString('en-IN')} buildings → ${this.nameOf(own.buildingOwner)}`);
+    }
+    return parts.length ? `${parts.join(' · ')} (${tile.name})` : null;
+  }
+
+  // Station / utility rent (single payee = land owner, or the bank if mortgaged).
+  private rentFor(tile: BoardTile, own: TileOwnership, total: number): number {
     if (tile.type === 'station') {
       const n = this.tilesOfTypeOwnedBy(own.land!, 'station');
       return GLOBALS.stationRent[Math.max(0, Math.min(n, GLOBALS.stationRent.length) - 1)] ?? 0;
@@ -423,14 +447,95 @@ export class BusinessRoom extends BaseRoom {
     return null;
   }
 
+  // ─── Mortgage / liquidity (Phase 6) ─────────────────────────────────────────
+
+  // Mortgage a buyable tile you own the land of → raise ½ its price; its site rent
+  // goes to the bank until you lift the mortgage. Buildings are unaffected.
+  private businessMortgage(playerId: string, pos: number): ErrorCode | null {
+    if (this.phase !== 'BUYING') return 'WRONG_PHASE';
+    if (playerId !== this.currentTurnPlayerId()) return 'NOT_YOUR_TURN';
+    const own = this.ownership[pos];
+    const price = this.priceOf(tileAt(pos));
+    if (price == null || !own || own.land !== playerId || own.mortgaged) return 'ILLEGAL_MOVE';
+    const payout = Math.round(price * GLOBALS.mortgageRate);
+    own.mortgaged = true;
+    this.cash[playerId] = (this.cash[playerId] ?? 0) + payout;
+    this.setAnnouncement({ variant: 'intro', title: `${this.nameOf(playerId)} mortgaged ${tileAt(pos).name} (+₹${payout.toLocaleString('en-IN')})` });
+    this.broadcastState();
+    return null;
+  }
+
+  // Lift a mortgage by repaying the payout plus interest.
+  private businessUnmortgage(playerId: string, pos: number): ErrorCode | null {
+    if (this.phase !== 'BUYING') return 'WRONG_PHASE';
+    if (playerId !== this.currentTurnPlayerId()) return 'NOT_YOUR_TURN';
+    const own = this.ownership[pos];
+    const price = this.priceOf(tileAt(pos));
+    if (price == null || !own || own.land !== playerId || !own.mortgaged) return 'ILLEGAL_MOVE';
+    const cost = Math.round(price * GLOBALS.mortgageRate * (1 + GLOBALS.unmortgageInterest));
+    if ((this.cash[playerId] ?? 0) < cost) return 'INSUFFICIENT_FUNDS';
+    own.mortgaged = false;
+    this.cash[playerId] = (this.cash[playerId] ?? 0) - cost;
+    this.setAnnouncement({ variant: 'intro', title: `${this.nameOf(playerId)} lifted the mortgage on ${tileAt(pos).name} (−₹${cost.toLocaleString('en-IN')})` });
+    this.broadcastState();
+    return null;
+  }
+
+  // ─── Insolvency & bankruptcy (Phase 6) ──────────────────────────────────────
+
+  // Raise cash to clear a negative balance: force-sell buildings (½ cost) then
+  // mortgage land (½ price), one asset at a time, stopping as soon as solvent.
+  private autoLiquidate(playerId: string): void {
+    for (const [posStr, o] of Object.entries(this.ownership)) {
+      const tile = tileAt(Number(posStr));
+      while ((this.cash[playerId] ?? 0) < 0 && o.buildingOwner === playerId && tile.type === 'property' && (o.hotel || o.houses > 0)) {
+        this.cash[playerId] = (this.cash[playerId] ?? 0) + Math.round(tile.buildCost * 0.5);
+        if (o.hotel) o.hotel = false; else o.houses -= 1;
+        if (o.houses === 0 && !o.hotel) o.buildingOwner = null;
+      }
+    }
+    for (const [posStr, o] of Object.entries(this.ownership)) {
+      if ((this.cash[playerId] ?? 0) >= 0) break;
+      const price = this.priceOf(tileAt(Number(posStr)));
+      if (price != null && o.land === playerId && !o.mortgaged) {
+        this.cash[playerId] = (this.cash[playerId] ?? 0) + Math.round(price * GLOBALS.mortgageRate);
+        o.mortgaged = true;
+      }
+    }
+  }
+
+  // A player who ends a turn in the red is force-liquidated; still short → bankrupt
+  // (tiles return to the bank) and eliminated. Last player standing wins.
+  private resolveInsolvency(playerId: string): void {
+    if ((this.cash[playerId] ?? 0) >= 0) return;
+    this.autoLiquidate(playerId);
+    if ((this.cash[playerId] ?? 0) >= 0) return; // recovered
+    Object.keys(this.ownership).forEach((k) => {
+      const o = this.ownership[Number(k)];
+      if (o.land === playerId || o.buildingOwner === playerId) delete this.ownership[Number(k)];
+    });
+    this.cash[playerId] = 0;
+    if (!this.bankrupt.includes(playerId)) this.bankrupt.push(playerId);
+    this.setAnnouncement({ variant: 'intro', title: `${this.nameOf(playerId)} is BANKRUPT — out of the game` });
+    const alive = this.seats.filter((s) => !this.bankrupt.includes(s.player.id));
+    if (alive.length <= 1) {
+      this.phase = 'GAME_OVER';
+      this.cancelTurnTimer();
+      this.startGameOverTimer();
+    }
+  }
+
   // End the current turn and hand off to the next non-bankrupt seat, consuming (and
   // announcing) a CLUB/REST-HOUSE skip for anyone parked. Clears the dice for the new turn.
   private businessEndTurn(playerId: string): ErrorCode | null {
     if (this.phase !== 'BUYING') return 'WRONG_PHASE';
     if (playerId !== this.currentTurnPlayerId()) return 'NOT_YOUR_TURN';
-    // Doubles let the SAME player roll again (no 3-doubles→jail rule); otherwise
-    // hand off. Read the still-set dice before clearing it for the next roll.
-    const doubles = !!this.dice && this.dice[0] === this.dice[1];
+    // Settle any debt from this turn: force-liquidate, else bankrupt (may end the game).
+    this.resolveInsolvency(playerId);
+    if (this.getPhase() === 'GAME_OVER') { this.broadcastState(); return null; }
+    // Doubles let the SAME player roll again (unless they just went bankrupt); read
+    // the still-set dice before clearing it for the next roll.
+    const doubles = !this.bankrupt.includes(playerId) && !!this.dice && this.dice[0] === this.dice[1];
     this.dice = null;
     if (doubles) {
       this.setAnnouncement({ variant: 'intro', title: `${this.nameOf(playerId)} rolls again (doubles)` });
@@ -530,6 +635,8 @@ export class BusinessRoom extends BaseRoom {
       case 'businessBuy':        return this.businessBuy(playerId);
       case 'businessBuild':      return this.businessBuild(playerId, msg.pos, msg.kind);
       case 'businessSell':       return this.businessSell(playerId, msg.pos, msg.kind);
+      case 'businessMortgage':   return this.businessMortgage(playerId, msg.pos);
+      case 'businessUnmortgage': return this.businessUnmortgage(playerId, msg.pos);
       case 'businessEndTurn':    return this.businessEndTurn(playerId);
       default:                   return null; // not a message this game handles
     }

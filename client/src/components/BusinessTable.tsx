@@ -62,12 +62,20 @@ export function BusinessTable() {
     (cash[playerId] ?? 0) >= myTilePrice;
   const isDoubles = Boolean(state.dice && state.dice[0] === state.dice[1]);
 
-  // Buildable = my property tiles where I own ≥ threshold of that colour (build gate).
+  // My deeds (buyable tiles I own the LAND of). Mortgage on any; build/sell only on
+  // a buildable property (I own ≥ threshold of its colour). Precompute per row so the
+  // JSX stays type-clean.
   const myProps = BOARD.filter(isProperty).filter((t) => ownership[t.pos]?.land === playerId);
   const myColourCount: Record<string, number> = {};
   myProps.forEach((t) => { myColourCount[t.colour] = (myColourCount[t.colour] ?? 0) + 1; });
-  const buildableTiles = canEnd
-    ? myProps.filter((t) => (myColourCount[t.colour] ?? 0) >= GLOBALS.buildColourThreshold)
+  const deedRows = canEnd
+    ? BOARD.filter((t) => 'price' in t && ownership[t.pos]?.land === playerId).map((t) => ({
+        t,
+        own: ownership[t.pos]!,
+        price: 'price' in t ? t.price : 0,
+        buildable: isProperty(t) && (myColourCount[t.colour] ?? 0) >= GLOBALS.buildColourThreshold,
+        buildCost: isProperty(t) ? t.buildCost : 0,
+      }))
     : [];
 
   // Tokens grouped by the tile they sit on, so a tile can stack multiple tokens.
@@ -106,6 +114,8 @@ export function BusinessTable() {
               >
                 {ownerId ? nameOf(ownerId) : 'Bank'}
               </div>
+
+              {own?.mortgaged && <div className="business-tile__mort">MORT</div>}
 
               {own && (own.houses > 0 || own.hotel) && (
                 <div className="business-tile__pips">
@@ -198,45 +208,71 @@ export function BusinessTable() {
         </div>
       </div>
 
-      {/* ── Build panel (your turn, colour-gate met) ───────────────────────────*/}
-      {buildableTiles.length > 0 && (
+      {/* ── Deeds panel (your turn): build · mortgage ──────────────────────────*/}
+      {deedRows.length > 0 && (
         <div className="business-build-panel">
-          <div className="business-build-panel__title">Build on your properties</div>
+          <div className="business-build-panel__title">Your deeds — build · mortgage</div>
           <div className="business-build-panel__rows">
-            {buildableTiles.map((t) => {
-              const o = ownership[t.pos]!;
-              const canAfford = (cash[playerId] ?? 0) >= t.buildCost;
+            {deedRows.map(({ t, own, price, buildable, buildCost }) => {
+              const canAffordBuild = (cash[playerId] ?? 0) >= buildCost;
+              const payout = Math.round(price * GLOBALS.mortgageRate);
+              const unmortgageCost = Math.round(price * GLOBALS.mortgageRate * (1 + GLOBALS.unmortgageInterest));
               return (
                 <div key={t.pos} className="business-build-row">
-                  <span className="business-build-row__name" style={{ color: GROUP_COLOUR[t.colour] }}>
-                    {t.name}
-                  </span>
-                  <span className="business-build-row__state">
-                    🏠{o.houses}{o.hotel ? ' 🏨' : ''}
-                  </span>
-                  <button
-                    type="button"
-                    className="business-mini-btn"
-                    disabled={o.houses >= GLOBALS.maxHouses || !canAfford}
-                    onClick={() => sendMsg({ type: 'businessBuild', pos: t.pos, kind: 'house' })}
+                  <span
+                    className="business-build-row__name"
+                    style={isProperty(t) ? { color: GROUP_COLOUR[t.colour] } : undefined}
                   >
-                    +House ₹{t.buildCost.toLocaleString('en-IN')}
-                  </button>
-                  <button
-                    type="button"
-                    className="business-mini-btn"
-                    disabled={o.hotel || !canAfford}
-                    onClick={() => sendMsg({ type: 'businessBuild', pos: t.pos, kind: 'hotel' })}
-                  >
-                    +Hotel
-                  </button>
-                  {(o.houses > 0 || o.hotel) && (
+                    {t.name}{own.mortgaged ? ' · mortgaged' : ''}
+                  </span>
+                  {buildable && (
+                    <>
+                      <span className="business-build-row__state">
+                        🏠{own.houses}{own.hotel ? ' 🏨' : ''}
+                      </span>
+                      <button
+                        type="button"
+                        className="business-mini-btn"
+                        disabled={own.houses >= GLOBALS.maxHouses || !canAffordBuild}
+                        onClick={() => sendMsg({ type: 'businessBuild', pos: t.pos, kind: 'house' })}
+                      >
+                        +House ₹{buildCost.toLocaleString('en-IN')}
+                      </button>
+                      <button
+                        type="button"
+                        className="business-mini-btn"
+                        disabled={own.hotel || !canAffordBuild}
+                        onClick={() => sendMsg({ type: 'businessBuild', pos: t.pos, kind: 'hotel' })}
+                      >
+                        +Hotel
+                      </button>
+                      {(own.houses > 0 || own.hotel) && (
+                        <button
+                          type="button"
+                          className="business-mini-btn business-mini-btn--sell"
+                          onClick={() => sendMsg({ type: 'businessSell', pos: t.pos, kind: own.hotel ? 'hotel' : 'house' })}
+                        >
+                          Sell {own.hotel ? 'hotel' : 'house'} ½
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {!own.mortgaged ? (
                     <button
                       type="button"
                       className="business-mini-btn business-mini-btn--sell"
-                      onClick={() => sendMsg({ type: 'businessSell', pos: t.pos, kind: o.hotel ? 'hotel' : 'house' })}
+                      onClick={() => sendMsg({ type: 'businessMortgage', pos: t.pos })}
                     >
-                      Sell {o.hotel ? 'hotel' : 'house'} ½
+                      Mortgage +₹{payout.toLocaleString('en-IN')}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="business-mini-btn"
+                      disabled={(cash[playerId] ?? 0) < unmortgageCost}
+                      onClick={() => sendMsg({ type: 'businessUnmortgage', pos: t.pos })}
+                    >
+                      Unmortgage −₹{unmortgageCost.toLocaleString('en-IN')}
                     </button>
                   )}
                 </div>
@@ -264,7 +300,7 @@ export function BusinessTable() {
                 {isBankrupt && <span className="tag-faint" style={{ marginLeft: 4 }}>(bankrupt)</span>}
                 {skipNext.includes(p.id) && <span className="tag-faint" style={{ marginLeft: 4 }}>(skips next)</span>}
               </span>
-              <span className="business-cash-row__cash">₹{(cash[p.id] ?? 0).toLocaleString('en-IN')}</span>
+              <span className={`business-cash-row__cash${(cash[p.id] ?? 0) < 0 ? ' business-cash-row__cash--debt' : ''}`}>₹{(cash[p.id] ?? 0).toLocaleString('en-IN')}</span>
             </div>
           );
         })}

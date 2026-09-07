@@ -285,6 +285,8 @@ export interface MsgBusinessRoll { type: 'businessRoll'; }        // roll the di
 export interface MsgBusinessBuy { type: 'businessBuy'; }          // buy the (unowned) tile you're on
 export interface MsgBusinessBuild { type: 'businessBuild'; pos: number; kind: 'house' | 'hotel'; } // build on your tile
 export interface MsgBusinessSell { type: 'businessSell'; pos: number; kind: 'house' | 'hotel'; }   // sell a building back to the bank
+export interface MsgBusinessMortgage { type: 'businessMortgage'; pos: number; }     // mortgage your land to the bank
+export interface MsgBusinessUnmortgage { type: 'businessUnmortgage'; pos: number; } // repay + lift the mortgage
 export interface MsgBusinessEndTurn { type: 'businessEndTurn'; }  // end your turn
 
 export type ClientMessage =
@@ -307,6 +309,8 @@ export type ClientMessage =
   | MsgBusinessBuy
   | MsgBusinessBuild
   | MsgBusinessSell
+  | MsgBusinessMortgage
+  | MsgBusinessUnmortgage
   | MsgBusinessEndTurn;
 
 // ─── WebSocket messages: Server → Client ────────────────────────────────────
