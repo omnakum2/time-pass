@@ -244,9 +244,15 @@ export class BusinessRoom extends BaseRoom {
     }
   }
 
-  // Rent on landing (Phase 3 = bare site rent; buildings arrive in Phase 4).
+  // Rent on landing. Bare property = site rent; a developed property charges
+  // houseRent[houses] + hotelRent instead (the same owner holds land + buildings
+  // in Phase 4 — split ownership arrives in Phase 6).
   private rentFor(tile: BoardTile, own: TileOwnership, total: number): number {
-    if (tile.type === 'property') return tile.siteRent;
+    if (tile.type === 'property') {
+      if (own.houses <= 0 && !own.hotel) return tile.siteRent;
+      const houseR = own.houses > 0 ? tile.houseRent[own.houses - 1] : 0;
+      return houseR + (own.hotel ? tile.hotelRent : 0);
+    }
     if (tile.type === 'station') {
       const n = this.tilesOfTypeOwnedBy(own.land!, 'station');
       return GLOBALS.stationRent[Math.max(0, Math.min(n, GLOBALS.stationRent.length) - 1)] ?? 0;
@@ -283,6 +289,58 @@ export class BusinessRoom extends BaseRoom {
     this.setAnnouncement({
       variant: 'intro',
       title: `${this.nameOf(playerId)} bought ${tile.name} for ₹${price.toLocaleString('en-IN')}`,
+    });
+    this.broadcastState();
+    return null;
+  }
+
+  // How many properties of a given colour a player owns the LAND of (build-gate base).
+  private coloursOwnedBy(playerId: string, colour: string): number {
+    return Object.entries(this.ownership).filter(([pos, o]) => {
+      const t = tileAt(Number(pos));
+      return o.land === playerId && t.type === 'property' && t.colour === colour;
+    }).length;
+  }
+
+  // Build one house or the hotel on a property you own — gated by owning ≥3 of that
+  // colour. Houses (≤maxHouses) and the hotel are independent; buildCost is the same.
+  private businessBuild(playerId: string, pos: number, kind: 'house' | 'hotel'): ErrorCode | null {
+    if (this.phase !== 'BUYING') return 'WRONG_PHASE';
+    if (playerId !== this.currentTurnPlayerId()) return 'NOT_YOUR_TURN';
+    const tile = tileAt(pos);
+    const own = this.ownership[pos];
+    if (tile.type !== 'property' || !own || own.land !== playerId) return 'ILLEGAL_MOVE';
+    if (this.coloursOwnedBy(playerId, tile.colour) < GLOBALS.buildColourThreshold) return 'ILLEGAL_MOVE';
+    if (kind === 'house' && own.houses >= GLOBALS.maxHouses) return 'ILLEGAL_MOVE';
+    if (kind === 'hotel' && own.hotel) return 'ILLEGAL_MOVE';
+    if ((this.cash[playerId] ?? 0) < tile.buildCost) return 'INSUFFICIENT_FUNDS';
+    this.cash[playerId] = (this.cash[playerId] ?? 0) - tile.buildCost;
+    own.buildingOwner = playerId; // P4: the builder is always the land owner (split ownership = P6)
+    if (kind === 'house') own.houses += 1; else own.hotel = true;
+    this.setAnnouncement({
+      variant: 'intro',
+      title: `${this.nameOf(playerId)} built a ${kind} on ${tile.name} (−₹${tile.buildCost.toLocaleString('en-IN')})`,
+    });
+    this.broadcastState();
+    return null;
+  }
+
+  // Sell a house / the hotel back to the bank for half the build cost.
+  private businessSell(playerId: string, pos: number, kind: 'house' | 'hotel'): ErrorCode | null {
+    if (this.phase !== 'BUYING') return 'WRONG_PHASE';
+    if (playerId !== this.currentTurnPlayerId()) return 'NOT_YOUR_TURN';
+    const tile = tileAt(pos);
+    const own = this.ownership[pos];
+    if (tile.type !== 'property' || !own || own.buildingOwner !== playerId) return 'ILLEGAL_MOVE';
+    if (kind === 'house' && own.houses <= 0) return 'ILLEGAL_MOVE';
+    if (kind === 'hotel' && !own.hotel) return 'ILLEGAL_MOVE';
+    const refund = Math.round(tile.buildCost * 0.5); // sell back at half the build cost
+    this.cash[playerId] = (this.cash[playerId] ?? 0) + refund;
+    if (kind === 'house') own.houses -= 1; else own.hotel = false;
+    if (own.houses === 0 && !own.hotel) own.buildingOwner = null;
+    this.setAnnouncement({
+      variant: 'intro',
+      title: `${this.nameOf(playerId)} sold a ${kind} on ${tile.name} (+₹${refund.toLocaleString('en-IN')})`,
     });
     this.broadcastState();
     return null;
@@ -393,6 +451,8 @@ export class BusinessRoom extends BaseRoom {
       case 'updateRoomSettings': return this.updateRoomSettings(playerId, msg.maxPlayers);
       case 'businessRoll':       return this.businessRoll(playerId);
       case 'businessBuy':        return this.businessBuy(playerId);
+      case 'businessBuild':      return this.businessBuild(playerId, msg.pos, msg.kind);
+      case 'businessSell':       return this.businessSell(playerId, msg.pos, msg.kind);
       case 'businessEndTurn':    return this.businessEndTurn(playerId);
       default:                   return null; // not a message this game handles
     }

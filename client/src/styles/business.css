@@ -199,6 +199,75 @@
 }
 .business-action-btn--end:hover { background: rgba(255, 255, 255, 0.06); }
 
+/* ─── Building pips (owner-coloured) ──────────────────────────────────────────*/
+.business-tile__pips {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+.business-pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+.business-pip--hotel {
+  width: 13px;
+  height: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.5rem;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
+}
+
+/* ─── Build panel (deeds you can develop) ─────────────────────────────────────*/
+.business-build-panel {
+  width: min(92vw, 720px);
+  background: var(--surface);
+  border: 1px solid var(--game-primary);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.business-build-panel__title {
+  font-weight: 800;
+  color: var(--game-primary);
+  margin-bottom: 6px;
+}
+.business-build-panel__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.business-build-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.business-build-row__name { font-weight: 800; min-width: 92px; }
+.business-build-row__state { font-size: 0.85rem; opacity: 0.85; min-width: 48px; }
+.business-mini-btn {
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--game-primary);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.business-mini-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); }
+.business-mini-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.business-mini-btn--sell { border-color: var(--surface-2); }
+
 /* ─── Cash panel ──────────────────────────────────────────────────────────────*/
 .business-cash-panel {
   display: flex;

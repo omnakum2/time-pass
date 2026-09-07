@@ -81,6 +81,10 @@ export function validateMessage(msg: ClientMessage): ErrorCode | null {
     case 'businessBuy':
     case 'businessEndTurn':
       return null;
+    case 'businessBuild':
+    case 'businessSell':
+      return Number.isInteger(msg.pos) && (msg.kind === 'house' || msg.kind === 'hotel')
+        ? null : 'BAD_MESSAGE';
     case 'startGame':
     case 'restartGame':
     case 'leaveRoom':

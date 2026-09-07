@@ -1,4 +1,4 @@
-import { BOARD, BoardTile } from 'shared';
+import { BOARD, BoardTile, GLOBALS, isProperty } from 'shared';
 import { useBusinessStore } from '../store/businessStore';
 import { useSessionStore } from '../store/sessionStore';
 import { sendMsg } from '../net/socket';
@@ -62,6 +62,14 @@ export function BusinessTable() {
     (cash[playerId] ?? 0) >= myTilePrice;
   const isDoubles = Boolean(state.dice && state.dice[0] === state.dice[1]);
 
+  // Buildable = my property tiles where I own ≥ threshold of that colour (build gate).
+  const myProps = BOARD.filter(isProperty).filter((t) => ownership[t.pos]?.land === playerId);
+  const myColourCount: Record<string, number> = {};
+  myProps.forEach((t) => { myColourCount[t.colour] = (myColourCount[t.colour] ?? 0) + 1; });
+  const buildableTiles = canEnd
+    ? myProps.filter((t) => (myColourCount[t.colour] ?? 0) >= GLOBALS.buildColourThreshold)
+    : [];
+
   // Tokens grouped by the tile they sit on, so a tile can stack multiple tokens.
   const tokensOn = (pos: number) =>
     players.filter(p => (positions[p.id] ?? 0) === pos);
@@ -98,6 +106,26 @@ export function BusinessTable() {
               >
                 {ownerId ? nameOf(ownerId) : 'Bank'}
               </div>
+
+              {own && (own.houses > 0 || own.hotel) && (
+                <div className="business-tile__pips">
+                  {Array.from({ length: own.houses }).map((_, i) => (
+                    <span
+                      key={`h${i}`}
+                      className="business-pip"
+                      style={{ background: colours[own.buildingOwner ?? ''] ?? '#fff' }}
+                    />
+                  ))}
+                  {own.hotel && (
+                    <span
+                      className="business-pip business-pip--hotel"
+                      style={{ background: colours[own.buildingOwner ?? ''] ?? '#fff' }}
+                    >
+                      H
+                    </span>
+                  )}
+                </div>
+              )}
 
               {tokens.length > 0 && (
                 <div className="business-tile__tokens">
@@ -169,6 +197,54 @@ export function BusinessTable() {
           </div>
         </div>
       </div>
+
+      {/* ── Build panel (your turn, colour-gate met) ───────────────────────────*/}
+      {buildableTiles.length > 0 && (
+        <div className="business-build-panel">
+          <div className="business-build-panel__title">Build on your properties</div>
+          <div className="business-build-panel__rows">
+            {buildableTiles.map((t) => {
+              const o = ownership[t.pos]!;
+              const canAfford = (cash[playerId] ?? 0) >= t.buildCost;
+              return (
+                <div key={t.pos} className="business-build-row">
+                  <span className="business-build-row__name" style={{ color: GROUP_COLOUR[t.colour] }}>
+                    {t.name}
+                  </span>
+                  <span className="business-build-row__state">
+                    🏠{o.houses}{o.hotel ? ' 🏨' : ''}
+                  </span>
+                  <button
+                    type="button"
+                    className="business-mini-btn"
+                    disabled={o.houses >= GLOBALS.maxHouses || !canAfford}
+                    onClick={() => sendMsg({ type: 'businessBuild', pos: t.pos, kind: 'house' })}
+                  >
+                    +House ₹{t.buildCost.toLocaleString('en-IN')}
+                  </button>
+                  <button
+                    type="button"
+                    className="business-mini-btn"
+                    disabled={o.hotel || !canAfford}
+                    onClick={() => sendMsg({ type: 'businessBuild', pos: t.pos, kind: 'hotel' })}
+                  >
+                    +Hotel
+                  </button>
+                  {(o.houses > 0 || o.hotel) && (
+                    <button
+                      type="button"
+                      className="business-mini-btn business-mini-btn--sell"
+                      onClick={() => sendMsg({ type: 'businessSell', pos: t.pos, kind: o.hotel ? 'hotel' : 'house' })}
+                    >
+                      Sell {o.hotel ? 'hotel' : 'house'} ½
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Cash panel ─────────────────────────────────────────────────────────*/}
       <div className="business-cash-panel">
