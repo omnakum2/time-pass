@@ -59,6 +59,11 @@ export function BusinessRoomPage() {
           displayRoomId={displayRoomId}
           joinUrl={joinUrl}
           countdownMs={state.countdownMs ?? null}
+          badge={
+            <div style={{ marginTop: 4, color: 'var(--gold)', fontWeight: 700, fontSize: '0.85rem', letterSpacing: '1px' }}>
+              Buy · Build · Bankrupt
+            </div>
+          }
           isHost={isHost}
           onStart={() => sendMsg({ type: 'startGame' })}
           settings={

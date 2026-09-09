@@ -166,16 +166,9 @@
   width: 210px;
   height: 210px;
   border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    var(--metal-deep) 0deg, var(--metal) 45deg, var(--metal) 90deg, var(--metal) 135deg,
-    var(--metal-deep) 180deg, var(--metal) 225deg, var(--metal) 270deg, var(--metal) 315deg, var(--metal-deep) 360deg
-  );
+  background: var(--game-primary);
   padding: 6px;
-  box-shadow:
-    0 14px 38px rgba(0, 0, 0, 0.85),
-    inset 0 2px 4px rgba(255, 255, 255, 0.6),
-    inset 0 -4px 8px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
   transition: transform 0.35s ease;
   z-index: 1;
 }

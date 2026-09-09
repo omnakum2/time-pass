@@ -150,8 +150,15 @@ export class BusinessRoom extends BaseRoom {
   protected autoAction(): void {
     const pid = this.currentTurnPlayerId();
     if (!pid) return;
-    if (this.phase === 'ROLLING') this.businessRoll(pid);
-    else if (this.phase === 'BUYING') this.businessEndTurn(pid);
+    if (this.phase === 'ROLLING') {
+      this.setAnnouncement({ variant: 'intro', title: `${this.nameOf(pid)}'s turn skipped (time expired)` });
+      this.advanceToNextPlayer();
+      this.phase = 'ROLLING';
+      this.beginTurn();
+      this.broadcastState();
+    } else if (this.phase === 'BUYING') {
+      this.businessEndTurn(pid);
+    }
   }
 
   // ─── Movement & turns (Phase 2) ─────────────────────────────────────────────
@@ -286,7 +293,7 @@ export class BusinessRoom extends BaseRoom {
       }
       case 'debit': {
         if (outcome.requiresBuildings && this.buildingsOwned(playerId) === 0) {
-          return `${outcome.label} — no buildings, nothing charged`;
+          return `${outcome.label} - no buildings, nothing charged`;
         }
         this.cash[playerId] = (this.cash[playerId] ?? 0) - outcome.amount;
         return `−₹${outcome.amount.toLocaleString('en-IN')} ${outcome.label}`;
@@ -303,10 +310,10 @@ export class BusinessRoom extends BaseRoom {
       case 'perBuilding': {
         const { houses, hotels } = this.housesAndHotelsOwned(playerId);
         if (outcome.requiresBuildings && houses === 0 && hotels === 0) {
-          return `${outcome.label} — no buildings, nothing charged`;
+          return `${outcome.label} - no buildings, nothing charged`;
         }
         const charge = outcome.house * houses + outcome.hotel * hotels;
-        if (charge <= 0) return `${outcome.label} — nothing owed`;
+        if (charge <= 0) return `${outcome.label} - nothing owed`;
         this.cash[playerId] = (this.cash[playerId] ?? 0) - charge;
         return `−₹${charge.toLocaleString('en-IN')} ${outcome.label}`;
       }
@@ -631,13 +638,8 @@ export class BusinessRoom extends BaseRoom {
     if (this.getPhase() === 'GAME_OVER') { this.broadcastState(); return null; }
     // Doubles let the SAME player roll again (unless they just went bankrupt); read
     // the still-set dice before clearing it for the next roll.
-    const doubles = !this.bankrupt.includes(playerId) && !!this.dice && this.dice[0] === this.dice[1];
     this.dice = null;
-    if (doubles) {
-      this.setAnnouncement({ variant: 'intro', title: `${this.nameOf(playerId)} rolls again (doubles)` });
-    } else {
-      this.advanceToNextPlayer();
-    }
+    this.advanceToNextPlayer();
     this.phase = 'ROLLING';
     this.beginTurn();
     this.broadcastState();

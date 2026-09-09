@@ -1,25 +1,71 @@
 /* ─── Business-specific styling ────────────────────────────────────────────────
-   Layered on top of the shared lounge chrome (index.css). Royal-purple + gold
-   theming comes for free from the `data-game="business"` tokens (styles/theme.css).
-   Only the board-grid + tile pieces live here. Phase 1 = static scaffold. */
+   Layered on top of the shared lounge chrome (index.css).
+   View-port constrained: fits 100% within 100vh without page scrolling. */
 
 .business-page {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 280px;
+  gap: 10px;
+  height: calc(100vh - 60px);
+  height: calc(100dvh - 60px);
+  max-height: calc(100vh - 60px);
+  padding: 6px 10px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1080px) {
+  .business-page {
+    grid-template-columns: 240px minmax(0, 1fr) 240px;
+  }
+}
+
+.business-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--game-primary) var(--surface-2);
+}
+
+.business-middle-col {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
-  padding: 16px;
+  justify-content: space-between;
+  gap: 6px;
+  overflow: hidden;
+  min-width: 0;
 }
 
-/* ─── Board scroll wrapper ───────────────────────────────────────────────────
-   Fits the board on desktop (no scrollbar at ≥720px) but lets the board stay big
-   on phones, so the user PANS it (and pinch-zooms natively) instead of squinting
-   at a shrunk-to-345px grid. */
-.business-board-scroll {
+.business-opponents-row {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-shrink: 0;
   width: 100%;
-  max-width: min(94vw, 720px);
-  margin: 0 auto;
-  overflow: auto;
+}
+
+.business-my-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* ─── Viewport Board Container ─────────────────────────────────────────────── */
+.business-board-scroll {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 /* ─── The 36-tile perimeter board (10×10 CSS grid) ──────────────────────────── */
@@ -28,77 +74,104 @@
   grid-template-columns: repeat(10, 1fr);
   grid-template-rows: repeat(10, 1fr);
   gap: 4px;
-  width: 700px;
-  max-width: 100%;
+  height: 100%;
+  max-height: min(78vh, 720px);
   aspect-ratio: 1 / 1;
-  padding: 10px;
+  width: min(100%, 720px);
+  padding: 6px;
   border-radius: 14px;
-  background: var(--game-felt-deep);
-  border: 1px solid var(--game-primary);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  background: #0f0b18;
+  border: 2px solid var(--game-primary);
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.6);
+  position: relative;
+  box-sizing: border-box;
 }
 
-/* On phones keep the board LARGER than the viewport so it overflows the wrapper
-   and can be panned; max-width:none lets it ignore the wrapper's width cap. */
 @media (max-width: 560px) {
-  .business-board { width: 520px; max-width: none; }
+  .business-board {
+    max-height: 65vh;
+  }
 }
 
-/* ─── A single perimeter tile ────────────────────────────────────────────────
-   Solid colour block, contrast text, NO images. Property tiles get their group
-   colour inline; everything else falls back to a neutral surface (inline). */
+
+/* ─── A single perimeter tile ──────────────────────────────────────────────── */
 .business-tile {
   position: relative;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 2px;
   min-width: 0;
-  padding: 3px 4px;
+  padding: 4px 3px;
   border-radius: 6px;
   color: #fff;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+  text-align: center;
+}
+
+.business-tile:hover {
+  transform: scale(1.05);
+  z-index: 40;
+  border-color: var(--game-primary);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+}
+
+.business-tile--selected {
+  border-color: var(--game-primary) !important;
+  box-shadow: 0 0 0 2px var(--game-primary), 0 6px 20px rgba(232, 181, 58, 0.4);
 }
 
 .business-tile__name {
-  font-size: 0.6rem;
-  font-weight: 700;
-  line-height: 1.05;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.15;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  text-align: center;
 }
 
-.business-tile__price {
-  font-size: 0.55rem;
-  font-weight: 600;
-  opacity: 0.92;
+/* Hide price and bank owner footer inside board tiles to keep tiles clean & prevent cutoffs */
+.business-tile__price,
+.business-tile__footer {
+  display: none !important;
 }
 
 .business-tile__owner {
-  margin-top: auto;
-  font-size: 0.52rem;
+  font-size: 0.5rem;
   font-weight: 800;
   letter-spacing: 0.2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  background: rgba(0, 0, 0, 0.32);
+  background: rgba(0, 0, 0, 0.4);
   border-radius: 4px;
   padding: 0 3px;
-  align-self: flex-start;
-  max-width: 100%;
+  max-width: 80%;
 }
 
-/* Neutral (non-property) tile types read against the surface fallback. */
+.business-tile__info-icon {
+  font-size: 0.52rem;
+  opacity: 0.5;
+}
+
+/* Neutral (non-property) tile types */
 .business-tile--corner .business-tile__name,
 .business-tile--card .business-tile__name,
 .business-tile--tax .business-tile__name {
   color: var(--game-primary);
 }
 
-/* Yellow group carries DARK ink (set inline on the tile) — drop the white-oriented
-   text shadow so the dark name reads crisp on the light-yellow block. */
 .business-tile--g-yellow .business-tile__name {
   text-shadow: none;
 }
@@ -106,27 +179,139 @@
 /* ─── Player tokens sitting on a tile ─────────────────────────────────────────*/
 .business-tile__tokens {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 3px;
+  right: 3px;
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
   max-width: 60%;
   justify-content: flex-end;
+  z-index: 2;
 }
 
 .business-token {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
   font-size: 0.5rem;
-  font-weight: 800;
+  font-weight: 900;
   color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  background: #3B0F73 !important;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.felt-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 0;
+  color: rgba(0, 0, 0, 0.15);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.felt-watermark__title {
+  font-weight: 900;
+  font-size: clamp(2rem, 5.5vw, 4.2rem);
+  letter-spacing: 8px;
+  line-height: 1;
+}
+
+/* ─── Hover Tooltip Popup ────────────────────────────────────────────────── */
+.business-tooltip {
+  position: fixed;
+  background: var(--surface-2);
+  border: 2px solid var(--game-primary);
+  border-radius: 10px;
+  padding: 10px 14px;
+  width: 230px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
+  z-index: 1000;
+  pointer-events: none;
+  color: var(--ink);
+  font-size: 0.78rem;
+  transition: opacity 0.1s ease;
+}
+
+.business-tooltip__header {
+  font-weight: 900;
+  font-size: 0.9rem;
+  color: #fff;
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--game-primary);
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.business-tooltip__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.73rem;
+  padding: 2px 0;
+  color: var(--ink);
+}
+
+.business-tooltip__row strong {
+  color: var(--game-primary);
+}
+
+.business-tooltip__desc {
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+  line-height: 1.35;
+}
+
+/* ─── Tile Deed Inspector Drawer ─────────────────────────────────────────── */
+.business-inspector {
+  width: min(94vw, 820px);
+  background: var(--surface);
+  border: 1.5px solid var(--game-primary);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+.business-inspector__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 900;
+  font-size: 1rem;
+  color: var(--game-primary);
+}
+
+.business-inspector__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.business-inspector__card {
+  background: var(--surface-2);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.business-inspector__card span {
+  display: block;
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+.business-inspector__card strong {
+  font-size: 0.9rem;
+  color: var(--game-primary);
 }
 
 /* ─── Center title / dice area (spans the inner 9×9) ──────────────────────────*/
@@ -136,22 +321,26 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--game-felt);
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--ink);
+  padding: 16px;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.4);
 }
 
 .business-center__brand {
-  font-size: clamp(1.4rem, 5vw, 2.6rem);
+  font-size: clamp(2rem, 5.5vw, 4.2rem);
   font-weight: 900;
-  letter-spacing: 4px;
-  color: var(--game-primary);
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  letter-spacing: 8px;
+  color: rgba(255, 255, 255, 0.15);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6), 0 -1px 0 rgba(255, 255, 255, 0.05);
+  user-select: none;
+  pointer-events: none;
 }
 
 .business-center__sub {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   letter-spacing: 2px;
   text-transform: uppercase;
   opacity: 0.7;
@@ -159,9 +348,9 @@
 
 .business-center__dice {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   margin-top: 6px;
-  min-height: 44px;
+  min-height: 46px;
   align-items: center;
 }
 
@@ -169,14 +358,26 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   background: #fff;
   color: #1a1a1a;
   font-weight: 900;
-  font-size: 1.3rem;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  font-size: 1.4rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  border: 2px solid var(--game-primary);
+}
+
+.business-doubles-badge {
+  background: var(--game-primary);
+  color: #111;
+  font-size: 0.65rem;
+  font-weight: 900;
+  padding: 3px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* ─── Turn controls (roll / end turn) ─────────────────────────────────────────*/
@@ -200,7 +401,7 @@
   font: inherit;
   font-weight: 800;
   letter-spacing: 0.3px;
-  padding: 9px 20px;
+  padding: 10px 22px;
   border-radius: 10px;
   border: 1px solid transparent;
   cursor: pointer;
@@ -211,10 +412,10 @@
 
 .business-action-btn--roll {
   background: var(--game-primary);
-  color: #fff;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  color: #111;
+  box-shadow: 0 4px 16px rgba(232, 181, 58, 0.35);
 }
-.business-action-btn--roll:hover { box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5); }
+.business-action-btn--roll:hover { box-shadow: 0 6px 22px rgba(232, 181, 58, 0.5); }
 
 .business-action-btn--end {
   background: transparent;
@@ -355,11 +556,12 @@
 
 /* ─── Deals (async player-to-player trades) ───────────────────────────────────*/
 .business-deals-panel {
-  width: min(92vw, 720px);
+  width: 100%;
+  box-sizing: border-box;
   background: var(--surface);
   border: 1px solid var(--game-primary);
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -377,23 +579,25 @@
 
 .business-deal-card {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   padding: 8px 10px;
   border-radius: 10px;
   background: var(--surface-2);
-  border: 1px solid var(--surface-2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  width: 100%;
+  box-sizing: border-box;
 }
 .business-deal-card--in { border-left: 3px solid var(--game-primary); }
 .business-deal-card--out { opacity: 0.92; }
 .business-deal-card__text {
-  flex: 1 1 260px;
-  min-width: 0;
-  font-size: 0.86rem;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.78rem;
   line-height: 1.35;
   color: var(--ink);
+  word-break: break-word;
 }
 .business-deal-card__leg { opacity: 0.95; }
 .business-deal-card__sep { opacity: 0.55; }
@@ -401,7 +605,9 @@
 .business-deal-card__btns {
   display: flex;
   gap: 6px;
-  flex: none;
+  flex-wrap: wrap;
+  width: 100%;
+  margin-top: 2px;
 }
 
 /* ─── Propose-deal modal form ─────────────────────────────────────────────────*/

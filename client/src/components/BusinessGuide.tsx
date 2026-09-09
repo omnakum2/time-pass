@@ -14,7 +14,7 @@ const SECTIONS: Record<Lang, GuideSection[]> = {
       body: (
         <>
           <p>
-            Business is a property-trading board game for 2–4 players. Everyone starts
+            Business is a property-trading board game for 2-4 players. Everyone starts
             with <strong>₹15,000</strong>. Roll the dice, travel the 36-tile board, buy
             the cities you land on and charge rent when rivals land on them.
           </p>
@@ -53,9 +53,9 @@ const SECTIONS: Record<Lang, GuideSection[]> = {
           </p>
           <p>Land on a tile someone else owns and you pay them rent:</p>
           <ul>
-            <li><strong>City</strong> — its site rent (or the higher building rent if it is developed).</li>
-            <li><strong>Station</strong> — ₹1,000 / ₹2,000 / ₹4,000 / ₹8,000, by how many of the four the owner holds.</li>
-            <li><strong>Utility</strong> — the dice roll <strong>× 4</strong> if the owner has one, <strong>× 10</strong> if they own both.</li>
+            <li><strong>City</strong> - its site rent (or the higher building rent if it is developed).</li>
+            <li><strong>Station</strong> - ₹1,000 / ₹2,000 / ₹4,000 / ₹8,000, by how many of the four the owner holds.</li>
+            <li><strong>Utility</strong> - the dice roll <strong>× 4</strong> if the owner has one, <strong>× 10</strong> if they own both.</li>
           </ul>
         </>
       ),
@@ -83,9 +83,9 @@ const SECTIONS: Record<Lang, GuideSection[]> = {
       body: (
         <>
           <ul>
-            <li><strong>START</strong> — pays <strong>₹1,500</strong> every time you pass it.</li>
-            <li><strong>CLUB</strong> and <strong>REST HOUSE</strong> — you miss your next turn.</li>
-            <li><strong>JAIL</strong> — a <strong>₹200</strong> fine, but your turn is <em>not</em> skipped.</li>
+            <li><strong>START</strong> - pays <strong>₹1,500</strong> every time you pass it.</li>
+            <li><strong>CLUB</strong> and <strong>REST HOUSE</strong> - you miss your next turn.</li>
+            <li><strong>JAIL</strong> - a <strong>₹200</strong> fine, but your turn is <em>not</em> skipped.</li>
           </ul>
         </>
       ),
@@ -97,7 +97,7 @@ const SECTIONS: Record<Lang, GuideSection[]> = {
         <>
           <p>
             Landing on a <strong>Chance</strong> or <strong>Community Chest</strong> tile
-            draws a card automatically — the <strong>dice total</strong> that brought you
+            draws a card automatically - the <strong>dice total</strong> that brought you
             there picks it (even and odd totals draw different cards).
           </p>
           <p>
@@ -114,8 +114,8 @@ const SECTIONS: Record<Lang, GuideSection[]> = {
       body: (
         <>
           <ul>
-            <li><strong>Income Tax</strong> — ₹200 for every city you own.</li>
-            <li><strong>Wealth Tax</strong> — ₹1,000 for every building (house or hotel) you own.</li>
+            <li><strong>Income Tax</strong> - ₹200 for every city you own.</li>
+            <li><strong>Wealth Tax</strong> - ₹1,000 for every building (house or hotel) you own.</li>
           </ul>
         </>
       ),
@@ -127,7 +127,7 @@ const SECTIONS: Record<Lang, GuideSection[]> = {
         <>
           <p>
             Short of cash? <strong>Mortgage</strong> a plot of land back to the bank for
-            <strong> half</strong> its price — while mortgaged it collects no site rent.
+            <strong> half</strong> its price - while mortgaged it collects no site rent.
           </p>
           <p>
             Un-mortgage later by repaying that amount plus <strong>10% interest</strong>.
